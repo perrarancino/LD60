@@ -1,0 +1,151 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "spider_rig",
+  "description": "Процедурный паук-ползун: 8 ног (по 2 звена, 4 пары: LegN_1 и LegN_2 — левая/правая ноги пары), тело ползёт по любой поверхности тайлов. Части — слои pauk.aseprite (32x32). Ноги: pivot — бедро, rope.segments=2 — два звена (колено), gait_group — группа тетраподной походки (ноги одной группы шагают вместе), bend — в какую сторону выгибается колено (+1 вперёд, -1 назад).",
+  "canvas": {
+    "width": 32,
+    "height": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 32
+  },
+  "crawler": {
+    "body_lower": 2.5,
+    "leg_spread": 1.0,
+    "leg_splay": 4.5,
+    "body_centre_x": 19.5
+  },
+  "parts": [
+    {
+      "name": "Torso",
+      "sprite_id": "enemy_spider_torso",
+      "role": "torso",
+      "pivot": {
+        "x": 19,
+        "y": 28
+      }
+    },
+    {
+      "name": "Head",
+      "sprite_id": "enemy_spider_head",
+      "role": "head",
+      "pivot": {
+        "x": 10,
+        "y": 26
+      }
+    },
+    {
+      "name": "Leg1_1",
+      "sprite_id": "enemy_spider_leg1_1",
+      "role": "leg",
+      "pivot": {
+        "x": 10.5,
+        "y": 24.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 0,
+      "bend": 1
+    },
+    {
+      "name": "Leg1_2",
+      "sprite_id": "enemy_spider_leg1_2",
+      "role": "leg",
+      "pivot": {
+        "x": 9.5,
+        "y": 22.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 1,
+      "bend": 1
+    },
+    {
+      "name": "Leg2_1",
+      "sprite_id": "enemy_spider_leg2_1",
+      "role": "leg",
+      "pivot": {
+        "x": 13.5,
+        "y": 23.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 1,
+      "bend": 1
+    },
+    {
+      "name": "Leg2_2",
+      "sprite_id": "enemy_spider_leg2_2",
+      "role": "leg",
+      "pivot": {
+        "x": 13.5,
+        "y": 22.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 0,
+      "bend": 1
+    },
+    {
+      "name": "Leg3_1",
+      "sprite_id": "enemy_spider_leg3_1",
+      "role": "leg",
+      "pivot": {
+        "x": 19.5,
+        "y": 21.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 0,
+      "bend": -1
+    },
+    {
+      "name": "Leg3_2",
+      "sprite_id": "enemy_spider_leg3_2",
+      "role": "leg",
+      "pivot": {
+        "x": 20.5,
+        "y": 23.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 1,
+      "bend": -1
+    },
+    {
+      "name": "Leg4_1",
+      "sprite_id": "enemy_spider_leg4_1",
+      "role": "leg",
+      "pivot": {
+        "x": 24.5,
+        "y": 21.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 1,
+      "bend": -1
+    },
+    {
+      "name": "Leg4_2",
+      "sprite_id": "enemy_spider_leg4_2",
+      "role": "leg",
+      "pivot": {
+        "x": 25.5,
+        "y": 20.5
+      },
+      "rope": {
+        "segments": 2
+      },
+      "gait_group": 0,
+      "bend": -1
+    }
+  ]
+}

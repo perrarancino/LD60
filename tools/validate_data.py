@@ -59,6 +59,8 @@ player = load("player/player_initial_state.json")
 check(player["sprite_id"] in sprites, "игрок: sprite_id не найден")
 rigs = {r["id"]: r for r in [load(f"rigs/{p.name}") for p in sorted((DATA / "rigs").glob("*.json"))]}
 check(player["rig_id"] in rigs, f"игрок: риг {player['rig_id']} не найден")
+for e in enemies.values():
+    check(e.get("rig_id") is None or e["rig_id"] in rigs, f"враг {e['id']}: риг {e.get('rig_id')} не найден")
 for rig in rigs.values():
     for part in rig["parts"]:
         check(part["sprite_id"] in sprites, f"риг {rig['id']}: нет спрайта {part['sprite_id']}")

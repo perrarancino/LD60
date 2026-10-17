@@ -237,5 +237,32 @@
       "scrap_parts_max": 2,
       "drop_chance_percent": 70.0
     }
+  },
+  {
+    "id": "spider",
+    "display_name": "Паук-ползун (модель SOIC-8)",
+    "lore": "Восьминогий механический паук. Лапки-выводы цепляются за любую поверхность платы: ползает по полу, стенам и потолку, огибая выступы.",
+    "sprite_variants": [
+      "enemy_spider"
+    ],
+    "rig_id": "spider_rig",
+    "stats": {
+      "max_health": 18,
+      "contact_damage": 6,
+      "movement_speed": 38.0
+    },
+    "behavior_type": "crawler",
+    "attack": {
+      "name": "Укус",
+      "damage": 8,
+      "cooldown_seconds": 1.5,
+      "range": 14.0,
+      "description": "Кусает героя, если тот оказался рядом с телом."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 1,
+      "drop_chance_percent": 50.0
+    }
   }
 ]

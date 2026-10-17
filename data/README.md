@@ -22,7 +22,8 @@ data/
 ├── tiles/                        # Тайлы уровня
 │   └── tiles.json                # platform_block (32x32, solid)
 ├── rigs/                         # Процедурные риги персонажей (части-слои, pivot-точки)
-│   └── player_rig.json           # Робот-герой: голова, торс, руки, ноги
+│   ├── player_rig.json           # Робот-герой: голова, торс, руки, ноги
+│   └── spider_rig.json           # Паук-ползун: торс, голова, 8 ног по 2 звена
 ├── backgrounds/                  # Параллакс-фоны (слои, скорости, цвет неба)
 │   └── bg_textalite.json         # Фон из bg_textalite.aseprite: 8 слоёв
 ├── levels/                       # Уровни в виде текстовой сетки

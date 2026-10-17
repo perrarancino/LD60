@@ -44,6 +44,7 @@ export interface EnemySpawnDef {
   sprite_id: string;
   x: number;
   y: number;
+  surface?: 'floor' | 'ceiling' | 'wall_left' | 'wall_right';
 }
 
 export interface LevelDef {
@@ -63,6 +64,7 @@ export interface EnemyDef {
   id: string;
   display_name: string;
   sprite_variants: string[];
+  rig_id?: string;
   stats: { max_health: number; contact_damage: number; movement_speed: number };
   behavior_type: string;
 }
@@ -75,6 +77,8 @@ export interface RigPartDef {
   pivot: { x: number; y: number };
   face?: { feature_colors: string[]; region?: { x0: number; y0: number; x1: number; y1: number }; max_shift: { x: number; y: number } }; // для головы: черты лица (глаза, рот) отделяются и двигаются по черепу к курсору
   gaze_origin?: { x: number; y: number }; // для головы: середина глаз на холсте — от неё считается направление взгляда на курсор
+  gait_group?: 0 | 1; // ноги ползущего существа: группа походки
+  bend?: 1 | -1; // ноги ползущего существа: сторона выгиба колена
   length?: number; // для ног: длина в пикселях (от бедра до стопы)
   rope?: { segments: number }; // рука-канат: слой режется на сегменты с verlet-физикой
 }
@@ -83,6 +87,7 @@ export interface RigDef {
   id: string;
   canvas: { width: number; height: number };
   anchor: { x: number; y: number };
+  crawler?: { body_lower: number; leg_spread?: number; leg_splay?: number; body_centre_x?: number };
   parts: RigPartDef[]; // снизу вверх
 }
 

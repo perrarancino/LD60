@@ -18,6 +18,17 @@
       "required": ["x", "y"],
       "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
     },
+    "crawler": {
+      "type": "object",
+      "description": "Параметры ползающего существа (паука)",
+      "required": ["body_lower"],
+      "properties": {
+        "body_lower": { "type": "number", "minimum": 0, "description": "На сколько px тело опущено к поверхности относительно рисунка — ноги получают запас длины и сгибаются в коленях" },
+        "leg_spread": { "type": "number", "minimum": 0, "description": "Множитель собственного наклона ноги из рисунка при постановке стопы (1 — как нарисовано)" },
+        "leg_splay": { "type": "number", "minimum": 0, "description": "Дополнительный разброс стоп наружу от центра тела, px — ноги расставлены шире" },
+        "body_centre_x": { "type": "number", "description": "Центр тела по X на холсте (px); по умолчанию — якорь" }
+      }
+    },
     "parts": {
       "type": "array",
       "description": "Части снизу вверх (порядок отрисовки)",
@@ -59,6 +70,8 @@
             "description": "Только для head: середина глаз на холсте (px). Голова смотрит вбок (вперёд = +x по взгляду), поэтому она поворачивается так, чтобы взгляд от этой точки шёл на курсор",
             "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
           },
+          "gait_group": { "type": "integer", "minimum": 0, "maximum": 1, "description": "Только для ног ползущего существа: группа походки (ноги одной группы шагают вместе)" },
+          "bend": { "type": "integer", "enum": [-1, 1], "description": "Только для ног ползущего существа: в какую сторону выгибается колено" },
           "length": { "type": "number", "minimum": 1, "description": "Только для leg: длина ноги от бедра до стопы, px" },
           "rope": {
             "type": "object",

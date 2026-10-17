@@ -37,6 +37,7 @@
       "items": { "type": "string" },
       "description": "Id спрайтов из data/sprites/sprites.json (может быть пустым на этапе геймдизайна)"
     },
+    "rig_id": { "type": "string", "description": "Id процедурного рига из data/rigs/ (для врагов, собранных из частей-слоёв, например паук)" },
     "stats": {
       "type": "object",
       "required": ["max_health", "contact_damage", "movement_speed"],
@@ -58,7 +59,8 @@
         "spitter",
         "polarity_flipper",
         "diver",
-        "bouncing_projectile"
+        "bouncing_projectile",
+        "crawler"
       ],
       "description": "Базовый тип передвижения и поиска целей"
     },

@@ -1,0 +1,129 @@
+{
+  "source": "spider.aseprite",
+  "canvasWidth": 32,
+  "canvasHeight": 32,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Torso",
+      "file": "spider_layers/Torso.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        8,
+        17,
+        31,
+        31
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "spider_layers/Head.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        2,
+        20,
+        12,
+        29
+      ]
+    },
+    {
+      "name": "Leg1_1",
+      "file": "spider_layers/Leg1_1.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        10,
+        24,
+        12,
+        31
+      ]
+    },
+    {
+      "name": "Leg1_2",
+      "file": "spider_layers/Leg1_2.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        5,
+        22,
+        10,
+        32
+      ]
+    },
+    {
+      "name": "Leg2_1",
+      "file": "spider_layers/Leg2_1.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        13,
+        23,
+        15,
+        32
+      ]
+    },
+    {
+      "name": "Leg2_2",
+      "file": "spider_layers/Leg2_2.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        13,
+        22,
+        15,
+        32
+      ]
+    },
+    {
+      "name": "Leg3_1",
+      "file": "spider_layers/Leg3_1.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        16,
+        21,
+        20,
+        31
+      ]
+    },
+    {
+      "name": "Leg3_2",
+      "file": "spider_layers/Leg3_2.png",
+      "z": 7,
+      "visible": true,
+      "bbox": [
+        19,
+        23,
+        21,
+        32
+      ]
+    },
+    {
+      "name": "Leg4_1",
+      "file": "spider_layers/Leg4_1.png",
+      "z": 8,
+      "visible": true,
+      "bbox": [
+        21,
+        21,
+        25,
+        30
+      ]
+    },
+    {
+      "name": "Leg4_2",
+      "file": "spider_layers/Leg4_2.png",
+      "z": 9,
+      "visible": true,
+      "bbox": [
+        25,
+        20,
+        28,
+        32
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
 import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
+import { Spider } from './entities/Spider.ts';
 import { Player } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
@@ -16,6 +17,11 @@ import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
 import levelData from '../data/levels/test_level.json';
 import playerRigData from '../data/rigs/player_rig.json';
+
+// Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
+const RIGS = Object.values(
+  import.meta.glob('../data/rigs/*.json', { eager: true, import: 'default' }) as Record<string, RigDef>
+);
 
 // Все параллакс-фоны из data/backgrounds (уровень выбирает свой по background_id)
 const BACKGROUNDS = Object.values(
@@ -44,6 +50,7 @@ class GameApp {
   private level!: Level;
   private player!: Player;
   private enemies: Enemy[] = [];
+  private spiders: Spider[] = [];
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -220,7 +227,12 @@ class GameApp {
       playerData.sprite_id,
       ...rigDef.parts.map((p) => p.sprite_id),
       ...Level.spriteIds(levelDef, tileset),
-      ...levelDef.enemies.map((e) => e.sprite_id)
+      ...levelDef.enemies.map((e) => e.sprite_id),
+      // части тела врагов, собранных из слоёв (паук)
+      ...levelDef.enemies.flatMap((e) => {
+        const rid = enemyDefs.get(e.enemy_id)?.rig_id;
+        return rid ? (RIGS.find((r) => r.id === rid)?.parts.map((p) => p.sprite_id) ?? []) : [];
+      })
     ]);
 
     if (bgDef) {
@@ -239,6 +251,15 @@ class GameApp {
     for (const spawn of levelDef.enemies) {
       const def = enemyDefs.get(spawn.enemy_id);
       if (!def) throw new Error(`Уровень ссылается на неизвестного врага "${spawn.enemy_id}"`);
+      if (def.behavior_type === 'crawler') {
+        // Ползающий враг (паук): процедурное тело по поверхностям тайлов
+        const rig = RIGS.find((r) => r.id === def.rig_id);
+        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const spider = new Spider(def, spawn, this.level, rig, this.sprites);
+        this.spiders.push(spider);
+        this.worldLayer.addChild(spider.container);
+        continue;
+      }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
@@ -302,7 +323,10 @@ class GameApp {
     // 2. Игрок: ввод + физика на тайлах
     this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
-    // 3. Камера
+    // 3. Враги
+    for (const spider of this.spiders) spider.update(dt);
+
+    // 4. Камера
     this.updateCamera(dt);
   }
 }

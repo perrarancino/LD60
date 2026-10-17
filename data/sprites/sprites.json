@@ -352,11 +352,167 @@
       },
       "animations": {
         "idle": {
-          "frames": [0, 1, 2, 3, 4, 5],
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "frame_duration_ms": 100,
           "loop": true
         }
       }
+    },
+    {
+      "id": "enemy_spider",
+      "category": "enemies",
+      "image": "enemies/spider.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 3,
+        "offset_y": 18,
+        "width": 27,
+        "height": 14
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_torso",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Torso.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_head",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Head.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg1_1",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg1_1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg1_2",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg1_2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg2_1",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg2_1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg2_2",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg2_2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg3_1",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg3_1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg3_2",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg3_2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg4_1",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg4_1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_leg4_2",
+      "category": "enemies",
+      "image": "enemies/spider_layers/Leg4_2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

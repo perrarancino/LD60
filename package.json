@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "exe": "powershell -ExecutionPolicy Bypass -File tools/launcher/build-exe.ps1",
     "exe:release": "powershell -ExecutionPolicy Bypass -File tools/launcher/build-exe.ps1 -Standalone",
-    "sprites": "python tools/aseprite2png/aseprite2png.py assets/source -r -o assets/sprites && python tools/aseprite2png/aseprite2png.py assets/source/player/player.aseprite --layers -o assets/sprites/player && python tools/aseprite2png/aseprite2png.py assets/source/backgrounds/bg_textalite.aseprite --layers -o assets/sprites/backgrounds"
+    "sprites": "python tools/aseprite2png/aseprite2png.py assets/source -r -o assets/sprites && python tools/aseprite2png/aseprite2png.py assets/source/player/player.aseprite --layers -o assets/sprites/player && python tools/aseprite2png/aseprite2png.py assets/source/backgrounds/bg_textalite.aseprite --layers -o assets/sprites/backgrounds && python tools/aseprite2png/aseprite2png.py assets/source/enemies/spider.aseprite --layers -o assets/sprites/enemies"
   },
   "dependencies": {
     "howler": "^2.2.4",

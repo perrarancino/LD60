@@ -32,7 +32,8 @@
           "enemy_id": { "type": "string", "description": "Id из data/enemies/enemies.json" },
           "sprite_id": { "type": "string", "description": "Вариант внешности (должен быть в sprite_variants врага)" },
           "x": { "type": "integer" },
-          "y": { "type": "integer" }
+          "y": { "type": "integer" },
+          "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" }
         }
       }
     }
