@@ -13,6 +13,7 @@ const CLIMB_COOLDOWN = 0.15;
 const WALL_SLIDE_SPEED = 70; // макс. скорость падения при скольжении по стене, px/с
 const WALL_JUMP_PUSH = 170; // начальный толчок от стены по горизонтали, px/с (чуть быстрее бега — плавный «вынос» вперёд)
 const WALL_JUMP_VY = 0.95; // доля силы обычного прыжка
+const WALL_JUMP_COOLDOWN = 0.28; // с: пауза между прыжками от стены (не чаще)
 const WALL_COYOTE = 0.1; // с: прыжок от стены возможен сразу после потери контакта с ней
 const AIR_ACCEL = 900; // px/с²: управляемость в воздухе после прыжка от стены
 const AIR_DRAG = 260; // px/с²: плавное торможение без ввода
@@ -61,7 +62,7 @@ export class Player {
   private climbCooldown = 0;
   private wallDir: -1 | 0 | 1 = 0; // последняя стена, с которой был контакт
   private wallCoyote = 0;
-  private lastJumpWall: -1 | 0 | 1 = 0; // от этой стены уже прыгали (с неё повторно нельзя, пока не коснулись земли/другой стены)
+  private wallJumpCd = 0; // пауза между прыжками от стены, с
   private airSteer = false; // после прыжка от стены скорость по X меняется плавно и управляется
   private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
   private wallX = 0;
@@ -129,7 +130,7 @@ export class Player {
     } else {
       this.wallCoyote -= dt;
     }
-    if (b.grounded) this.lastJumpWall = 0;
+    this.wallJumpCd -= dt;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
@@ -156,7 +157,7 @@ export class Player {
         this.jumpBuffer = 0;
         return;
       }
-      if (this.wallDir !== this.lastJumpWall) this.wallJump();
+      if (this.wallJumpCd <= 0) this.wallJump();
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
     if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4) {
@@ -230,8 +231,7 @@ export class Player {
 
   /**
    * Прыжок от стены: полноценный прыжок вверх с лёгким толчком от стены; дальше герой управляется как в обычном прыжке
-   * (скорость по X плавно подстраивается под ввод). С одной и той же стены повторно прыгнуть нельзя — только с другой
-   * или после касания земли, поэтому по одиночной стене не взобраться бесконечно.
+   * (скорость по X плавно подстраивается под ввод). Прыжки от стены можно повторять, но не чаще WALL_JUMP_COOLDOWN.
    */
   private wallJump(): void {
     const b = this.body;
@@ -240,7 +240,7 @@ export class Player {
     b.vx = away * WALL_JUMP_PUSH;
     this.face(away);
     this.airSteer = true;
-    this.lastJumpWall = this.wallDir;
+    this.wallJumpCd = WALL_JUMP_COOLDOWN;
     this.jumpBuffer = this.wallCoyote = 0;
     this.wallDir = 0;
     this.sliding = 0;

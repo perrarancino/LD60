@@ -45,8 +45,9 @@ export class Body {
    */
   public wallContact(level: Level, prefer = 0): -1 | 0 | 1 {
     const ts = level.tileSize;
-    const r0 = Math.floor((this.top + 3) / ts);
-    const r1 = Math.floor((this.bottom - 3) / ts);
+    // Границы уровня считаются стеной только в пределах его высоты (иначе по ним можно лезть бесконечно вверх)
+    const r0 = Math.max(0, Math.floor((this.top + 3) / ts));
+    const r1 = Math.min(level.heightTiles - 1, Math.floor((this.bottom - 3) / ts));
     const probe = (x: number): boolean => {
       const cx = Math.floor(x / ts);
       for (let cy = r0; cy <= r1; cy++) if (level.isSolid(cx, cy)) return true;
