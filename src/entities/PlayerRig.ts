@@ -2,6 +2,7 @@ import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import { GAME_CONFIG } from '../core/Constants.ts';
 import type { RigDef, RigPartDef } from '../data/types.ts';
+import { splitFace } from './FaceSplit.ts';
 import { RopeLimb } from './RopeLimb.ts';
 
 /** Фаза залезания на уступ. */
@@ -55,7 +56,8 @@ interface Foot {
 }
 
 // Настройки процедурной анимации
-const HEAD_MAX_TILT = 1.3; // максимальный наклон головы к курсору, рад (~75°): курсор почти на уровне шеи — голова почти горизонтально
+const HEAD_ROLL_SHARE = 0.4; // доля угла на курсор, на которую наклоняется голова целиком (остальное «досматривают» глаза)
+const HEAD_MAX_ROLL = 0.5; // максимальный наклон головы, рад (~29°)
 const TORSO_FOLLOW = 0.3; // торс поворачивается за головой, но заметно слабее (доля наклона головы)
 const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги от вертикали, рад
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
@@ -93,6 +95,8 @@ export class PlayerRig {
   private headRot = 0;
   private pelvisDrop = 0;
   private wasClimbing = false;
+  private faceSprite: Sprite | null = null; // лицо (глаза, рот) поверх черепа: сдвигается к курсору
+  private faceShift = { x: 0, y: 0 };
   private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
@@ -107,6 +111,16 @@ export class PlayerRig {
         const limb = new RopeLimb(sprites.imageData(p.sprite_id), p.pivot, p.rope.segments);
         part = { def: p, sprite: null, limb };
         this.tilt.addChild(limb.container);
+      } else if (p.role === 'head' && p.face) {
+        // Череп и лицо — отдельные спрайты: лицо сдвигается по черепу, и голова «смотрит» на курсор
+        const { skull, face } = splitFace(sprites.imageData(p.sprite_id), p.face.feature_colors);
+        const sprite = new Sprite(skull);
+        sprite.pivot.set(p.pivot.x, p.pivot.y);
+        const faceSprite = new Sprite(face);
+        faceSprite.pivot.set(p.pivot.x, p.pivot.y);
+        this.faceSprite = faceSprite;
+        part = { def: p, sprite, limb: null };
+        this.tilt.addChild(sprite, faceSprite);
       } else {
         const sprite = sprites.createSprite(p.sprite_id);
         sprite.pivot.set(p.pivot.x, p.pivot.y);
@@ -214,28 +228,57 @@ export class PlayerRig {
     place(this.torso, waist.x + torsoOx, waist.y + torsoOy, this.torsoRot);
     const headPos = attach(this.head.def.pivot);
 
-    // Голова смотрит на курсор серединой: ось «шея -> центр головы» направлена точно на курсор.
-    // Угол считается от шеи (вокруг неё голова и вращается), от «вверх»: 0 — курсор над шеей, + — вправо.
-    // Курсор в нижней полуплоскости отражается (голова не переворачивается): прямо под шеей — 0, на уровне шеи — максимум.
+    // Голова «смотрит» на курсор двумя способами: целиком слегка наклоняется к нему (как раньше, но мягче), а черты лица
+    // (глаза, брови, рот) сдвигаются по черепу в сторону курсора — глаза смотрят прямо на него.
+    const nk = this.head.def.pivot;
+    const face = this.head.def.face;
     if (headTarget === null) {
+      // Наклон головы: угол на курсор от шеи (вверх = 0, вправо = +), для нижней полуплоскости отражается
       const nxw = s.bodyX + (headPos.x - this.def.anchor.x) * f;
       const nyw = s.bodyY + (headPos.y - this.def.anchor.y);
       const adx = (s.aimX - nxw) * f;
       const ady = s.aimY - nyw;
-      const adist = Math.hypot(adx, ady);
-      const agin = Math.min(1, adist / 24); // у самой шеи курсор не дёргает голову
+      const agin = Math.min(1, Math.hypot(adx, ady) / 24);
       const aimAngle = Math.atan2(adx, -ady);
       const toward = Math.sign(aimAngle) * Math.min(Math.abs(aimAngle), Math.PI - Math.abs(aimAngle));
-      const hc = this.headCenter;
-      const nk = this.head.def.pivot;
-      const restOffset = Math.atan2(hc.x - nk.x, nk.y - hc.y); // центр головы чуть смещён от вертикали над шеей
-      this.prevTilt = clamp(toward, -HEAD_MAX_TILT, HEAD_MAX_TILT) * agin;
-      headTarget = this.prevTilt - restOffset - this.torsoRot; // итоговый поворот головы = torsoRot + headRot
+      this.prevTilt = clamp(toward * HEAD_ROLL_SHARE, -HEAD_MAX_ROLL, HEAD_MAX_ROLL) * agin;
+      headTarget = this.prevTilt - this.torsoRot;
     } else {
       this.prevTilt = 0;
     }
     this.headRot = approach(this.headRot, headTarget, 22, dt);
-    place(this.head, headPos.x, headPos.y, this.torsoRot + this.headRot);
+    const headTot = this.torsoRot + this.headRot;
+    place(this.head, headPos.x, headPos.y, headTot);
+
+    if (this.faceSprite && face) {
+      // Направление на курсор от глаз (в системе контейнера: вперёд = +x), затем — в системе черепа (с учётом поворота головы)
+      const eye = this.head.def.gaze_origin ?? this.headCenter;
+      const vx = eye.x - nk.x;
+      const vy = eye.y - nk.y;
+      const c = Math.cos(headTot);
+      const sn = Math.sin(headTot);
+      const ex = headPos.x + vx * c - vy * sn;
+      const ey = headPos.y + vx * sn + vy * c;
+      const gx = (s.aimX - (s.bodyX + (ex - this.def.anchor.x) * f)) * f;
+      const gy = s.aimY - (s.bodyY + (ey - this.def.anchor.y));
+      const gd = Math.hypot(gx, gy);
+      const gGain = Math.min(1, gd / 24);
+      const ux = gd > 1e-3 ? (gx / gd) * gGain : 0;
+      const uy = gd > 1e-3 ? (gy / gd) * gGain : 0;
+      // в систему черепа: поворот на -headTot
+      const sx = ux * c + uy * sn;
+      const sy = -ux * sn + uy * c;
+      this.faceShift.x = approach(this.faceShift.x, sx * face.max_shift.x, 26, dt);
+      this.faceShift.y = approach(this.faceShift.y, sy * face.max_shift.y, 26, dt);
+      // целые пиксели арта — черты не «плывут» между пикселями
+      const qx = Math.round(this.faceShift.x);
+      const qy = Math.round(this.faceShift.y);
+      // обратно в систему контейнера
+      const px = qx * c - qy * sn;
+      const py = qx * sn + qy * c;
+      this.faceSprite.position.set(headPos.x - this.def.anchor.x + px, headPos.y - this.def.anchor.y + py);
+      this.faceSprite.rotation = headTot;
+    }
 
     for (const foot of this.feet) {
       const pv = foot.part.def.pivot;

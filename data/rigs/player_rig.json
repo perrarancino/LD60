@@ -62,6 +62,21 @@
       "pivot": {
         "x": 31,
         "y": 32
+      },
+      "gaze_origin": {
+        "x": 31,
+        "y": 20.5
+      },
+      "face": {
+        "feature_colors": [
+          "#7a4a1c",
+          "#4a2a10",
+          "#f2c14e"
+        ],
+        "max_shift": {
+          "x": 4,
+          "y": 2
+        }
       }
     },
     {
