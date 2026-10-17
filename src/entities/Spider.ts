@@ -9,15 +9,16 @@ const BODY_FRONT = 9; // px: на таком расстоянии впереди
 const WALL_PROBE_HEIGHT = 4; // px над поверхностью, на которой проверяем стену впереди
 const EDGE_PROBE = 1.5; // px под поверхностью — проверка опоры под телом (внешний угол)
 const EDGE_WRAP_DEPTH = 3; // px: на сколько паук «сползает» по грани за край
-const FOLLOW_POS = 32; // 1/с: сглаживание видимой позиции (скругляет резкие переходы на углах)
-const FOLLOW_ANGLE = 16; // 1/с: сглаживание поворота тела
+const FOLLOW_POS = 55; // 1/с: сглаживание видимой позиции (скругляет резкие переходы на углах)
+const FOLLOW_ANGLE = 26; // 1/с: сглаживание поворота тела
 
 // ---- Походка
-const STEP_TRIGGER = 5; // px: нога отстала от нейтрального положения на столько — делаем шаг
-const STEP_LEAD = 3; // px: стопа ставится чуть впереди нейтрального положения
-const STEP_DURATION = 0.13; // с
-const STEP_ARC = 3.2; // px: высота подъёма стопы в махе
-const MAX_SWINGING = 2; // одновременно в воздухе не больше стольких ног (диагональная пара)
+const STEP_TRIGGER = 1.9; // px: нога отстала от нейтрального положения на столько — делаем шаг (шаги мелкие, ноги не раскрываются шире нарисованного)
+const STEP_LEAD = 0.9; // px: стопа ставится чуть впереди нейтрального положения
+const STEP_DURATION = 0.09; // с
+const STEP_ARC = 2; // px: высота подъёма стопы в махе
+const CHORD_MARGIN = 3.5; // px: нога не раскрывается шире нарисованной больше, чем на столько (ограничение для вида)
+const FOOT_LIFT = 0.5; // px: нижний пиксель ноги стоит на поверхности (точка стопы — центр пикселя)
 
 interface Vec {
   x: number;
@@ -28,6 +29,7 @@ interface Foot {
   leg: TwoBoneLeg;
   hip: Vec; // бедро в системе тела (начало — точка контакта, +x по рисунку), уже с учётом body_raise
   rest: Vec; // нейтральная стопа в системе тела (на поверхности, y = 0)
+  maxChord: number; // наибольшее показываемое расстояние бедро-стопа (нарисованное + запас)
   group: number;
   world: Vec; // положение стопы в мире
   swing: boolean;
@@ -62,6 +64,8 @@ export class Spider {
   private readonly speed: number;
   private turnTimer: number;
   private cornerCooldown = 0;
+  private turn = 0; // какая группа ног шагает сейчас
+  private stepsThisTurn = 0;
   private urgent = 0; // время, пока ноги шагают «аврально» (сразу после поворота на углу)
 
   constructor(
@@ -92,8 +96,9 @@ export class Spider {
       // Нейтральная стопа: смещение от бедра из рисунка (×spread) + разброс наружу от центра тела; стопа на поверхности (y = 0)
       const outward = d.hip.x < centreX ? -1 : 1;
       const rest = { x: hip.x + (d.foot.x - d.hip.x) * spread + outward * splay, y: 0 };
+      const artChord = Math.hypot(d.foot.x - d.hip.x, d.foot.y - d.hip.y);
       this.feet.push({
-        leg, hip, rest, group: d.gait_group, world: { x: 0, y: 0 }, swing: false, from: { x: 0, y: 0 }, t: 0
+        leg, hip, rest, maxChord: Math.max(artChord, 2) + CHORD_MARGIN, group: d.gait_group, world: { x: 0, y: 0 }, swing: false, from: { x: 0, y: 0 }, t: 0
       });
       this.bodyContainer.addChild(leg.container);
     }
@@ -215,8 +220,14 @@ export class Spider {
     this.visAngle += wrapAngle(this.targetAngle() - this.visAngle) * (1 - Math.exp(-FOLLOW_ANGLE * dt));
     const mirror = this.targetMirror();
     if (mirror !== this.mirror) {
-      // Разворот: тело отражается, ноги переопределяются — стопы остаются на месте в мире
+      // Разворот: всё тело (вместе с ногами) отражается целиком — стопы переносим вместе с ним, а не оставляем в мире:
+      // иначе бёдра прыгнули бы на другую сторону, а ноги вытянулись бы далеко за нарисованную длину
+      const locals = this.feet.map((f) => ({ w: this.toLocal(f.world.x, f.world.y), from: this.toLocal(f.from.x, f.from.y) }));
       this.mirror = mirror;
+      this.feet.forEach((f, i) => {
+        f.world = this.toWorld(locals[i].w.x, locals[i].w.y);
+        f.from = this.toWorld(locals[i].from.x, locals[i].from.y);
+      });
     }
     this.applyTransform();
 
@@ -230,7 +241,6 @@ export class Spider {
     if (this.turnTimer <= 0) {
       this.t = { x: -this.t.x, y: -this.t.y };
       this.turnTimer = 4 + Math.random() * 6;
-      this.urgent = 0.25; // при развороте тело отражается — ноги быстро подтягиваются на новые места
     }
 
     const step = this.speed * dt;
@@ -300,7 +310,7 @@ export class Spider {
     const n = { x: this.visNormal().x, y: this.visNormal().y };
     // проекция на поверхность: луч вниз от точки над ней
     const hit = this.cast({ x: base.x + n.x * 5, y: base.y + n.y * 5 }, { x: -n.x, y: -n.y }, 12) ?? base;
-    return { x: hit.x + this.t.x * lead, y: hit.y + this.t.y * lead };
+    return { x: hit.x + n.x * FOOT_LIFT + this.t.x * lead, y: hit.y + n.y * FOOT_LIFT + this.t.y * lead };
   }
 
   private visNormal(): Vec {
@@ -313,13 +323,27 @@ export class Spider {
     return !this.solid(p.x + n.x * 0.6, p.y + n.y * 0.6) && this.solid(p.x - n.x * 0.6, p.y - n.y * 0.6);
   }
 
+  /** Насколько стопа отстала от нейтрального места. */
+  private lag(foot: Foot): number {
+    const nn = this.neutral(foot, 0);
+    return Math.hypot(foot.world.x - nn.x, foot.world.y - nn.y);
+  }
+
   private updateLegs(dt: number): void {
     const n = this.visNormal();
-    const swinging = this.feet.filter((f) => f.swing);
-    const swingingGroups = new Set(swinging.map((f) => f.group));
+
+    // Очерёдность ходов: шагает одна диагональная группа, потом другая — иначе одна группа могла бы не пускать вторую
+    const anySwing = this.feet.some((f) => f.swing);
+    if (!anySwing) {
+      const wants = (g: number) => this.feet.some((f) => f.group === g && !f.swing && (this.lag(f) > STEP_TRIGGER || !this.onSurface(f.world)));
+      const other = 1 - this.turn;
+      if (wants(other) && (this.stepsThisTurn > 0 || !wants(this.turn))) {
+        this.turn = other;
+        this.stepsThisTurn = 0;
+      }
+    }
 
     for (const foot of this.feet) {
-      const neutralNoLead = this.neutral(foot, 0);
       if (foot.swing) {
         foot.t += dt / STEP_DURATION;
         const u = Math.min(1, foot.t);
@@ -335,24 +359,27 @@ export class Spider {
           foot.world = target;
         }
       } else {
-        const lag = Math.hypot(foot.world.x - neutralNoLead.x, foot.world.y - neutralNoLead.y);
         const lost = !this.onSurface(foot.world);
-        const wantsStep = lag > STEP_TRIGGER || lost;
-        const otherGroupBusy = [...swingingGroups].some((g) => g !== foot.group);
-        const tooMany = swinging.length >= MAX_SWINGING;
-        const allowed = this.urgent > 0 || lost || (!otherGroupBusy && !tooMany);
-        if (wantsStep && allowed) {
+        const wantsStep = this.lag(foot) > STEP_TRIGGER || lost;
+        const otherGroupBusy = this.feet.some((f) => f.swing && f.group !== foot.group);
+        const myTurn = foot.group === this.turn && !otherGroupBusy;
+        if (wantsStep && (this.urgent > 0 || lost || myTurn)) {
           foot.swing = true;
           foot.t = 0;
           foot.from = { ...foot.world };
-          swinging.push(foot);
-          swingingGroups.add(foot.group);
+          if (foot.group === this.turn) this.stepsThisTurn++;
         }
       }
 
       // Нога: бедро и стопа в системе тела -> колено двухкостным IK
       const footLocal = this.toLocal(foot.world.x, foot.world.y);
-      foot.leg.update(foot.hip, footLocal);
+      // Нога показывается не длиннее нарисованной (+запас): при резких переходах на углах стопа может отстать, но
+      // нога не вытягивается и не раскрывается шире рисунка
+      const vx = footLocal.x - foot.hip.x;
+      const vy = footLocal.y - foot.hip.y;
+      const vd = Math.hypot(vx, vy);
+      const k = vd > foot.maxChord ? foot.maxChord / vd : 1;
+      foot.leg.update(foot.hip, { x: foot.hip.x + vx * k, y: foot.hip.y + vy * k });
     }
   }
 }

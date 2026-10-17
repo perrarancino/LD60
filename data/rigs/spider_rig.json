@@ -7,13 +7,13 @@
     "height": 32
   },
   "anchor": {
-    "x": 16,
+    "x": 16.5,
     "y": 32
   },
   "crawler": {
-    "body_raise": 4,
-    "leg_spread": 1.3,
-    "leg_splay": 3,
+    "body_raise": 0,
+    "leg_spread": 1,
+    "leg_splay": 0,
     "legs": [
       {
         "name": "Leg1",
