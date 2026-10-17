@@ -25,6 +25,9 @@ python tools/aseprite2png/aseprite2png.py ~/Downloads -o assets/sprites
 python tools/aseprite2png/aseprite2png.py boss.aseprite --columns 4
 ```
 
+Флаг `-r` обходит подпапки и повторяет их структуру в папке вывода
+(так собирается весь `assets/source/` → `assets/sprites/`, см. `npm run sprites`).
+
 По умолчанию результат кладётся в `assets/sprites/`. Флаг `--no-json` отключает запись JSON.
 
 ## Поддержка

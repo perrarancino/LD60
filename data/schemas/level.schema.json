@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Level",
+  "description": "Уровень-сетка из тайлов. Координаты в тайлах; сущности привязаны к нижней границе клетки (origin ног = низ клетки). Ряд 0 — верхний.",
+  "type": "object",
+  "required": ["id", "tile_size", "width", "height", "legend", "rows", "player_spawn", "enemies"],
+  "properties": {
+    "id": { "type": "string" },
+    "display_name": { "type": "string" },
+    "tile_size": { "type": "integer", "minimum": 1 },
+    "width": { "type": "integer", "minimum": 1, "description": "Ширина в тайлах (длина каждой строки rows)" },
+    "height": { "type": "integer", "minimum": 1, "description": "Высота в тайлах (число строк rows)" },
+    "legend": {
+      "type": "object",
+      "description": "Символ строки rows -> id тайла из data/tiles/tiles.json (null = пусто)",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "rows": { "type": "array", "items": { "type": "string" } },
+    "player_spawn": {
+      "type": "object",
+      "required": ["x", "y"],
+      "description": "Клетка, на нижней границе которой появляется игрок",
+      "properties": { "x": { "type": "integer" }, "y": { "type": "integer" } }
+    },
+    "enemies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["enemy_id", "sprite_id", "x", "y"],
+        "properties": {
+          "enemy_id": { "type": "string", "description": "Id из data/enemies/enemies.json" },
+          "sprite_id": { "type": "string", "description": "Вариант внешности (должен быть в sprite_variants врага)" },
+          "x": { "type": "integer" },
+          "y": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../schemas/sprite.schema.json",
+  "version": "1.0.0",
+  "sprites": [
+    {
+      "id": "player",
+      "category": "player",
+      "image": "player/player.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": { "x": 0.5, "y": 1.0 },
+      "hitbox": { "offset_x": 20, "offset_y": 9, "width": 28, "height": 52 },
+      "animations": {
+        "idle": { "frames": [0], "loop": true }
+      }
+    },
+    {
+      "id": "enemy_transistoid_purple",
+      "category": "enemies",
+      "image": "enemies/transistoid_purple.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 3,
+      "origin": { "x": 0.5, "y": 1.0 },
+      "hitbox": { "offset_x": 8, "offset_y": 5, "width": 18, "height": 26 },
+      "animations": {
+        "idle": { "frames": [0, 1, 2], "frame_duration_ms": 100, "loop": true }
+      }
+    },
+    {
+      "id": "enemy_transistoid_amber",
+      "category": "enemies",
+      "image": "enemies/transistoid_amber.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 3,
+      "origin": { "x": 0.5, "y": 1.0 },
+      "hitbox": { "offset_x": 8, "offset_y": 5, "width": 18, "height": 26 },
+      "animations": {
+        "idle": { "frames": [0, 1, 2], "frame_duration_ms": 100, "loop": true }
+      }
+    },
+    {
+      "id": "tile_platform_block",
+      "category": "tiles",
+      "image": "tiles/platform_block.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": { "x": 0.0, "y": 0.0 },
+      "animations": {}
+    }
+  ]
+}

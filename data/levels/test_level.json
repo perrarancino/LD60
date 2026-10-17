@@ -1,0 +1,46 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "test_level",
+  "display_name": "Тестовая плата",
+  "tile_size": 32,
+  "width": 30,
+  "height": 8,
+  "legend": {
+    "#": "platform_block",
+    ".": null
+  },
+  "rows": [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "...............#####..........",
+    "........####............#.....",
+    "........................#.....",
+    "##############################"
+  ],
+  "player_spawn": {
+    "x": 2,
+    "y": 6
+  },
+  "enemies": [
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 13,
+      "y": 6
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_amber",
+      "x": 21,
+      "y": 6
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 17,
+      "y": 3
+    }
+  ]
+}

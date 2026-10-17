@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sprites": "python tools/aseprite2png/aseprite2png.py assets/source -r -o assets/sprites"
   },
   "dependencies": {
     "howler": "^2.2.4",

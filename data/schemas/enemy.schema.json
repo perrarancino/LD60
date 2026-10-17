@@ -7,6 +7,7 @@
     "id",
     "display_name",
     "lore",
+    "sprite_variants",
     "stats",
     "behavior_type",
     "attack",
@@ -24,6 +25,12 @@
     "lore": {
       "type": "string",
       "description": "Лор и визуальное описание противника"
+    },
+    "sprite_variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Id спрайтов из data/sprites/sprites.json — варианты внешности врага"
     },
     "stats": {
       "type": "object",

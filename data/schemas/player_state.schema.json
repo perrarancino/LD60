@@ -6,6 +6,7 @@
   "required": [
     "version",
     "entity_id",
+    "sprite_id",
     "health",
     "aging_system",
     "rebuild_system",
@@ -19,6 +20,10 @@
     "entity_id": {
       "type": "string",
       "description": "Уникальный идентификатор сущности"
+    },
+    "sprite_id": {
+      "type": "string",
+      "description": "Id спрайта из data/sprites/sprites.json"
     },
     "display_name": {
       "type": "string",

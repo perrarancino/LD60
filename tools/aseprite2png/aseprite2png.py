@@ -5,7 +5,7 @@
 Анимация (>1 кадра)      -> PNG-лист из тайлов (кадры одного размера) + JSON с метаданными.
 
 Использование:
-    python aseprite2png.py файл.aseprite [папка/ или ещё файлы ...] [-o OUT] [--columns N]
+    python aseprite2png.py файл.aseprite [папка/ или ещё файлы ...] [-o OUT] [--columns N] [-r]
 """
 from __future__ import annotations
 
@@ -336,16 +336,23 @@ def main() -> int:
     ap.add_argument("-c", "--columns", type=int, default=None,
                     help="колонок в листе анимации (по умолчанию — все кадры в одну строку)")
     ap.add_argument("--no-json", action="store_true", help="не писать JSON для анимаций")
+    ap.add_argument("-r", "--recursive", action="store_true",
+                    help="для папок: обходить подпапки и повторять их структуру в папке вывода")
     args = ap.parse_args()
 
-    files: list[Path] = []
+    jobs: list[tuple[Path, Path]] = []  # (исходник, папка вывода)
     for p in args.inputs:
-        files += sorted(p.glob("*.aseprite")) if p.is_dir() else [p]
+        if not p.is_dir():
+            jobs.append((p, args.out))
+        elif args.recursive:
+            jobs += [(f, args.out / f.parent.relative_to(p)) for f in sorted(p.rglob("*.aseprite"))]
+        else:
+            jobs += [(f, args.out) for f in sorted(p.glob("*.aseprite"))]
 
     failed = 0
-    for f in files:
+    for f, out_dir in jobs:
         try:
-            convert(f, args.out, args.columns, not args.no_json)
+            convert(f, out_dir, args.columns, not args.no_json)
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"{f.name}: ОШИБКА — {e}", file=sys.stderr)

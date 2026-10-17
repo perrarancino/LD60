@@ -8,6 +8,7 @@
       "contact_damage": 10,
       "movement_speed": 110.0
     },
+    "sprite_variants": ["enemy_transistoid_purple", "enemy_transistoid_amber"],
     "behavior_type": "jumper",
     "attack": {
       "name": "Искровой прыжок",

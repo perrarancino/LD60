@@ -11,7 +11,16 @@ data/
 │   ├── player_state.schema.json  # Схема статов игрока, 5-минутного таймера и резисторов
 │   ├── enemy.schema.json         # Схема обычных противников (строго 1 вид атаки)
 │   ├── boss.schema.json          # Схема боссов (2 атаки у мини-боссов, 3 у финального)
-│   └── world.schema.json         # Схема открытой карты со свободным хабом
+│   ├── world.schema.json         # Схема открытой карты со свободным хабом
+│   ├── sprite.schema.json        # Реестр спрайтов (id -> png, кадры, хитбокс, анимации)
+│   ├── tile.schema.json          # Определения тайлов (solid / one_way)
+│   └── level.schema.json         # Уровень-сетка из тайлов + спавны игрока и врагов
+├── sprites/                      # Реестр спрайтов: связь id -> файлы в assets/sprites/
+│   └── sprites.json              # player, enemy_transistoid_*, tile_platform_block
+├── tiles/                        # Тайлы уровня
+│   └── tiles.json                # platform_block (32x32, solid)
+├── levels/                       # Уровни в виде текстовой сетки
+│   └── test_level.json           # Тестовая плата 30x8 тайлов
 ├── player/                       # Начальное состояние робота
 │   └── player_initial_state.json # HP, угасание (300с), запчасти (5), резисторы (3)
 ├── enemies/                      # Конфигурация обычных врагов
@@ -21,6 +30,11 @@ data/
 └── world/                        # Открытая карта метроидвании
     └── world_layout.json         # Хаб со свободным выбором пути + Дисковод
 ```
+
+## Связь данных и графики
+Графика лежит в [`assets/`](../assets/README.md), данные ссылаются на неё **только по id спрайта**:
+`player_initial_state.json` и `enemies.json` -> `sprite_id` / `sprite_variants` -> `sprites/sprites.json` -> PNG.
+Проверка ссылок: `python tools/validate_data.py`.
 
 ## Правила боевой системы (Количество атак)
 * **Обычные противники:** строго **1 вид атаки**.

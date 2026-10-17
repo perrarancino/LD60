@@ -1,0 +1,14 @@
+{
+  "$schema": "../schemas/tile.schema.json",
+  "version": "1.0.0",
+  "tile_size": 32,
+  "tiles": [
+    {
+      "id": "platform_block",
+      "display_name": "Блок платформы (текстолит)",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false
+    }
+  ]
+}

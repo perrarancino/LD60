@@ -3,6 +3,9 @@ export const GAME_CONFIG = {
   VIRTUAL_WIDTH: 480,
   VIRTUAL_HEIGHT: 270,
 
+  // Размер одного тайла уровня в пикселях виртуального разрешения (см. data/tiles/tiles.json)
+  TILE_SIZE: 32,
+
   // Цветовая палитра оформления
   BACKGROUND_COLOR: 0x0e1117,
   ACCENT_CYAN: 0x00f0ff,

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SpriteRegistry",
+  "description": "Реестр спрайтов: id -> PNG-файл в assets/sprites/, размер кадра, хитбокс и анимации. Игровой код ссылается на спрайты только по id.",
+  "type": "object",
+  "required": ["version", "sprites"],
+  "properties": {
+    "version": { "type": "string" },
+    "sprites": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sprite" }
+    }
+  },
+  "$defs": {
+    "sprite": {
+      "type": "object",
+      "required": ["id", "category", "image", "frame_width", "frame_height", "frames", "origin", "animations"],
+      "properties": {
+        "id": { "type": "string", "description": "Уникальный id спрайта, например enemy_transistoid_purple" },
+        "category": {
+          "type": "string",
+          "enum": ["player", "enemies", "bosses", "tiles", "items", "effects", "ui", "backgrounds"],
+          "description": "Категория = подпапка в assets/sprites/ и assets/source/"
+        },
+        "image": { "type": "string", "description": "Путь к PNG относительно assets/sprites/" },
+        "frame_width": { "type": "integer", "minimum": 1 },
+        "frame_height": { "type": "integer", "minimum": 1 },
+        "frames": { "type": "integer", "minimum": 1, "description": "Число кадров (тайлов) в листе, нумерация слева направо, сверху вниз" },
+        "columns": { "type": "integer", "minimum": 1, "description": "Колонок в листе; по умолчанию = frames (одна строка)" },
+        "origin": {
+          "type": "object",
+          "required": ["x", "y"],
+          "description": "Точка привязки в долях кадра: (0.5, 1.0) = низ по центру (ноги), (0, 0) = левый верхний угол",
+          "properties": {
+            "x": { "type": "number", "minimum": 0, "maximum": 1 },
+            "y": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "hitbox": {
+          "type": "object",
+          "required": ["offset_x", "offset_y", "width", "height"],
+          "description": "Прямоугольник столкновений в пикселях кадра (от левого верхнего угла кадра)",
+          "properties": {
+            "offset_x": { "type": "integer" },
+            "offset_y": { "type": "integer" },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "animations": {
+          "type": "object",
+          "description": "Именованные анимации: имя -> список кадров",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["frames", "loop"],
+            "properties": {
+              "frames": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1 },
+              "frame_duration_ms": { "type": "integer", "minimum": 1 },
+              "loop": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
