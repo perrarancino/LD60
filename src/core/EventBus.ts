@@ -1,5 +1,8 @@
 type EventCallback<T = any> = (data: T) => void;
 
+/**
+ * Типобезопасная шина событий для отвязки игровой логики от UI и вспомогательных систем
+ */
 export class EventBus {
   private static instance: EventBus;
   private listeners: Map<string, Set<EventCallback>> = new Map();
@@ -19,7 +22,7 @@ export class EventBus {
     }
     this.listeners.get(event)!.add(callback);
 
-    // Return unbind handler
+    // Возвращаем функцию быстрой отписки от события
     return () => this.off(event, callback);
   }
 
@@ -40,7 +43,7 @@ export class EventBus {
         try {
           cb(data);
         } catch (e) {
-          console.error(`[EventBus] Error in listener for event "${event}":`, e);
+          console.error(`[EventBus] Ошибка в обработчике события "${event}":`, e);
         }
       });
     }

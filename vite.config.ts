@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  // Crucial for Itch.io / Game Jam uploads: makes asset links relative
+  // Относительные пути (base: './') необходимы для корректной работы игры на Itch.io и GitHub Pages
   base: './',
   server: {
     port: 3000,

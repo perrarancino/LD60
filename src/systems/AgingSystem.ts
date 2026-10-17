@@ -9,6 +9,10 @@ export interface AgingState {
   isExpired: boolean;
 }
 
+/**
+ * Подсистема старения и угасания энергоядра:
+ * Рассчитывает 5-минутный обратный отсчет, генерирует события для UI, шейдеров и звуков
+ */
 export class AgingSystem {
   private totalTime: number;
   private timeRemaining: number;
@@ -32,16 +36,19 @@ export class AgingSystem {
 
     this.timeRemaining = Math.max(0, this.timeRemaining - deltaTimeSeconds);
 
+    // Триггер предупреждения (желтый статус, легкие помехи)
     if (this.timeRemaining <= this.warningThreshold && !this.warningTriggered) {
       this.warningTriggered = true;
       EventBus.get().emit('aging:warning', { timeRemaining: this.timeRemaining });
     }
 
+    // Триггер критической тревоги (красный статус, сильные глитчи)
     if (this.timeRemaining <= this.criticalThreshold && !this.criticalTriggered) {
       this.criticalTriggered = true;
       EventBus.get().emit('aging:critical', { timeRemaining: this.timeRemaining });
     }
 
+    // Полное истощение энергоядра
     if (this.timeRemaining <= 0 && !this.expiredTriggered) {
       this.expiredTriggered = true;
       EventBus.get().emit('aging:expired');
@@ -50,6 +57,9 @@ export class AgingSystem {
     EventBus.get().emit('aging:tick', this.getState());
   }
 
+  /**
+   * Сброс таймера (вызывается при пересборке новой копии робота из деталей)
+   */
   public reset(newTotalTime?: number): void {
     if (newTotalTime) this.totalTime = newTotalTime;
     this.timeRemaining = this.totalTime;

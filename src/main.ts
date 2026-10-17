@@ -4,7 +4,7 @@ import { InputManager } from './core/InputManager.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
 import { EventBus } from './core/EventBus.ts';
 
-// Import initial player data
+// Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
 
 class GameApp {
@@ -34,7 +34,7 @@ class GameApp {
   }
 
   public async start(): Promise<void> {
-    // PixiJS v8 async initialization
+    // Асинхронная инициализация PixiJS v8 в режиме пиксель-арта
     await this.app.init({
       width: GAME_CONFIG.VIRTUAL_WIDTH,
       height: GAME_CONFIG.VIRTUAL_HEIGHT,
@@ -51,18 +51,21 @@ class GameApp {
     this.setupScene();
     this.setupHUD();
 
-    // Start Main Loop (Pixi ticker)
+    // Запуск основного игрового цикла (Pixi ticker)
     this.app.ticker.add((ticker) => {
-      const dt = ticker.deltaTime / 60; // seconds
+      const dt = ticker.deltaTime / 60; // Перевод тиков в секунды
       this.update(dt);
     });
   }
 
+  /**
+   * Расчет целочисленного масштаба для сохранения четкости пикселей при любых размерах окна
+   */
   private handleResize(): void {
     const windowW = window.innerWidth;
     const windowH = window.innerHeight;
 
-    // Calculate maximum integer or proportional scale preserving 16:9 aspect ratio
+    // Вычисляем максимальный целый множитель масштабирования
     const scale = Math.max(1, Math.min(
       Math.floor(windowW / GAME_CONFIG.VIRTUAL_WIDTH),
       Math.floor(windowH / GAME_CONFIG.VIRTUAL_HEIGHT)
@@ -76,11 +79,14 @@ class GameApp {
     canvas.style.height = `${finalH}px`;
   }
 
+  /**
+   * Базовая сцена: дорожки текстолита и платформа
+   */
   private setupScene(): void {
     const worldLayer = new Container();
     this.app.stage.addChild(worldLayer);
 
-    // Grid backdrop representing motherboard circuit traces
+    // Фоновая сетка токоведущих дорожек материнской платы
     const grid = new Graphics();
     grid.setStrokeStyle({ width: 1, color: 0x18202c, alpha: 0.6 });
     for (let x = 0; x < GAME_CONFIG.VIRTUAL_WIDTH; x += 16) {
@@ -92,14 +98,14 @@ class GameApp {
     grid.stroke();
     worldLayer.addChild(grid);
 
-    // Floor platform (PCB edge)
+    // Платформа пола (край текстолитовой платы)
     const floor = new Graphics();
     floor.rect(0, 210, GAME_CONFIG.VIRTUAL_WIDTH, 60);
-    floor.fill(0x133025); // PCB green
+    floor.fill(0x133025); // Темно-зеленый текстолит
     floor.stroke({ width: 2, color: 0x22c55e });
     worldLayer.addChild(floor);
 
-    // Protagonist robot placeholder (Old Scrapbound Model)
+    // Временная визуализация робота модели «Утиль»
     this.playerGraphics = new Graphics();
     this.drawRobot(this.playerGraphics, 0x00f0ff);
     worldLayer.addChild(this.playerGraphics);
@@ -107,15 +113,18 @@ class GameApp {
 
   private drawRobot(g: Graphics, color: number): void {
     g.clear();
-    // Body chassis (rusty angular frame)
+    // Корпус робота (угловатый каркас)
     g.rect(-8, -16, 16, 16).fill(0x334155).stroke({ width: 1, color });
-    // Eye visor / core
+    // Визор / светящееся ядро
     g.rect(-4, -13, 8, 4).fill(color);
-    // Legs
+    // Опоры / манипуляторы
     g.rect(-6, 0, 4, 6).fill(0x1e293b);
     g.rect(2, 0, 4, 6).fill(0x1e293b);
   }
 
+  /**
+   * Настройка интерфейса (HUD): таймер старения и счетчики деталей
+   */
   private setupHUD(): void {
     const hudLayer = new Container();
     this.app.stage.addChild(hudLayer);
@@ -127,7 +136,7 @@ class GameApp {
       stroke: { color: 0x000000, width: 2 }
     });
 
-    this.timerText = new Text({ text: 'CORE: 05:00', style });
+    this.timerText = new Text({ text: 'РЕАКТОР: 05:00', style });
     this.timerText.position.set(10, 8);
     hudLayer.addChild(this.timerText);
 
@@ -138,7 +147,7 @@ class GameApp {
     this.hudText.position.set(10, 22);
     hudLayer.addChild(this.hudText);
 
-    // Listen to aging ticks
+    // Слушатель тиков подсистемы старения
     EventBus.get().on('aging:tick', (state) => {
       const minutes = Math.floor(state.timeRemaining / 60).toString().padStart(2, '0');
       const seconds = Math.floor(state.timeRemaining % 60).toString().padStart(2, '0');
@@ -152,18 +161,21 @@ class GameApp {
     });
   }
 
+  /**
+   * Главный цикл обновления физики и логики
+   */
   private update(dt: number): void {
-    // 1. Update aging system
+    // 1. Обновление таймера старения
     this.aging.update(dt);
 
-    // 2. Poll player input
+    // 2. Опрос ввода игрока
     const input = this.input.poll();
 
-    // Horizontal Movement
+    // Горизонтальное перемещение
     this.playerX += input.horizontal * GAME_CONFIG.PLAYER_SPEED * dt;
     this.playerX = Math.max(16, Math.min(GAME_CONFIG.VIRTUAL_WIDTH - 16, this.playerX));
 
-    // Jump / Gravity
+    // Прыжок и гравитация
     if (this.isGrounded && input.jumpPressed) {
       this.playerVy = GAME_CONFIG.JUMP_FORCE;
       this.isGrounded = false;
@@ -173,7 +185,7 @@ class GameApp {
       this.playerVy += GAME_CONFIG.GRAVITY * dt;
       this.playerY += this.playerVy * dt;
 
-      // Floor collision at y = 210
+      // Коллизия с полом на высоте y = 210
       if (this.playerY >= 210) {
         this.playerY = 210;
         this.playerVy = 0;
@@ -181,12 +193,12 @@ class GameApp {
       }
     }
 
-    // Apply coordinates to graphics
+    // Применение рассчитанных координат к объекту отрисовки
     this.playerGraphics.position.set(this.playerX, this.playerY);
   }
 }
 
-// Bootstrap
+// Запуск приложения при готовности DOM
 window.addEventListener('DOMContentLoaded', () => {
   const game = new GameApp();
   game.start().catch(console.error);

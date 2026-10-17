@@ -1,21 +1,21 @@
-# Dependencies
+# Зависимости
 node_modules/
 .pnp
 .pnp.js
 
-# Build output
+# Сборка и билд
 dist/
 dist-ssr/
 build/
 
-# Logs
+# Логи
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Editor / OS files
+# Файлы редакторов и операционных систем
 .DS_Store
 Thumbs.db
 *.local
@@ -29,6 +29,6 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Project docs ignore
+# Документация проекта
 docs/General.md
 General.md
