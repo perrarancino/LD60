@@ -22,11 +22,14 @@ const BACKGROUNDS = Object.values(
   import.meta.glob('../data/backgrounds/*.json', { eager: true, import: 'default' }) as Record<string, BackgroundDef>
 );
 
-// Вертикальная камера (положение ног героя на экране)
-const CAMERA_REST_Y = 0.74; // доля высоты экрана: на этой высоте стоит герой на земле (запас под прыжок вверх ~100 px)
-const CAMERA_TOP_MARGIN = 76; // px: ближе к верху ноги не подпускаем (иначе не влезет голова) — камера поедет за героем
-const CAMERA_BOTTOM_MARGIN = 24; // px от низа экрана
-const CAMERA_SETTLE_RATE = 6; // 1/с: как быстро камера возвращает героя на привычную высоту, когда он на земле
+// Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
+const CAMERA_REST_Y = 0.64; // доля высоты экрана, на которой камера старается держать ноги героя
+const CAMERA_FOLLOW_GROUNDED = 5; // 1/с: скорость сближения, когда герой стоит на земле
+const CAMERA_FOLLOW_AIR = 3; // 1/с: в воздухе камера следует чуть мягче
+const CAMERA_AIR_MIN_SHARE = 0.3; // доля высоты полёта, за которой камера идёт в воздухе при малых прыжках (экран не дёргается от каждого прыжка)
+const CAMERA_AIR_FULL_AT = 220; // px: при отрыве от земли на столько и больше (подъём по стене, длинное падение) камера следует за героем полностью
+const CAMERA_TOP_MARGIN = 76; // px: ближе к верху ноги не подпускаем (иначе не влезет голова) — страховка
+const CAMERA_BOTTOM_MARGIN = 24; // px от низа экрана — страховка
 
 class GameApp {
   private app: Application;
@@ -49,6 +52,7 @@ class GameApp {
   private background: ParallaxBackground | null = null;
   private scale = 1;
   private cameraY = 0;
+  private groundRefY = 0; // высота ног при последнем касании земли
   private cameraReady = false;
   private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
 
@@ -141,9 +145,9 @@ class GameApp {
   }
 
   /**
-   * Камера. По X следует за героем (если уровень уже обзора — центрируется). По Y — как в платформерах:
-   * при прыжках экран по вертикали НЕ двигается, камера плавно перенацеливается, только когда герой стоит на земле,
-   * и сдвигается жёстко лишь если герой вышел за «окно» (слишком высоко/низко на экране).
+   * Камера. По X следует за героем (если уровень уже обзора — центрируется). По Y — плавное следование: камера
+   * экспоненциально подтягивается к высоте героя (на земле быстрее, в воздухе мягче); страховочные поля не дают герою
+   * выйти из кадра при быстром падении.
    */
   private updateCamera(dt = 0): void {
     const body = this.player.body;
@@ -160,15 +164,22 @@ class GameApp {
     } else {
       const maxY = lh - this.viewH;
       const feet = body.y;
-      const target = Math.max(0, Math.min(maxY, feet - this.viewH * CAMERA_REST_Y));
+      if (!this.cameraReady || body.grounded) this.groundRefY = feet;
+      // В воздухе камера следует за высотой героя не полностью: при малых прыжках — лишь частично (плавно растёт доля до полной
+      // при большом отрыве от земли), так нет резких скачков экрана
+      const dy = feet - this.groundRefY;
+      const t = Math.max(0, Math.min(1, (Math.abs(dy) - 80) / (CAMERA_AIR_FULL_AT - 80)));
+      const share = body.grounded ? 1 : CAMERA_AIR_MIN_SHARE + (1 - CAMERA_AIR_MIN_SHARE) * t * t * (3 - 2 * t);
+      const followFeet = this.groundRefY + dy * share;
+      const target = Math.max(0, Math.min(maxY, followFeet - this.viewH * CAMERA_REST_Y));
       if (!this.cameraReady) {
         this.cameraY = target;
         this.cameraReady = true;
-      } else if (body.grounded) {
-        // Стоим на земле: плавно ставим героя на привычную высоту экрана
-        this.cameraY += (target - this.cameraY) * (1 - Math.exp(-CAMERA_SETTLE_RATE * dt));
+      } else {
+        const rate = body.grounded ? CAMERA_FOLLOW_GROUNDED : CAMERA_FOLLOW_AIR;
+        this.cameraY += (target - this.cameraY) * (1 - Math.exp(-rate * dt));
       }
-      // Герой не должен выходить за окно по вертикали (иначе пропадёт из кадра)
+      // Страховка: герой не должен выходить за поля кадра
       this.cameraY = Math.min(this.cameraY, feet - CAMERA_TOP_MARGIN);
       this.cameraY = Math.max(this.cameraY, feet - (this.viewH - CAMERA_BOTTOM_MARGIN));
       this.cameraY = Math.max(0, Math.min(maxY, this.cameraY));
