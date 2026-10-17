@@ -9,6 +9,7 @@
     "description": { "type": "string" },
     "sky_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Цвет заливки за слоями (виден, если слои не покрывают экран по высоте)" },
     "scale": { "type": "integer", "minimum": 1, "description": "Во сколько раз увеличить пиксели слоёв (целое — пиксель-арт остаётся чётким)" },
+    "ground_offset": { "type": "number", "minimum": 0, "description": "На сколько px от низа уровня приподняты слои: нижний край фона стоит над землёй (например, на высоте первого ряда блоков)" },
     "layers": {
       "type": "array",
       "minItems": 1,

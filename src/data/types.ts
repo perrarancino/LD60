@@ -95,5 +95,6 @@ export interface BackgroundDef {
   id: string;
   sky_color: string;
   scale: number;
+  ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
   layers: BackgroundLayerDef[]; // снизу вверх
 }

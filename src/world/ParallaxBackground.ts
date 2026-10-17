@@ -12,7 +12,7 @@ interface Layer {
 /**
  * Параллакс-фон из зацикленных по горизонтали слоёв (data/backgrounds/*.json).
  * Каждый слой сдвигается на долю сдвига камеры: дальние почти стоят, ближние идут почти вместе с миром.
- * По вертикали слои прижаты к низу экрана (в нижней точке уровня) и слегка «плывут» при подъёме камеры;
+ * По вертикали слои стоят на «земле» (низ уровня + ground_offset) в нижней точке камеры и слегка «плывут» при подъёме камеры;
  * то, что слои не закрывают сверху, заливается sky_color.
  */
 export class ParallaxBackground {
@@ -54,7 +54,7 @@ export class ParallaxBackground {
     const snap = (v: number) => Math.round(v * pixelScale) / pixelScale;
     for (const l of this.layers) {
       l.sprite.tilePosition.x = snap(-camX * l.parallaxX);
-      l.sprite.y = snap(this.viewH - l.height + (maxCamY - camY) * l.parallaxY);
+      l.sprite.y = snap(this.viewH - l.height - (this.def.ground_offset ?? 0) + (maxCamY - camY) * l.parallaxY);
     }
   }
 }
