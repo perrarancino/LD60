@@ -17,22 +17,19 @@
       height: 100%;
       overflow: hidden;
       background-color: #0d0f12;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       font-family: 'Courier New', Courier, monospace;
     }
     #game-container {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
-      border: 2px solid #1f2430;
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
       background: #000;
     }
     canvas {
       display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
       /* Четкое масштабирование пиксель-арта без сглаживания и размытия */
       image-rendering: -moz-crisp-edges;
       image-rendering: -webkit-crisp-edges;

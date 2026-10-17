@@ -43,12 +43,12 @@ export class Body {
 
   private resolveX(level: Level, ts: number): void {
     const [c0, c1, r0, r1] = this.cells(ts);
+    const vx = this.vx; // направление запоминаем: vx обнуляется после первого столкновения
     for (let cy = r0; cy <= r1; cy++) {
       for (let cx = c0; cx <= c1; cx++) {
         if (!level.isSolid(cx, cy)) continue;
-        const left = this.x + this.offsetX;
-        const center = left + this.width / 2;
-        const pushRight = this.vx < 0 || (this.vx === 0 && center > cx * ts + ts / 2);
+        const center = this.x + this.offsetX + this.width / 2;
+        const pushRight = vx < 0 || (vx === 0 && center > cx * ts + ts / 2);
         this.x = pushRight ? (cx + 1) * ts - this.offsetX : cx * ts - this.width - this.offsetX;
         this.vx = 0;
       }
@@ -57,10 +57,11 @@ export class Body {
 
   private resolveY(level: Level, ts: number): void {
     const [c0, c1, r0, r1] = this.cells(ts);
+    const falling = this.vy >= 0; // иначе, ударившись головой о несколько клеток подряд, герой «приземлялся» на платформу
     for (let cy = r0; cy <= r1; cy++) {
       for (let cx = c0; cx <= c1; cx++) {
         if (!level.isSolid(cx, cy)) continue;
-        if (this.vy >= 0) {
+        if (falling) {
           this.y = cy * ts - (this.offsetY + this.height);
           this.grounded = true;
         } else {

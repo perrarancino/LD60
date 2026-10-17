@@ -29,6 +29,11 @@ class GameApp {
   private player!: Player;
   private enemies: Enemy[] = [];
 
+  // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
+  private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
+  private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
+  private grid = new Graphics();
+
   constructor() {
     this.app = new Application();
     this.input = InputManager.get();
@@ -66,41 +71,55 @@ class GameApp {
   }
 
   /**
-   * Расчет целочисленного масштаба для сохранения четкости пикселей при любых размерах окна
+   * Полноэкранный режим без растягивания: масштаб пикселя — целое число (от высоты окна к эталонной),
+   * а область обзора камеры подстраивается под размер окна (шире окно — больше видно).
    */
   private handleResize(): void {
-    const windowW = window.innerWidth;
-    const windowH = window.innerHeight;
+    const scale = Math.max(1, Math.round(window.innerHeight / GAME_CONFIG.VIRTUAL_HEIGHT));
+    this.viewW = Math.ceil(window.innerWidth / scale);
+    this.viewH = Math.ceil(window.innerHeight / scale);
 
-    // Вычисляем максимальный целый множитель масштабирования
-    const scale = Math.max(1, Math.min(
-      Math.floor(windowW / GAME_CONFIG.VIRTUAL_WIDTH),
-      Math.floor(windowH / GAME_CONFIG.VIRTUAL_HEIGHT)
-    ));
-
-    const finalW = GAME_CONFIG.VIRTUAL_WIDTH * scale;
-    const finalH = GAME_CONFIG.VIRTUAL_HEIGHT * scale;
-
+    this.app.renderer.resize(this.viewW, this.viewH);
     const canvas = this.app.canvas;
-    canvas.style.width = `${finalW}px`;
-    canvas.style.height = `${finalH}px`;
+    canvas.style.width = `${this.viewW * scale}px`;
+    canvas.style.height = `${this.viewH * scale}px`;
+
+    this.drawGrid();
+    if (this.level) this.updateCamera();
+  }
+
+  /** Фоновая сетка токоведущих дорожек материнской платы (неподвижная, на весь обзор). */
+  private drawGrid(): void {
+    const g = this.grid;
+    g.clear();
+    g.setStrokeStyle({ width: 1, color: 0x18202c, alpha: 0.6 });
+    for (let x = 0; x < this.viewW; x += 16) g.moveTo(x, 0).lineTo(x, this.viewH);
+    for (let y = 0; y < this.viewH; y += 16) g.moveTo(0, y).lineTo(this.viewW, y);
+    g.stroke();
+  }
+
+  /** Камера: следует за героем; если уровень меньше обзора по оси — центрируется (по X) / прижимается к низу (по Y). */
+  private updateCamera(): void {
+    const { x, y } = this.player.body;
+    const lw = this.level.pixelWidth;
+    const lh = this.level.pixelHeight;
+
+    const camX = lw <= this.viewW
+      ? -(this.viewW - lw) / 2
+      : Math.max(0, Math.min(lw - this.viewW, x - this.viewW / 2));
+    const camY = lh <= this.viewH
+      ? lh - this.viewH
+      : Math.max(0, Math.min(lh - this.viewH, y - this.viewH * 0.6));
+
+    this.worldLayer.position.set(-Math.round(camX), -Math.round(camY));
   }
 
   /**
    * Сцена: фоновая сетка, тестовый уровень из data/levels, герой и враги
    */
   private async setupScene(): Promise<void> {
-    // Фоновая сетка токоведущих дорожек материнской платы (неподвижная)
-    const grid = new Graphics();
-    grid.setStrokeStyle({ width: 1, color: 0x18202c, alpha: 0.6 });
-    for (let x = 0; x < GAME_CONFIG.VIRTUAL_WIDTH; x += 16) {
-      grid.moveTo(x, 0).lineTo(x, GAME_CONFIG.VIRTUAL_HEIGHT);
-    }
-    for (let y = 0; y < GAME_CONFIG.VIRTUAL_HEIGHT; y += 16) {
-      grid.moveTo(0, y).lineTo(GAME_CONFIG.VIRTUAL_WIDTH, y);
-    }
-    grid.stroke();
-    this.app.stage.addChild(grid);
+    this.app.stage.addChild(this.grid);
+    this.drawGrid();
 
     const tileset = tilesData as TileSetDef;
     const levelDef = levelData as LevelDef;
@@ -118,8 +137,6 @@ class GameApp {
 
     this.level = new Level(levelDef, tileset, this.sprites);
     this.worldLayer.addChild(this.level.container);
-    // Прижимаем уровень к низу экрана
-    this.worldLayer.y = GAME_CONFIG.VIRTUAL_HEIGHT - this.level.pixelHeight;
 
     for (const spawn of levelDef.enemies) {
       const def = enemyDefs.get(spawn.enemy_id);
@@ -132,6 +149,7 @@ class GameApp {
     this.player = new Player(playerData.sprite_id, this.sprites);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
+    this.updateCamera();
   }
 
   /**
@@ -185,10 +203,8 @@ class GameApp {
     // 2. Игрок: ввод + физика на тайлах
     this.player.update(dt, this.input.poll(), this.level);
 
-    // 3. Камера следует за героем по горизонтали и не выходит за границы уровня
-    const maxScroll = Math.max(0, this.level.pixelWidth - GAME_CONFIG.VIRTUAL_WIDTH);
-    const scroll = Math.max(0, Math.min(maxScroll, this.player.body.x - GAME_CONFIG.VIRTUAL_WIDTH / 2));
-    this.worldLayer.x = -Math.round(scroll);
+    // 3. Камера
+    this.updateCamera();
   }
 }
 
@@ -196,4 +212,5 @@ class GameApp {
 window.addEventListener('DOMContentLoaded', () => {
   const game = new GameApp();
   game.start().catch(console.error);
+  if (import.meta.env.DEV) (window as unknown as { __game: GameApp }).__game = game; // отладка из консоли браузера
 });
