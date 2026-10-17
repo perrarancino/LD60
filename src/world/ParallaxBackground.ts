@@ -12,7 +12,8 @@ interface Layer {
  * Параллакс-фон из зацикленных по горизонтали слоёв (data/backgrounds/*.json). Только рисунок художника, без эффектов.
  *  - по X каждый слой сдвигается на долю сдвига камеры (parallax_x): дальние почти стоят, ближние идут почти вместе с миром;
  *    слои с parallax_x = 0 (небо, туман) неподвижны;
- *  - по Y фон жёстко приклеен к экрану: при прыжках и подъёме камеры он не двигается и слои не расходятся;
+ *  - по Y фон стоит на земле МИРА: когда камера едет вверх (герой забрался на платформу), фон уезжает вниз вместе с миром,
+ *    а не «следует за героем»; все слои сдвигаются одинаково, поэтому не расходятся;
  *  - стыки тайлов скрыты: mirror — зеркальный тайлинг (края совпадают), crop_left — отрезать «битый» левый столбец;
  *  - выше слоёв — заливка sky_color, ниже нижнего края — заливка ground_color до низа экрана.
  */
@@ -24,6 +25,8 @@ export class ParallaxBackground {
   private groundFill = new Graphics();
 
   private layers: Layer[] = [];
+  private viewW = 0;
+  private viewH = 0;
 
   /** Спрайты слоёв должны быть уже загружены (SpriteLibrary.load). */
   public static spriteIds(def: BackgroundDef): string[] {
@@ -76,27 +79,29 @@ export class ParallaxBackground {
   /** Размер видимой области (виртуальные px) изменился. */
   public resize(viewW: number, viewH: number): void {
     this.sky.clear().rect(0, 0, viewW, viewH).fill(this.def.sky_color);
-
-    // Слои стоят у нижнего края экрана (приподняты на ground_offset) и больше не двигаются по вертикали
-    const baseY = Math.round(viewH - (this.def.ground_offset ?? 0));
-    for (const l of this.layers) {
-      l.sprite.width = viewW;
-      l.sprite.y = baseY - l.height;
-    }
-    const front = this.layers[this.layers.length - 1];
-    this.groundFill.clear();
-    if (this.def.ground_color && front) {
-      const top = front.sprite.y + front.height - 1;
-      if (top < viewH) this.groundFill.rect(0, top, viewW, viewH - top + 4).fill(this.def.ground_color);
-    }
+    for (const l of this.layers) l.sprite.width = viewW;
+    this.viewW = viewW;
+    this.viewH = viewH;
   }
 
   /**
-   * @param camX положение камеры по X
+   * @param camX, camY положение камеры в мире
+   * @param worldBottom нижняя граница уровня (мир): здесь стоит «земля» фона (приподнятая на ground_offset)
    * @param pixelScale физических пикселей на виртуальный — сдвиги выравниваются по ним, чтобы пиксели не «плыли»
    */
-  public update(camX: number, pixelScale: number): void {
+  public update(camX: number, camY: number, worldBottom: number, pixelScale: number): void {
     const snap = (v: number) => Math.round(v * pixelScale) / pixelScale;
-    for (const l of this.layers) l.sprite.tilePosition.x = snap(-camX * l.parallaxX);
+    const baseY = worldBottom - (this.def.ground_offset ?? 0) - camY; // экранная y нижнего края слоёв
+    for (const l of this.layers) {
+      l.sprite.tilePosition.x = snap(-camX * l.parallaxX);
+      l.sprite.y = snap(baseY - l.height);
+    }
+
+    // Земля: под нижним краем фона заливаем до низа экрана
+    this.groundFill.clear();
+    if (this.def.ground_color) {
+      const top = Math.floor(snap(baseY)) - 1;
+      if (top < this.viewH) this.groundFill.rect(0, top, this.viewW, this.viewH - top + 4).fill(this.def.ground_color);
+    }
   }
 }

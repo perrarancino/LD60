@@ -178,7 +178,7 @@ class GameApp {
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
     this.worldLayer.position.set(-snap(camX), -snap(camY));
-    this.background?.update(snap(camX), this.scale);
+    this.background?.update(snap(camX), snap(camY), lh, this.scale);
   }
 
   /**
