@@ -1,0 +1,25 @@
+[
+  {
+    "id": "transistoid",
+    "display_name": "Транзистоид (Модель TO-92)",
+    "lore": "Полупроводниковый механический паразит. Использует три металлических вывода (эмиттер, базу и коллектор) для быстрого бега по токоведущим дорожкам.",
+    "stats": {
+      "max_health": 30,
+      "contact_damage": 10,
+      "movement_speed": 110.0
+    },
+    "behavior_type": "jumper",
+    "attack": {
+      "name": "Искровой прыжок",
+      "damage": 12,
+      "cooldown_seconds": 2.2,
+      "range": 120.0,
+      "description": "Смыкает ножки-выводы, совершая резкий скачок на игрока с выбросом электрических искр."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 70.0
+    }
+  }
+]

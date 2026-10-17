@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorldMapConfig",
+  "description": "Схема открытой структуры метроидвании со свободным перемещением через центральный хаб",
+  "type": "object",
+  "required": ["map_name", "navigation_model", "central_hub_id", "regions", "drive_gate_mechanism"],
+  "properties": {
+    "map_name": { "type": "string" },
+    "navigation_model": {
+      "type": "string",
+      "enum": ["open_hub_and_spoke", "linear_gated"],
+      "description": "Модель перемещения: открытый хаб со свободным выбором маршрута"
+    },
+    "central_hub_id": { "type": "string" },
+    "description": { "type": "string" },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "display_name", "category", "description", "connected_regions"],
+        "properties": {
+          "id": { "type": "string" },
+          "display_name": { "type": "string" },
+          "category": { "type": "string", "enum": ["hub", "core_hardware", "interstitial_duct", "final_chamber"] },
+          "description": { "type": "string" },
+          "has_resistor": { "type": "boolean" },
+          "boss_id": { "type": ["string", "null"] },
+          "connected_regions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "drive_gate_mechanism": {
+      "type": "object",
+      "required": ["target_location_id", "required_resistors", "status"],
+      "properties": {
+        "target_location_id": { "type": "string" },
+        "required_resistors": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["locked", "calibrated", "open"] },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

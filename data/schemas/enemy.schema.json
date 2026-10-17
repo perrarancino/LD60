@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EnemyConfig",
+  "description": "Схема конфигурации обычных противников (строго 1 вид атаки на врага)",
+  "type": "object",
+  "required": [
+    "id",
+    "display_name",
+    "lore",
+    "stats",
+    "behavior_type",
+    "attack",
+    "drops"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Уникальный строковый идентификатор противника"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Имя противника на русском"
+    },
+    "lore": {
+      "type": "string",
+      "description": "Лор и визуальное описание противника"
+    },
+    "stats": {
+      "type": "object",
+      "required": ["max_health", "contact_damage", "movement_speed"],
+      "properties": {
+        "max_health": { "type": "integer", "minimum": 1 },
+        "contact_damage": { "type": "integer", "minimum": 0 },
+        "movement_speed": { "type": "number", "minimum": 0.0 }
+      }
+    },
+    "behavior_type": {
+      "type": "string",
+      "enum": ["patrol_crawler", "jumper", "ranged", "flying_fan"],
+      "description": "Базовый тип передвижения и поиска целей"
+    },
+    "attack": {
+      "type": "object",
+      "description": "Единственный вид атаки данного противника",
+      "required": ["name", "damage", "cooldown_seconds", "range", "description"],
+      "properties": {
+        "name": { "type": "string" },
+        "damage": { "type": "integer", "minimum": 0 },
+        "cooldown_seconds": { "type": "number", "minimum": 0.0 },
+        "range": { "type": "number", "minimum": 0.0 },
+        "description": { "type": "string" }
+      }
+    },
+    "drops": {
+      "type": "object",
+      "required": ["scrap_parts_min", "scrap_parts_max", "drop_chance_percent"],
+      "properties": {
+        "scrap_parts_min": { "type": "integer", "minimum": 0 },
+        "scrap_parts_max": { "type": "integer", "minimum": 0 },
+        "drop_chance_percent": { "type": "number", "minimum": 0.0, "maximum": 100.0 }
+      }
+    }
+  }
+}

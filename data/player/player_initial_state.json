@@ -1,0 +1,34 @@
+{
+  "$schema": "../schemas/player_state.schema.json",
+  "version": "1.0.0",
+  "entity_id": "player_obsolete_model",
+  "display_name": "Модель-7 «Утиль»",
+  "health": {
+    "current": 100,
+    "max": 100,
+    "is_invulnerable": false
+  },
+  "aging_system": {
+    "time_limit_seconds": 300.0,
+    "current_time_remaining_seconds": 300.0,
+    "degradation_rate_per_second": 1.0,
+    "is_decay_active": true,
+    "warning_threshold_seconds": 60.0,
+    "critical_threshold_seconds": 30.0,
+    "description": "5-минутный таймер деградации энергоядра. Робот должен собрать запчасти и собрать рабочую копию своего шасси до полного угасания."
+  },
+  "rebuild_system": {
+    "parts_collected": 0,
+    "parts_required": 5,
+    "can_rebuild": false,
+    "description": "Детали и модули корпуса, необходимые для пересборки новой рабочей копии робота."
+  },
+  "resistor_puzzle": {
+    "resistors_collected": 0,
+    "resistors_required": 3,
+    "resistors_placed": 0,
+    "circuit_slots_total": 3,
+    "door_unlocked": false,
+    "description": "Резисторы для калибровки цепи питания на щитке отсека 5.25\". Нужно собрать 3 резистора с боссов материнки, БП и жесткого диска, чтобы открыть дисковод и уничтожить источник заражения."
+  }
+}

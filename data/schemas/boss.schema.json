@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BossConfig",
+  "description": "Схема конфигурации боссов: у мини-боссов строго 2 вида атаки, у финального босса строго 3 вида атаки",
+  "type": "object",
+  "required": [
+    "id",
+    "display_name",
+    "location_id",
+    "is_final_boss",
+    "lore",
+    "stats",
+    "reward",
+    "attacks"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Уникальный строковый идентификатор босса"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Имя босса на русском"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "ID локации, в которой находится арена босса"
+    },
+    "is_final_boss": {
+      "type": "boolean",
+      "description": "Флаг финального босса"
+    },
+    "lore": {
+      "type": "string",
+      "description": "Сюжетное описание и предыстория"
+    },
+    "stats": {
+      "type": "object",
+      "required": ["max_health", "contact_damage"],
+      "properties": {
+        "max_health": { "type": "integer", "minimum": 1 },
+        "contact_damage": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reward": {
+      "type": "object",
+      "required": ["item_type", "item_id", "display_name", "description"],
+      "properties": {
+        "item_type": { "type": "string", "enum": ["resistor", "game_win_module"] },
+        "item_id": { "type": "string" },
+        "display_name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "attacks": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "description": "Список атак босса (ровно 2 для мини-боссов, ровно 3 для финального босса)",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "damage", "cooldown_seconds", "projectile_type", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "damage": { "type": "integer", "minimum": 0 },
+          "cooldown_seconds": { "type": "number", "minimum": 0.0 },
+          "projectile_type": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

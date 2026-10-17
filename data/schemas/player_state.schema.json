@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlayerInitialState",
+  "description": "Схема начального состояния игрока: параметры здоровья, таймер угасания/старения, детали для пересборки и прогресс головоломки с резисторами.",
+  "type": "object",
+  "required": [
+    "version",
+    "entity_id",
+    "health",
+    "aging_system",
+    "rebuild_system",
+    "resistor_puzzle"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Версия схемы данных"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "Уникальный идентификатор сущности"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Отображаемое имя робота"
+    },
+    "health": {
+      "type": "object",
+      "required": ["current", "max", "is_invulnerable"],
+      "properties": {
+        "current": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Текущие очки прочности (HP)"
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Максимальные очки прочности (HP)"
+        },
+        "is_invulnerable": {
+          "type": "boolean",
+          "description": "Флаг временной неуязвимости после получения урона"
+        }
+      }
+    },
+    "aging_system": {
+      "type": "object",
+      "required": [
+        "time_limit_seconds",
+        "current_time_remaining_seconds",
+        "degradation_rate_per_second",
+        "is_decay_active",
+        "warning_threshold_seconds",
+        "critical_threshold_seconds"
+      ],
+      "properties": {
+        "time_limit_seconds": {
+          "type": "number",
+          "minimum": 1.0,
+          "description": "Базовый лимит времени до отключения ядра (300с = 5 минут)"
+        },
+        "current_time_remaining_seconds": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Оставшееся время функционирования в секундах"
+        },
+        "degradation_rate_per_second": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Скорость расхода времени (множитель в секунду)"
+        },
+        "is_decay_active": {
+          "type": "boolean",
+          "description": "Активен ли таймер старения в данный момент"
+        },
+        "warning_threshold_seconds": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Порог времени для визуальных глитчей и предупреждающих сигналов"
+        },
+        "critical_threshold_seconds": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Порог времени для критической аварийной тревоги и скорого отключения"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "rebuild_system": {
+      "type": "object",
+      "required": [
+        "parts_collected",
+        "parts_required",
+        "can_rebuild"
+      ],
+      "properties": {
+        "parts_collected": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Количество собранных компонентов корпуса"
+        },
+        "parts_required": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Необходимое количество деталей для создания новой копии"
+        },
+        "can_rebuild": {
+          "type": "boolean",
+          "description": "Готовность к сборке копии (parts_collected >= parts_required)"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "resistor_puzzle": {
+      "type": "object",
+      "required": [
+        "resistors_collected",
+        "resistors_required",
+        "resistors_placed",
+        "circuit_slots_total",
+        "door_unlocked"
+      ],
+      "properties": {
+        "resistors_collected": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Количество собранных резисторов в инвентаре"
+        },
+        "resistors_required": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Сколько всего резисторов нужно для решения цепи"
+        },
+        "resistors_placed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Количество резисторов, уже установленных в слоты щитка"
+        },
+        "circuit_slots_total": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Всего слотов в цепи распределительного щита"
+        },
+        "door_unlocked": {
+          "type": "boolean",
+          "description": "Открыта ли дверь/шлюз для побега"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

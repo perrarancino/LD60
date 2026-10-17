@@ -1,0 +1,109 @@
+{
+  "$schema": "../schemas/world.schema.json",
+  "map_name": "Системный блок ПК (Корпус Tower-ATX)",
+  "navigation_model": "open_hub_and_spoke",
+  "central_hub_id": "loc_central_hub",
+  "description": "Свободная нелинейная метроидвания. Игрок начинает в Центральном распределительном щите (Хабе) или на Материнке и может свободно перемещаться в любом порядке между всеми тремя основными узлами (Материнская плата, Блок питания, Жёсткий диск), побеждать мини-боссов, забирать резисторы и относить их в панель хаба. Только финальный отсек дисковода закрыт до сбора всех 3 резисторов.",
+  "regions": [
+    {
+      "id": "loc_central_hub",
+      "display_name": "Центральный распределительный щит (Хаб)",
+      "category": "hub",
+      "description": "Узловой перекрёсток системы перед отсеком 5.25\". Здесь расположена панель с 3 контактными разъёмами для резисторов и гермошлюз в дисковод. Отсюда открыты свободные проходы во все стороны.",
+      "has_resistor": false,
+      "boss_id": null,
+      "connected_regions": [
+        "trans_motherboard_traces",
+        "trans_power_harness",
+        "trans_sata_duct",
+        "loc_optical_drive"
+      ]
+    },
+    {
+      "id": "trans_motherboard_traces",
+      "display_name": "Переход: Магистраль системной шины",
+      "category": "interstitial_duct",
+      "description": "Пространство широких медных дорожек и конденсаторов между хабом и чипсетом платы. Свободный двусторонний проход.",
+      "has_resistor": false,
+      "boss_id": null,
+      "connected_regions": [
+        "loc_central_hub",
+        "loc_motherboard"
+      ]
+    },
+    {
+      "id": "loc_motherboard",
+      "display_name": "Материнская плата",
+      "category": "core_hardware",
+      "description": "Текстолитовая локация. Арена мини-босса «Архитектор Моста (Чипсет-Страж)».",
+      "has_resistor": true,
+      "boss_id": "boss_chipset_sentinel",
+      "connected_regions": [
+        "trans_motherboard_traces"
+      ]
+    },
+    {
+      "id": "trans_power_harness",
+      "display_name": "Переход: Главный кабельный жгут питания",
+      "category": "interstitial_duct",
+      "description": "Толстые изолированные провода в нейлоновой оплётке, ведущие к блоку питания. Свободный двусторонний платформинг.",
+      "has_resistor": false,
+      "boss_id": null,
+      "connected_regions": [
+        "loc_central_hub",
+        "loc_power_supply"
+      ]
+    },
+    {
+      "id": "loc_power_supply",
+      "display_name": "Блок питания",
+      "category": "core_hardware",
+      "description": "Высоковольтный индустриальный сектор. Арена мини-босса «Вольт-Колосс (Импульсный Трансформатор)».",
+      "has_resistor": true,
+      "boss_id": "boss_transformer_colossus",
+      "connected_regions": [
+        "trans_power_harness"
+      ]
+    },
+    {
+      "id": "trans_sata_duct",
+      "display_name": "Переход: Кабель-канал и корзина дисков",
+      "category": "interstitial_duct",
+      "description": "Узкий вентиляционный зазор с гибкими красными SATA-шлейфами, ведущими к накопителям. Свободный двусторонний проход.",
+      "has_resistor": false,
+      "boss_id": null,
+      "connected_regions": [
+        "loc_central_hub",
+        "loc_hard_drive"
+      ]
+    },
+    {
+      "id": "loc_hard_drive",
+      "display_name": "Жёсткий диск (Гермозона HDD)",
+      "category": "core_hardware",
+      "description": "Стерильная камера с зеркальными вращающимися пластинами. Арена мини-босса «Магнитный Цербер (Привод Головок)».",
+      "has_resistor": true,
+      "boss_id": "boss_hdd_actuator",
+      "connected_regions": [
+        "trans_sata_duct"
+      ]
+    },
+    {
+      "id": "loc_optical_drive",
+      "display_name": "Дисковод (CD/DVD Привод)",
+      "category": "final_chamber",
+      "description": "Финальная изолированная локация. Вход заперт до калибровки разъёмов на Центральном щите. Место битвы с «Нулевым Носителем» (вирусным диском).",
+      "has_resistor": false,
+      "boss_id": "boss_infected_optical_drive",
+      "connected_regions": [
+        "loc_central_hub"
+      ]
+    }
+  ],
+  "drive_gate_mechanism": {
+    "target_location_id": "loc_optical_drive",
+    "required_resistors": 3,
+    "status": "locked",
+    "description": "Шлюз лотка дисковода обесточен. Игрок может в любой последовательности приносить найденные резисторы в Центральный щит. Когда все 3 гнезда заполнены, шлюз распахивается."
+  }
+}
