@@ -1,11 +1,13 @@
 import { Texture } from 'pixi.js';
 
 /**
- * Режет слой головы на «череп» и «лицо»: пиксели цветов featureColors (глаза, брови, рот) уходят в отдельную текстуру,
+ * Режет слой головы на «череп» и «глаза»: пиксели цветов featureColors внутри region (только глаза — трещина на шлеме и рот остаются на черепе) уходят в отдельную текстуру,
  * а дырки в черепе закрашиваются цветом ближайшей кожи. Лицо можно сдвигать по черепу — так голова «смотрит» на курсор
  * без перерисовки (глаза и черты уезжают в сторону взгляда).
  */
-export function splitFace(img: ImageData, featureColors: string[]): { skull: Texture; face: Texture } {
+export function splitFace(
+  img: ImageData, featureColors: string[], region?: { x0: number; y0: number; x1: number; y1: number }
+): { skull: Texture; face: Texture } {
   const { width: w, height: h, data } = img;
   const feat = featureColors.map((c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
   const isFeature = new Uint8Array(w * h);
@@ -16,7 +18,10 @@ export function splitFace(img: ImageData, featureColors: string[]): { skull: Tex
   for (let i = 0; i < w * h; i++) {
     const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2], a = data[i * 4 + 3];
     if (a === 0) continue;
-    if (feat.some((f) => f[0] === r && f[1] === g && f[2] === b)) {
+    const px = i % w;
+    const py = (i - px) / w;
+    const inRegion = !region || (px >= region.x0 && px <= region.x1 && py >= region.y0 && py <= region.y1);
+    if (inRegion && feat.some((f) => f[0] === r && f[1] === g && f[2] === b)) {
       isFeature[i] = 1;
     } else {
       color.set([r, g, b, a], i * 4);

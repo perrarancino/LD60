@@ -40,6 +40,12 @@
             "description": "Только для head: слой режется на череп и лицо (пиксели этих цветов — глаза, брови, рот); лицо сдвигается по черепу в сторону курсора",
             "properties": {
               "feature_colors": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } },
+              "region": {
+                "type": "object",
+                "required": ["x0", "y0", "x1", "y1"],
+                "description": "Прямоугольник на холсте (включительно), где искать черты: вне него пиксели остаются на черепе (например, трещина на шлеме и рот не двигаются — только глаза)",
+                "properties": { "x0": { "type": "integer" }, "y0": { "type": "integer" }, "x1": { "type": "integer" }, "y1": { "type": "integer" } }
+              },
               "max_shift": {
                 "type": "object",
                 "required": ["x", "y"],

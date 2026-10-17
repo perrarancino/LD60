@@ -73,7 +73,7 @@ export interface RigPartDef {
   role: 'head' | 'torso' | 'arm' | 'leg';
   side?: 1 | -1; // 1 — левая на экране (Fhand/Fleg), -1 — правая
   pivot: { x: number; y: number };
-  face?: { feature_colors: string[]; max_shift: { x: number; y: number } }; // для головы: черты лица (глаза, рот) отделяются и двигаются по черепу к курсору
+  face?: { feature_colors: string[]; region?: { x0: number; y0: number; x1: number; y1: number }; max_shift: { x: number; y: number } }; // для головы: черты лица (глаза, рот) отделяются и двигаются по черепу к курсору
   gaze_origin?: { x: number; y: number }; // для головы: середина глаз на холсте — от неё считается направление взгляда на курсор
   length?: number; // для ног: длина в пикселях (от бедра до стопы)
   rope?: { segments: number }; // рука-канат: слой режется на сегменты с verlet-физикой

@@ -113,7 +113,7 @@ export class PlayerRig {
         this.tilt.addChild(limb.container);
       } else if (p.role === 'head' && p.face) {
         // Череп и лицо — отдельные спрайты: лицо сдвигается по черепу, и голова «смотрит» на курсор
-        const { skull, face } = splitFace(sprites.imageData(p.sprite_id), p.face.feature_colors);
+        const { skull, face } = splitFace(sprites.imageData(p.sprite_id), p.face.feature_colors, p.face.region);
         const sprite = new Sprite(skull);
         sprite.pivot.set(p.pivot.x, p.pivot.y);
         const faceSprite = new Sprite(face);
