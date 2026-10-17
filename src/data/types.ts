@@ -89,13 +89,12 @@ export interface BackgroundLayerDef {
   sprite_id: string;
   parallax_x: number;
   parallax_y: number;
-  drift_x?: number; // собственный дрейф слоя, px/с (туман плывёт сам)
+  crop_left?: number; // отрезать столько левых столбцов картинки («битый» край, дающий шов при тайлинге)
+  mirror?: boolean; // тайлить зеркально: края тайлов всегда совпадают
 }
 
 export interface BackgroundEffects {
   sky_top_color?: string;
-  stars?: { density: number; parallax: number; colors: string[] };
-  shooting_stars?: { min_interval: number; max_interval: number; color: string };
   motes?: { density: number; parallax: number; colors: string[] };
 }
 

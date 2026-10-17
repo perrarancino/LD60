@@ -6,17 +6,7 @@ interface Layer {
   sprite: TilingSprite;
   parallaxX: number;
   parallaxY: number;
-  driftX: number; // собственный дрейф слоя, px/с
   height: number; // высота слоя на экране, виртуальные px
-}
-
-interface Star {
-  sprite: Sprite;
-  x: number; // позиция в «мире» звёздного неба, px
-  y: number;
-  speed: number; // скорость мерцания
-  phase: number;
-  base: number; // базовая яркость
 }
 
 interface Mote {
@@ -31,56 +21,38 @@ interface Mote {
   phase: number;
 }
 
-interface Meteor {
-  head: Sprite;
-  tail: Sprite[];
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  t: number;
-  life: number;
-}
-
 const rng = (seed: number) => () => {
-  // mulberry32: детерминированный генератор, чтобы звёзды не «перетасовывались» при изменении окна
+  // mulberry32: детерминированный генератор, чтобы частицы не «перетасовывались» при изменении окна
   seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
   let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-const TAIL_SEGMENTS = 9;
-
 /**
- * Параллакс-фон из зацикленных по горизонтали слоёв (data/backgrounds/*.json) + «живое» небо:
- *  - градиент неба сверху, мерцающие звёзды и редкие падающие звёзды;
- *  - собственный дрейф слоёв-дымки (туман медленно плывёт сам по себе);
- *  - всплывающие светящиеся частицы-«биты» перед дальними слоями.
- * Каждый слой сдвигается на долю сдвига камеры: дальние почти стоят, ближние идут почти вместе с миром.
- * По вертикали слои стоят на «земле» (низ уровня + ground_offset) в нижней точке камеры и слегка «плывут» при подъёме камеры;
- * то, что слои не закрывают сверху, закрашено градиентом неба.
+ * Параллакс-фон из зацикленных по горизонтали слоёв (data/backgrounds/*.json):
+ *  - градиент неба сверху, светящиеся частицы над землёй;
+ *  - каждый слой сдвигается на долю сдвига камеры по X: дальние почти стоят, ближние идут почти вместе с миром
+ *    (слои с parallax_x = 0, например туман/дымка, неподвижны);
+ *  - по вертикали слои сдвигаются на parallax_y (0 — жёстко приклеены к экрану, слои не расходятся);
+ *  - стыки тайлов скрыты: слои с mirror тайлятся зеркально (края всегда совпадают), у слоёв с crop_left отрезается
+ *    «битый» левый столбец;
+ *  - под нижним краем фона — заливка ground_color до низа экрана.
  */
 export class ParallaxBackground {
   public readonly container = new Container();
 
   private sky = new Graphics();
-  private starLayer = new Container();
-  private meteorLayer = new Container();
   private layerLayer = new Container();
   private groundFill = new Graphics();
   private moteLayer = new Container();
 
   private layers: Layer[] = [];
-  private stars: Star[] = [];
   private motes: Mote[] = [];
-  private meteor: Meteor | null = null;
-  private nextMeteorIn: number;
   private random = rng(1337);
 
   private viewW = 0;
   private viewH = 0;
-  private skyBottom = 0; // до какой высоты экрана небо свободно от слоёв
   private time = 0;
 
   /** Спрайты слоёв должны быть уже загружены (SpriteLibrary.load). */
@@ -89,18 +61,46 @@ export class ParallaxBackground {
   }
 
   constructor(private readonly def: BackgroundDef, sprites: SpriteLibrary) {
-    this.container.addChild(this.sky, this.starLayer, this.meteorLayer, this.layerLayer, this.groundFill, this.moteLayer);
+    this.container.addChild(this.sky, this.layerLayer, this.groundFill, this.moteLayer);
     for (const l of def.layers) {
-      const texture = sprites.texture(l.sprite_id);
+      const texture = this.layerTexture(sprites, l.sprite_id, l.crop_left ?? 0, l.mirror ?? false);
       const sprite = new TilingSprite({ texture, width: 1, height: texture.height * def.scale });
       sprite.tileScale.set(def.scale);
       this.layerLayer.addChild(sprite);
-      this.layers.push({
-        sprite, parallaxX: l.parallax_x, parallaxY: l.parallax_y, driftX: l.drift_x ?? 0, height: texture.height * def.scale
-      });
+      this.layers.push({ sprite, parallaxX: l.parallax_x, parallaxY: l.parallax_y, height: texture.height * def.scale });
     }
-    const fx = def.effects?.shooting_stars;
-    this.nextMeteorIn = fx ? this.random() * (fx.max_interval - fx.min_interval) + fx.min_interval : Infinity;
+  }
+
+  /**
+   * Текстура слоя для тайлинга: можно отрезать левые столбцы (crop_left) и/или склеить картинку с её зеркальной копией,
+   * чтобы правый край каждого тайла совпадал с левым краем следующего.
+   */
+  private layerTexture(sprites: SpriteLibrary, id: string, cropLeft: number, mirror: boolean): Texture {
+    if (cropLeft === 0 && !mirror) return sprites.texture(id);
+
+    const src = sprites.imageData(id);
+    const w = src.width - cropLeft;
+    const h = src.height;
+    const base = document.createElement('canvas');
+    base.width = src.width;
+    base.height = h;
+    base.getContext('2d')!.putImageData(src, 0, 0);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = mirror ? w * 2 : w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(base, cropLeft, 0, w, h, 0, 0, w, h);
+    if (mirror) {
+      ctx.save();
+      ctx.translate(w * 2, 0);
+      ctx.scale(-1, 1); // зеркальная копия справа от оригинала
+      ctx.drawImage(base, cropLeft, 0, w, h, 0, 0, w, h);
+      ctx.restore();
+    }
+    const texture = Texture.from(canvas);
+    texture.source.scaleMode = 'nearest';
+    return texture;
   }
 
   /** Размер видимой области (виртуальные px) изменился. */
@@ -111,9 +111,9 @@ export class ParallaxBackground {
 
     // Небо: градиент от верха к sky_color у горизонта (там, где начинаются слои)
     const maxLayerH = Math.max(...this.layers.map((l) => l.height));
-    this.skyBottom = Math.max(32, viewH - maxLayerH - (this.def.ground_offset ?? 0));
+    const horizon = Math.max(32, viewH - maxLayerH - (this.def.ground_offset ?? 0));
     const top = this.def.effects?.sky_top_color ?? this.def.sky_color;
-    const end = Math.min(1, (this.skyBottom + maxLayerH * 0.35) / viewH);
+    const end = Math.min(1, (horizon + maxLayerH * 0.35) / viewH);
     const gradient = new FillGradient({
       type: 'linear',
       start: { x: 0, y: 0 },
@@ -127,29 +127,7 @@ export class ParallaxBackground {
     });
     this.sky.clear().rect(0, 0, viewW, viewH).fill(gradient);
 
-    this.buildStars();
     this.buildMotes();
-  }
-
-  private buildStars(): void {
-    this.starLayer.removeChildren().forEach((c) => c.destroy());
-    this.stars = [];
-    const fx = this.def.effects?.stars;
-    if (!fx) return;
-    const rand = rng(7);
-    const area = this.skyBottom + 50; // звёзды видны и сквозь полупрозрачную дымку над горизонтом
-    const count = Math.round(this.viewW * area * fx.density);
-    for (let i = 0; i < count; i++) {
-      const sprite = new Sprite(Texture.WHITE);
-      const size = rand() < 0.12 ? 2 : 1;
-      sprite.width = sprite.height = size;
-      sprite.tint = fx.colors[Math.floor(rand() * fx.colors.length)];
-      this.starLayer.addChild(sprite);
-      this.stars.push({
-        sprite, x: rand() * this.viewW, y: rand() * area,
-        speed: 0.6 + rand() * 2.2, phase: rand() * Math.PI * 2, base: 0.3 + rand() * 0.7
-      });
-    }
   }
 
   private buildMotes(): void {
@@ -183,7 +161,7 @@ export class ParallaxBackground {
 
   /**
    * @param camX, camY положение камеры в мире (левый верхний угол видимой области)
-   * @param maxCamY положение камеры, когда она внизу уровня: там слои стоят на земле
+   * @param maxCamY положение камеры, когда она внизу уровня
    * @param pixelScale физических пикселей на виртуальный — сдвиги выравниваются по ним, чтобы пиксели не «плыли»
    * @param dt шаг времени, с (0 — только пересчитать положения)
    */
@@ -192,20 +170,8 @@ export class ParallaxBackground {
     const snap = (v: number) => Math.round(v * pixelScale) / pixelScale;
 
     for (const l of this.layers) {
-      l.sprite.tilePosition.x = snap(-camX * l.parallaxX + l.driftX * this.time);
+      l.sprite.tilePosition.x = snap(-camX * l.parallaxX);
       l.sprite.y = snap(this.viewH - l.height - (this.def.ground_offset ?? 0) + (maxCamY - camY) * l.parallaxY);
-    }
-
-    const starFx = this.def.effects?.stars;
-    if (starFx) {
-      const w = this.viewW;
-      for (const s of this.stars) {
-        const x = (((s.x - camX * starFx.parallax) % w) + w) % w;
-        s.sprite.position.set(Math.floor(x), Math.floor(s.y - (camY - maxCamY) * starFx.parallax * 0.5 + 0));
-        // мерцание: плавное, у части звёзд — резкие вспышки
-        const tw = 0.5 + 0.5 * Math.sin(this.time * s.speed + s.phase);
-        s.sprite.alpha = s.base * (0.25 + 0.75 * tw * tw);
-      }
     }
 
     // Земля: под нижним краем ближнего слоя заливаем до низа экрана, чтобы на верхних платформах под фоном не было пустоты
@@ -217,7 +183,6 @@ export class ParallaxBackground {
       if (top < this.viewH) this.groundFill.rect(0, top, this.viewW, this.viewH - top + 4).fill(groundColor);
     }
 
-    this.updateMeteor(dt);
     this.updateMotes(dt, camX, camY - maxCamY);
   }
 
@@ -243,58 +208,5 @@ export class ParallaxBackground {
       m.sprite.alpha = a;
       m.armH.alpha = m.armV.alpha = a * 0.4;
     }
-  }
-
-  private updateMeteor(dt: number): void {
-    const fx = this.def.effects?.shooting_stars;
-    if (!fx) return;
-    if (!this.meteor) {
-      this.nextMeteorIn -= dt;
-      if (this.nextMeteorIn > 0 || this.viewW === 0) return;
-      this.spawnMeteor(fx.color);
-      return;
-    }
-    const m = this.meteor;
-    m.t += dt;
-    m.x += m.vx * dt;
-    m.y += m.vy * dt;
-    const k = m.t / m.life;
-    const fade = Math.sin(Math.PI * Math.min(1, k)); // вспыхивает и гаснет
-    m.head.position.set(Math.floor(m.x), Math.floor(m.y));
-    m.head.alpha = fade;
-    const len = Math.hypot(m.vx, m.vy);
-    for (let i = 0; i < m.tail.length; i++) {
-      const back = (i + 1) * 3.2;
-      m.tail[i].position.set(Math.floor(m.x - (m.vx / len) * back), Math.floor(m.y - (m.vy / len) * back));
-      m.tail[i].alpha = fade * (1 - (i + 1) / (m.tail.length + 1)) * 0.8;
-    }
-    if (k >= 1) {
-      this.meteorLayer.removeChildren().forEach((c) => c.destroy());
-      this.meteor = null;
-      this.nextMeteorIn = this.random() * (fx.max_interval - fx.min_interval) + fx.min_interval;
-    }
-  }
-
-  private spawnMeteor(color: string): void {
-    const make = (size: number) => {
-      const s = new Sprite(Texture.WHITE);
-      s.width = s.height = size;
-      s.tint = color;
-      this.meteorLayer.addChild(s);
-      return s;
-    };
-    const tail: Sprite[] = [];
-    for (let i = 0; i < TAIL_SEGMENTS; i++) tail.push(make(1));
-    const head = make(2);
-    const dir = this.random() < 0.5 ? 1 : -1; // летит вправо-вниз или влево-вниз
-    const speed = 170 + this.random() * 90;
-    const angle = 0.35 + this.random() * 0.3;
-    this.meteor = {
-      head, tail,
-      x: dir > 0 ? this.random() * this.viewW * 0.5 : this.viewW * (0.5 + this.random() * 0.5),
-      y: this.random() * this.skyBottom * 0.5,
-      vx: dir * Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      t: 0, life: 0.9 + this.random() * 0.5
-    };
   }
 }
