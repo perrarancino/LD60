@@ -11,8 +11,12 @@ import type { ClimbPhase, ClimbPose } from './PlayerRig.ts';
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
 const WALL_SLIDE_SPEED = 70; // макс. скорость падения при скольжении по стене, px/с
-const WALL_JUMP_VX = 210; // скорость отскока от стены по горизонтали, px/с
-const WALL_JUMP_LOCK = 0.2; // с: управление по горизонтали заблокировано, чтобы отскочить от стены
+const WALL_JUMP_SPEED = 430; // скорость отскока от стены (вдоль направления на курсор), px/с
+const WALL_JUMP_MIN_AWAY = 0.3; // минимальная доля направления «от стены» (нельзя отскочить в саму стену)
+const WALL_JUMP_MAX_DOWN = 0.15; // вниз отскочить нельзя почти совсем
+const WALL_JUMP_LOCK = 0.12; // с: управление по горизонтали заблокировано, чтобы отскочить от стены
+const AIR_ACCEL = 500; // px/с²: как быстро после отскока скорость подстраивается под ввод
+const AIR_DRAG = 220; // px/с²: торможение после отскока без ввода
 const WALL_COYOTE = 0.12; // с: отскок возможен чуть после потери контакта со стеной
 const HANG_FEET = 38; // на сколько ниже уступа стоят ноги, когда руки уже достают до края, px
 const HANG_PRESS = 10; // на сколько герой прижимается к стене в висе, px
@@ -61,6 +65,7 @@ export class Player {
   private wallCoyote = 0;
   private lockT = 0; // время блокировки управления после отскока
   private lockVx = 0;
+  private momentum = false; // после отскока: скорость по X меняется плавно, а не мгновенно
   private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
   private wallX = 0;
 
@@ -86,8 +91,11 @@ export class Player {
     if (this.climb) {
       this.updateClimb(dt);
     } else {
-      this.updateMovement(dt, input, level);
-      if (this.climbCooldown <= 0 && input.horizontal !== 0) this.tryStartClimb(input.horizontal, level);
+      this.updateMovement(dt, input, level, aim);
+      if (!this.climb && this.climbCooldown <= 0 && input.horizontal !== 0 && b.blockedX === input.horizontal) {
+        const plan = this.planClimb(input.horizontal, level);
+        if (plan) this.beginClimb(plan);
+      }
     }
 
     const headY = b.y - 40;
@@ -113,7 +121,7 @@ export class Player {
     this.body.setHitbox(this.spriteDef, dir < 0);
   }
 
-  private updateMovement(dt: number, input: InputState, level: Level): void {
+  private updateMovement(dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null): void {
     const b = this.body;
 
     // Контакт со стеной (только в воздухе)
@@ -131,7 +139,15 @@ export class Player {
       b.vx = this.lockVx;
     } else {
       if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-      b.vx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+      const target = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+      if (this.momentum && !b.grounded) {
+        // После отскока горизонтальная скорость подстраивается под ввод плавно
+        const accel = (input.horizontal !== 0 ? AIR_ACCEL : AIR_DRAG) * dt;
+        b.vx += Math.max(-accel, Math.min(accel, target - b.vx));
+      } else {
+        this.momentum = false;
+        b.vx = target;
+      }
     }
 
     this.coyote = b.grounded ? GAME_CONFIG.COYOTE_TIME_SEC : this.coyote - dt;
@@ -141,18 +157,17 @@ export class Player {
       b.vy = GAME_CONFIG.JUMP_FORCE;
       this.jumpBuffer = this.coyote = 0;
     } else if (this.jumpBuffer > 0 && !b.grounded && this.wallCoyote > 0 && this.wallDir !== 0) {
-      // Отскок от стены: вверх и от стены
-      b.vy = GAME_CONFIG.JUMP_FORCE * 0.95;
-      this.lockVx = -this.wallDir * WALL_JUMP_VX;
-      b.vx = this.lockVx;
-      this.lockT = WALL_JUMP_LOCK;
-      this.face(this.lockVx > 0 ? 1 : -1);
-      this.jumpBuffer = this.wallCoyote = 0;
-      this.wallDir = 0;
-      this.sliding = 0;
+      // Прыжок у стены: если можно залезть — лезем, иначе отскакиваем
+      const plan = contact !== 0 && !this.climbBlocked() ? this.planClimb(contact, level) : null;
+      if (plan) {
+        this.beginClimb(plan);
+        this.jumpBuffer = 0;
+        return;
+      }
+      this.wallJump(aim);
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
-    if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4 && this.lockT <= 0) {
+    if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4 && this.lockT <= 0 && !this.momentum) {
       b.vy = GAME_CONFIG.JUMP_FORCE * 0.4;
     }
 
@@ -171,44 +186,89 @@ export class Player {
     b.move(dt, level);
   }
 
+  /** Кулдаун после предыдущего залезания не прошёл. */
+  private climbBlocked(): boolean {
+    return this.climbCooldown > 0;
+  }
+
   /**
-   * Герой упёрся в стену и жмёт в её сторону: если препятствие не выше MAX_CLIMB_HEIGHT и над ним есть место —
-   * запускаем залезание (вверх вдоль стены, затем вперёд на верх препятствия).
+   * План залезания на препятствие со стороны dir: если оно не выше MAX_CLIMB_HEIGHT и над ним есть место — возвращает
+   * параметры залезания (вверх вдоль стены, затем вперёд на верх), иначе null. Ничего не меняет.
    */
-  private tryStartClimb(dir: number, level: Level): void {
+  private planClimb(dir: number, level: Level): Climb | null {
     const b = this.body;
-    if (b.blockedX !== dir) return;
     const ts = level.tileSize;
 
-    const wallCol = Math.floor(((dir > 0 ? b.right : b.left) + dir * 0.5) / ts);
+    const wallCol = Math.floor(((dir > 0 ? b.right : b.left) + dir * 0.6) / ts);
     let row = Math.floor((b.bottom - 1) / ts);
-    if (!level.isSolid(wallCol, row)) return; // стена не на уровне ног — лезть некуда
+    if (!level.isSolid(wallCol, row)) return null; // стена не на уровне ног — лезть некуда
     // (за границей уровня isSolid всегда true — без ограничения по ряду цикл был бы бесконечным)
     while (row > 0 && level.isSolid(wallCol, row - 1)) row--;
 
     const topY = row * ts;
     const rise = b.bottom - topY;
-    if (rise <= 0 || rise > MAX_CLIMB_HEIGHT) return;
+    if (rise <= 0 || rise > MAX_CLIMB_HEIGHT) return null;
 
     const y1 = b.yForFeet(topY);
     const wallFace = dir > 0 ? wallCol * ts : (wallCol + 1) * ts;
     const x2 = b.xForCenter(wallFace + dir * (b.hitWidth / 2 + 1));
     // над препятствием должно хватить места и для подъёма, и для шага вперёд
-    if (b.overlapsSolidAt(level, b.x, y1) || b.overlapsSolidAt(level, x2, y1)) return;
+    if (b.overlapsSolidAt(level, b.x, y1) || b.overlapsSolidAt(level, x2, y1)) return null;
 
     // Если уступ выше, чем достают руки с земли, герой сначала подпрыгивает до «виса»
     const feet0 = b.bottom;
     const feetHang = Math.min(feet0, topY + HANG_FEET);
     const dur = { ...PHASE_DURATION };
     if (feetHang >= feet0) dur.jump = 0;
-    this.climb = {
+    return {
       phase: dur.jump > 0 ? 'jump' : 'hang', t: 0, dur, dir: dir > 0 ? 1 : -1,
       cornerX: wallFace, cornerY: topY,
       x0: b.x, xHang: b.x + dir * HANG_PRESS, x2,
       feet0, feetHang, feetTop: topY
     };
-    this.face(this.climb.dir);
-    b.vx = b.vy = 0;
+  }
+
+  private beginClimb(plan: Climb): void {
+    this.climb = plan;
+    this.face(plan.dir);
+    this.body.vx = this.body.vy = 0;
+    this.momentum = false;
+    this.lockT = 0;
+    this.sliding = 0;
+  }
+
+  /**
+   * Отскок от стены в сторону курсора: сила прикладывается вдоль направления на курсор, но нельзя отскочить
+   * в стену (минимальная доля «от стены») и почти нельзя вниз. Без курсора — вверх и от стены.
+   */
+  private wallJump(aim: { x: number; y: number } | null): void {
+    const b = this.body;
+    const away = -this.wallDir; // направление от стены
+    let dx = away * 0.5;
+    let dy = -0.87;
+    if (aim) {
+      dx = aim.x - b.x;
+      dy = aim.y - (b.y - 30); // от центра тела
+    }
+    const len = Math.hypot(dx, dy);
+    let nx = len > 1e-3 ? dx / len : away * 0.5;
+    let ny = len > 1e-3 ? dy / len : -0.87;
+    ny = Math.min(ny, WALL_JUMP_MAX_DOWN);
+    let c = nx * away; // доля направления от стены
+    c = Math.max(c, WALL_JUMP_MIN_AWAY);
+    const rest = Math.sqrt(Math.max(0, 1 - c * c));
+    ny = ny >= 0 ? Math.min(rest, WALL_JUMP_MAX_DOWN) : -rest;
+    nx = away * Math.sqrt(Math.max(0, 1 - ny * ny));
+
+    b.vx = nx * WALL_JUMP_SPEED;
+    b.vy = ny * WALL_JUMP_SPEED;
+    this.lockVx = b.vx;
+    this.lockT = WALL_JUMP_LOCK;
+    this.momentum = true;
+    this.face(b.vx > 0 ? 1 : -1);
+    this.jumpBuffer = this.wallCoyote = 0;
+    this.wallDir = 0;
+    this.sliding = 0;
   }
 
   private climbPose(c: Climb): ClimbPose {
