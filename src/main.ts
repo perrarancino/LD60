@@ -272,7 +272,7 @@ class GameApp {
         // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const worm = new Worm(def, spawn, this.level, rig, this.sprites);
+        const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
         continue;

@@ -18,7 +18,8 @@ const SQUASH_LAG = 0.9; // сдвиг фазы между соседними с�
 
 // ---- Поведение
 const CRAWL_TIME: [number, number] = [5, 11]; // сколько ползёт по поверхности перед тем, как зарыться
-const TURN_TIME: [number, number] = [6, 12];
+const MIN_GAP = 30; // px: ближе этого центры сегментов разных частей (и чужих червей) не сходятся
+const STUCK_TIME = 0.5; // с: столько голова упирается в тело, прежде чем червь зароется, чтобы уйти
 const DIG_SPEED = 2.2; // множитель скорости под землёй
 const TUNNEL_MIN = 2; // длина подземного хода в клетках (от входа до выхода)
 const TUNNEL_MAX = 14;
@@ -70,11 +71,12 @@ export class Worm {
   private readonly trailLimit: number;
 
   private phase = Math.random() * Math.PI * 2;
-  private turnTimer = rand(TURN_TIME);
+  private stuck = 0; // сколько секунд голова упирается в чужое/своё тело
   private burrowTimer = rand(CRAWL_TIME);
 
   constructor(
-    def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary
+    def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
+    private readonly flock: Worm[] = [] // все черви уровня (включая этого): чтобы не пересекаться
   ) {
     const seg = rig.segmented;
     if (!seg) throw new Error(`[Worm] в риге "${rig.id}" нет блока segmented`);
@@ -192,8 +194,13 @@ export class Worm {
     return null;
   }
 
+  /** Твёрдая ли клетка для подземного хода: тайлы уровня плюс «невидимая» рамка в одну клетку вокруг мира (мир замкнут). */
   private cellSolid(cx: number, cy: number): boolean {
-    return cx >= 0 && cy >= 0 && cx < this.level.widthTiles && cy < this.level.heightTiles && this.level.isSolid(cx, cy);
+    const W = this.level.widthTiles;
+    const H = this.level.heightTiles;
+    if (cx < -1 || cy < -1 || cx > W || cy > H) return false;
+    if (cx < 0 || cy < 0 || cx >= W || cy >= H) return true;
+    return this.level.isSolid(cx, cy);
   }
 
   private cellFree(cx: number, cy: number): boolean {
@@ -226,19 +233,32 @@ export class Worm {
 
   private updateCrawl(dt: number): void {
     this.cornerCooldown -= dt;
-    this.turnTimer -= dt;
-    if (this.turnTimer <= 0) {
-      this.t = { x: -this.t.x, y: -this.t.y };
-      this.turnTimer = rand(TURN_TIME);
-    }
     this.burrowTimer -= dt;
 
     // Ползёт «гусеницей»: скорость пульсирует, в среднем равна movement_speed
-    const step = this.speed * (1 + INCH_SPEED * Math.sin(this.phase)) * dt;
+    let step = this.speed * (1 + INCH_SPEED * Math.sin(this.phase)) * dt;
+
+    // Голова не лезет в тело (своё или чужого червя): стоит, а если не отпускает — зарывается и уходит
+    const ahead = { x: this.p.x + this.t.x * (step + 3), y: this.p.y + this.t.y * (step + 3) };
+    const blocker = this.nearestBody(ahead);
+    let yielding = false; // упёрлись в червя, у которого приоритет: ждём, а не зарываемся одновременно с ним
+    if (blocker.gap < MIN_GAP && blocker.gap < this.gapTo(this.p)) {
+      step = 0;
+      this.stuck += dt;
+      yielding = blocker.owner !== null && blocker.owner !== this && this.flock.indexOf(blocker.owner) < this.flock.indexOf(this);
+    } else {
+      this.stuck = 0;
+    }
+
     this.crawl(step);
     this.p = { x: this.s.x + this.n.x * this.radius, y: this.s.y + this.n.y * this.radius };
 
-    if (this.burrowTimer <= 0) this.tryBurrow(step);
+    if (this.stuck > STUCK_TIME && !yielding) {
+      this.tryBurrow(0, true);
+      if (this.state === 'crawl') this.stuck = 0; // не вышло — подождём ещё
+    } else if (this.burrowTimer <= 0) {
+      this.tryBurrow(step, false);
+    }
   }
 
   /** Движение головы вдоль поверхности, огибание внутренних и внешних углов. */
@@ -294,12 +314,12 @@ export class Worm {
   // ---------- Зарывание ----------
 
   /** Начинает зарываться, когда голова встала ровно над серединой клетки под ней. */
-  private tryBurrow(step: number): void {
+  private tryBurrow(step: number, force: boolean): void {
     const ts = this.level.tileSize;
     const horizontal = Math.abs(this.t.x) > 0.5;
     const along = horizontal ? this.s.x : this.s.y;
     const off = along - (Math.floor(along / ts) + 0.5) * ts;
-    if (Math.abs(off) > Math.max(1.5, step)) return;
+    if (!force && Math.abs(off) > Math.max(1.5, step)) return;
 
     const under = { x: this.s.x - this.n.x * 2, y: this.s.y - this.n.y * 2 };
     const entry = { cx: Math.floor(under.x / ts), cy: Math.floor(under.y / ts) };
@@ -321,7 +341,8 @@ export class Worm {
     if (!this.cellSolid(startCx, startCy)) return null;
     const W = this.level.widthTiles;
     const ts = this.level.tileSize;
-    const key = (cx: number, cy: number) => cy * W + cx;
+    const stride = W + 2; // рамка шире уровня на клетку с каждой стороны
+    const key = (cx: number, cy: number) => (cy + 1) * stride + cx + 1;
     const dist = new Map<number, number>([[key(startCx, startCy), 0]]);
     const parent = new Map<number, number>();
     const queue: Array<[number, number]> = [[startCx, startCy]];
@@ -332,7 +353,7 @@ export class Worm {
       const dcur = dist.get(key(cx, cy)) ?? 0;
       if (dcur >= TUNNEL_MIN) {
         for (const a of AXES) {
-          if (this.cellFree(cx + a.x, cy + a.y)) exits.push({ cx, cy, dir: a });
+          if (this.cellFree(cx + a.x, cy + a.y) && !this.occupied((cx + a.x + 0.5) * ts, (cy + a.y + 0.5) * ts, 34)) exits.push({ cx, cy, dir: a });
         }
       }
       if (dcur >= TUNNEL_MAX) continue;
@@ -350,7 +371,7 @@ export class Worm {
     const ex = exits[Math.floor(Math.random() * exits.length)];
     const cells: Array<[number, number]> = [];
     for (let k: number | undefined = key(ex.cx, ex.cy); k !== undefined; k = parent.get(k)) {
-      cells.push([k % W, Math.floor(k / W)]);
+      cells.push([(k % stride) - 1, Math.floor(k / stride) - 1]);
     }
     cells.reverse();
     const points = cells.map(([cx, cy]) => ({ x: (cx + 0.5) * ts, y: (cy + 0.5) * ts }));
@@ -362,6 +383,11 @@ export class Worm {
     let budget = this.speed * DIG_SPEED * dt;
     while (budget > 0 && this.waypoints.length > 0) {
       const w = this.waypoints[0];
+      // перед выходом наружу ждём в ходу, пока у выхода кто-то ползает
+      // (пока голова ещё внутри блока; уже вышедшая наружу не останавливается)
+      const ts = this.level.tileSize;
+      const hidden = this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts));
+      if (this.waypoints.length === 1 && hidden && this.occupied(w.x, w.y, MIN_GAP + 8, true)) break;
       const dx = w.x - this.p.x;
       const dy = w.y - this.p.y;
       const d = Math.hypot(dx, dy);
@@ -386,7 +412,53 @@ export class Worm {
     this.cornerCooldown = 0.3;
     this.state = 'crawl';
     this.burrowTimer = rand(CRAWL_TIME);
-    this.turnTimer = rand(TURN_TIME);
+  }
+
+  // ---------- Столкновения с телами ----------
+
+  /** Все точки тел червей (центры сегментов); у себя пропускаем голову и первый сегмент за ней — они всегда рядом. */
+  private bodies(skipSelfNear: boolean, othersOnly = false): Array<Vec & { owner: Worm }> {
+    const pts: Array<Vec & { owner: Worm }> = [];
+    for (const w of this.flock) {
+      if (othersOnly && w === this) continue;
+      w.segments.forEach((seg, i) => {
+        if (w === this && (i === 0 || (skipSelfNear && i === 1))) return;
+        pts.push({ x: seg.sprite.x, y: seg.sprite.y, owner: w });
+      });
+    }
+    return pts;
+  }
+
+  /** Расстояние от точки до ближайшего сегмента другого червя или заднего сегмента этого. */
+  private gapTo(pt: Vec): number {
+    return this.nearestBody(pt).gap;
+  }
+
+  /** Ближайший сегмент (чужой или свой задний) к точке и чей он. */
+  private nearestBody(pt: Vec): { gap: number; owner: Worm | null } {
+    let gap = Infinity;
+    let owner: Worm | null = null;
+    for (const b of this.bodies(true)) {
+      const d = Math.hypot(b.x - pt.x, b.y - pt.y);
+      if (d < gap) {
+        gap = d;
+        owner = b.owner;
+      }
+    }
+    return { gap, owner };
+  }
+
+  /**
+   * Есть ли чьё-то тело (кроме головы самого червя и сегмента за ней) ближе r к точке. Учитываются только части вне блоков:
+   * спрятанные в блоках (под маской) друг другу не мешают. othersOnly — только чужие черви.
+   */
+  private occupied(x: number, y: number, r: number, othersOnly = false): boolean {
+    const ts = this.level.tileSize;
+    for (const b of this.bodies(true, othersOnly)) {
+      if (this.cellSolid(Math.floor(b.x / ts), Math.floor(b.y / ts))) continue;
+      if (Math.hypot(b.x - x, b.y - y) < r) return true;
+    }
+    return false;
   }
 
   // ---------- Тело по следу ----------
