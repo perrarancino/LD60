@@ -1,18 +1,23 @@
 import { AssetManager } from './assetManager';
 import { EditorCanvas } from './editorCanvas';
-import type { EditorConfigResponse, EnemySpawnDef, LevelDef, TileDef, ToolType } from './types';
+import type { CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, TileDef, ToolType } from './types';
+import { WorldGraphModal } from './worldGraph';
 
 class EditorApp {
   private assets = new AssetManager();
   private canvas!: EditorCanvas;
   private config: EditorConfigResponse | null = null;
   private currentFilename: string = '';
+  private worldGraphModal = new WorldGraphModal();
 
   public async init() {
     const canvasElem = document.getElementById('editor-canvas') as HTMLCanvasElement;
     this.canvas = new EditorCanvas(canvasElem, this.assets, {
       onHoverTile: (x, y) => this.updateCoords(x, y),
       onSelectEnemy: (enemy, idx) => this.updateSelectedEnemy(enemy, idx),
+      onSelectTransition: (trans, idx) => this.updateSelectedTransition(trans, idx),
+      onSelectCable: (cable, idx) => this.updateSelectedCable(cable, idx),
+      onPlaytestToggle: (active) => this.updatePlaytestUI(active),
       onLevelChanged: () => this.syncSettingsForm(),
       onStatusMessage: (msg) => this.setStatus(msg)
     });
@@ -55,7 +60,12 @@ class EditorApp {
       this.populateBackgroundDropdowns();
       this.populateLevelDropdown();
       this.populateWorldRegions();
+      this.populateTransitionTargetLevels();
       this.setupNewTileModal();
+
+      if (this.config?.world) {
+        this.worldGraphModal.setWorld(this.config.world, (regionId) => this.handleSelectWorldRegion(regionId));
+      }
 
       // Загружаем первый доступный уровень
       if (this.config?.levels && this.config.levels.length > 0) {
@@ -445,6 +455,114 @@ class EditorApp {
     }
   }
 
+  private updatePlaytestUI(active: boolean) {
+    const btn = document.getElementById('btn-playtest');
+    if (!btn) return;
+    if (active) {
+      btn.textContent = '⏹ Стоп (Esc)';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-danger');
+    } else {
+      btn.textContent = '▶️ Тест';
+      btn.classList.remove('btn-danger');
+      btn.classList.add('btn-success');
+    }
+  }
+
+  private updateSelectedTransition(trans: LevelTransitionDef | null, _idx: number) {
+    const panel = document.getElementById('transition-editor-panel');
+    if (!panel) return;
+
+    if (trans) {
+      panel.style.display = 'block';
+      (document.getElementById('trans-id') as HTMLInputElement).value = trans.id;
+      (document.getElementById('trans-label') as HTMLInputElement).value = trans.label || '';
+      (document.getElementById('trans-target-level') as HTMLSelectElement).value = trans.target_level;
+      (document.getElementById('trans-target-spawn-x') as HTMLInputElement).value = (trans.target_spawn?.x ?? 2).toString();
+      (document.getElementById('trans-target-spawn-y') as HTMLInputElement).value = (trans.target_spawn?.y ?? 14).toString();
+      (document.getElementById('trans-resistors') as HTMLInputElement).value = (trans.requires_resistors ?? 0).toString();
+
+      this.activateTab('tab-decor-btn', 'tab-decor');
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
+  private updateSelectedCable(cable: CableDef | null, _idx: number) {
+    const box = document.getElementById('selected-cable-box');
+    const desc = document.getElementById('selected-cable-desc');
+    if (!box || !desc) return;
+
+    if (cable) {
+      box.style.display = 'block';
+      desc.textContent = `Тип: ${cable.type || 'sata'} | Толщина: ${cable.thickness}px | Прогиб: ${cable.sag}px`;
+      (document.getElementById('slider-cable-sag') as HTMLInputElement).value = cable.sag.toString();
+      document.getElementById('label-cable-sag')!.textContent = `${cable.sag}px`;
+      (document.getElementById('slider-cable-thick') as HTMLInputElement).value = cable.thickness.toString();
+      document.getElementById('label-cable-thick')!.textContent = `${cable.thickness}px`;
+
+      this.activateTab('tab-decor-btn', 'tab-decor');
+    } else {
+      box.style.display = 'none';
+    }
+  }
+
+  private activateTab(btnId: string, contentId: string) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(btnId)?.classList.add('active');
+    document.getElementById(contentId)?.classList.add('active');
+  }
+
+  private populateTransitionTargetLevels() {
+    const select = document.getElementById('trans-target-level') as HTMLSelectElement;
+    if (!select || !this.config?.levels) return;
+    select.innerHTML = '';
+    for (const lvl of this.config.levels) {
+      const opt = document.createElement('option');
+      opt.value = lvl.data.id;
+      opt.textContent = `${lvl.data.display_name || lvl.data.id} (${lvl.filename})`;
+      select.appendChild(opt);
+    }
+  }
+
+  private getCurrentRegionId(): string | undefined {
+    return (document.getElementById('setting-level-region') as HTMLSelectElement)?.value || undefined;
+  }
+
+  private handleSelectWorldRegion(regionId: string) {
+    if (!this.config?.levels) return;
+    const matching = this.config.levels.find(l => l.data.id === regionId || l.filename === `${regionId}.json`);
+    if (matching) {
+      this.loadLevel(matching.filename, matching.data);
+      this.setStatus(`Загружен уровень региона: ${matching.data.display_name || regionId}`);
+    } else {
+      const regDef = this.config.world?.regions.find(r => r.id === regionId);
+      const name = regDef ? regDef.display_name : regionId;
+      if (confirm(`Уровень для региона "${name}" еще не создан. Создать новый уровень "${regionId}.json"?`)) {
+        const newLevel: LevelDef = {
+          $schema: '../schemas/level.schema.json',
+          id: regionId,
+          display_name: name,
+          background_id: 'bg_textalite',
+          tile_size: 32,
+          width: 32,
+          height: 16,
+          legend: { '#': 'platform_block', '.': null },
+          rows: Array.from({ length: 16 }, (_, y) => (y === 15 ? '#'.repeat(32) : '.'.repeat(32))),
+          player_spawn: { x: 2, y: 14 },
+          enemies: []
+        };
+        const filename = `${regionId}.json`;
+        this.config.levels.push({ filename, data: newLevel });
+        this.populateLevelDropdown();
+        this.populateTransitionTargetLevels();
+        this.loadLevel(filename, newLevel);
+        this.saveCurrentLevel();
+      }
+    }
+  }
+
   private async saveCurrentLevel() {
     if (!this.canvas.level) return;
     const saveBtn = document.getElementById('btn-save')!;
@@ -495,6 +613,7 @@ class EditorApp {
     const tabs: Record<string, string> = {
       'tab-tiles-btn': 'tab-tiles',
       'tab-enemies-btn': 'tab-enemies',
+      'tab-decor-btn': 'tab-decor',
       'tab-settings-btn': 'tab-settings'
     };
 
@@ -506,6 +625,103 @@ class EditorApp {
         document.getElementById(contentId)?.classList.add('active');
       });
     }
+
+    // Верхняя панель: Instant Playtest & World Graph
+    document.getElementById('btn-playtest')?.addEventListener('click', () => {
+      this.canvas.togglePlaytest();
+    });
+
+    document.getElementById('btn-world-graph')?.addEventListener('click', () => {
+      this.worldGraphModal.open(this.getCurrentRegionId());
+    });
+
+    // Переключатель автотайлинга
+    const btnAutotile = document.getElementById('btn-toggle-autotile');
+    btnAutotile?.addEventListener('click', () => {
+      this.canvas.autotileEnabled = !this.canvas.autotileEnabled;
+      btnAutotile.classList.toggle('active', this.canvas.autotileEnabled);
+      this.setStatus(this.canvas.autotileEnabled ? 'Автотайлинг (9-slice) включен' : 'Автотайлинг выключен');
+    });
+
+    // Переключатель дуги прыжка
+    const btnArc = document.getElementById('btn-toggle-arc');
+    btnArc?.addEventListener('click', () => {
+      this.canvas.showJumpArc = !this.canvas.showJumpArc;
+      btnArc.classList.toggle('active', this.canvas.showJumpArc);
+      this.canvas.render();
+    });
+
+    // Пресеты кабелей
+    const setCablePreset = (color: string, thick: number, type: 'sata' | 'power' | 'ide' | 'ground', sag: number) => {
+      this.canvas.cableColor = color;
+      this.canvas.cableThickness = thick;
+      this.canvas.cableType = type;
+      this.canvas.cableSag = sag;
+      const sagSlider = document.getElementById('slider-cable-sag') as HTMLInputElement;
+      if (sagSlider) sagSlider.value = sag.toString();
+      const sagLabel = document.getElementById('label-cable-sag');
+      if (sagLabel) sagLabel.textContent = `${sag}px`;
+      const thickSlider = document.getElementById('slider-cable-thick') as HTMLInputElement;
+      if (thickSlider) thickSlider.value = thick.toString();
+      const thickLabel = document.getElementById('label-cable-thick');
+      if (thickLabel) thickLabel.textContent = `${thick}px`;
+      this.setTool('cable');
+      this.setStatus(`Выбран пресет кабеля: ${type.toUpperCase()}`);
+    };
+
+    document.getElementById('btn-preset-sata')?.addEventListener('click', () => setCablePreset('#ef4444', 3, 'sata', 35));
+    document.getElementById('btn-preset-power')?.addEventListener('click', () => setCablePreset('#f59e0b', 2, 'power', 45));
+    document.getElementById('btn-preset-ide')?.addEventListener('click', () => setCablePreset('#94a3b8', 8, 'ide', 25));
+    document.getElementById('btn-preset-ground')?.addEventListener('click', () => setCablePreset('#10b981', 2, 'ground', 30));
+
+    // Слайдеры параметров кабелей
+    const sliderSag = document.getElementById('slider-cable-sag') as HTMLInputElement;
+    sliderSag?.addEventListener('input', () => {
+      const val = parseInt(sliderSag.value, 10);
+      this.canvas.cableSag = val;
+      const sagLabel = document.getElementById('label-cable-sag');
+      if (sagLabel) sagLabel.textContent = `${val}px`;
+      if (this.canvas.selectedCableIndex !== -1 && this.canvas.level?.cables?.[this.canvas.selectedCableIndex]) {
+        this.canvas.level.cables[this.canvas.selectedCableIndex].sag = val;
+        this.canvas.render();
+      }
+    });
+
+    const sliderThick = document.getElementById('slider-cable-thick') as HTMLInputElement;
+    sliderThick?.addEventListener('input', () => {
+      const val = parseInt(sliderThick.value, 10);
+      this.canvas.cableThickness = val;
+      const thickLabel = document.getElementById('label-cable-thick');
+      if (thickLabel) thickLabel.textContent = `${val}px`;
+      if (this.canvas.selectedCableIndex !== -1 && this.canvas.level?.cables?.[this.canvas.selectedCableIndex]) {
+        this.canvas.level.cables[this.canvas.selectedCableIndex].thickness = val;
+        this.canvas.render();
+      }
+    });
+
+    document.getElementById('btn-delete-cable')?.addEventListener('click', () => {
+      this.canvas.deleteSelectedCable();
+    });
+
+    // Редактирование и удаление перехода (шлюза)
+    document.getElementById('btn-save-trans')?.addEventListener('click', () => {
+      if (!this.canvas.level || this.canvas.selectedTransitionIndex === -1 || !this.canvas.level.transitions) return;
+      const t = this.canvas.level.transitions[this.canvas.selectedTransitionIndex];
+      t.label = (document.getElementById('trans-label') as HTMLInputElement).value.trim();
+      t.target_level = (document.getElementById('trans-target-level') as HTMLSelectElement).value;
+      t.target_spawn = {
+        x: parseInt((document.getElementById('trans-target-spawn-x') as HTMLInputElement).value, 10) || 0,
+        y: parseInt((document.getElementById('trans-target-spawn-y') as HTMLInputElement).value, 10) || 0
+      };
+      t.requires_resistors = parseInt((document.getElementById('trans-resistors') as HTMLInputElement).value, 10) || 0;
+      this.canvas.saveStateToHistory();
+      this.canvas.render();
+      this.setStatus(`Параметры шлюза "${t.id}" сохранены`);
+    });
+
+    document.getElementById('btn-delete-trans')?.addEventListener('click', () => {
+      this.canvas.deleteSelectedTransition();
+    });
 
     // Кнопка сохранения
     document.getElementById('btn-save')?.addEventListener('click', () => this.saveCurrentLevel());

@@ -44,6 +44,30 @@ export interface EnemySpawnDef {
   y: number;
 }
 
+export interface LevelTransitionDef {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  target_level: string;
+  target_spawn: { x: number; y: number };
+  label?: string;
+  requires_resistors?: number;
+}
+
+export interface CableDef {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  sag: number;
+  color: string;
+  thickness: number;
+  type?: 'sata' | 'power' | 'ide' | 'ground';
+}
+
 export interface LevelDef {
   $schema?: string;
   id: string;
@@ -56,6 +80,20 @@ export interface LevelDef {
   rows: string[];
   player_spawn: { x: number; y: number };
   enemies: EnemySpawnDef[];
+  transitions?: LevelTransitionDef[];
+  cables?: CableDef[];
+}
+
+export interface PlaytestState {
+  active: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  grounded: boolean;
+  facing: 1 | -1;
+  coyoteTimer: number;
+  jumpBufferTimer: number;
 }
 
 export interface BackgroundLayerDef {
@@ -72,7 +110,7 @@ export interface BackgroundDef {
   layers: BackgroundLayerDef[];
 }
 
-export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move';
+export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move' | 'transition' | 'cable';
 
 export type ResizeDirection = 'top' | 'bottom' | 'left' | 'right';
 

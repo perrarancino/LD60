@@ -24,6 +24,15 @@
       <button id="btn-save" class="btn btn-primary" title="Сохранить уровень в LD60 (Ctrl+S)">
         💾 Сохранить
       </button>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <button id="btn-playtest" class="btn btn-success" title="Instant Playtest: проверка прыжка и коллизий прямо на холсте (P)">
+        ▶️ Тест
+      </button>
+      <button id="btn-world-graph" class="btn" title="Интерактивная карта открытого мира метроидвании">
+        🗺️ Карта мира
+      </button>
     </div>
 
     <div class="topbar-group">
@@ -35,6 +44,8 @@
 
       <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
 
+      <button id="btn-toggle-autotile" class="btn" title="Автотайлинг (9-slice / Wang rules)">🪄 Автотайл</button>
+      <button id="btn-toggle-arc" class="btn active" title="Визуализатор дуги и досягаемости прыжка">📐 Дуга</button>
       <button id="toggle-grid" class="btn active" title="Сетка"># Сетка</button>
       <button id="toggle-collisions" class="btn" title="Оверлей коллизий">🛡 Коллизии</button>
       <button id="toggle-bg" class="btn active" title="Параллакс-фон">🖼 Фон</button>
@@ -61,11 +72,17 @@
       <button class="tool-btn" data-tool="move" title="Перемещение объектов / Drag-and-Drop (M)">
         ✋<span class="hotkey">M</span>
       </button>
-      <button class="tool-btn" data-tool="player_spawn" title="Спавн героя (P)">
-        🤖<span class="hotkey">P</span>
+      <button class="tool-btn" data-tool="player_spawn" title="Спавн героя (H)">
+        🤖<span class="hotkey">H</span>
       </button>
       <button class="tool-btn" data-tool="enemy_spawn" title="Спавн врага (O)">
         👾<span class="hotkey">O</span>
+      </button>
+      <button class="tool-btn" data-tool="transition" title="Шлюз / Переход между комнатами (D)">
+        🚪<span class="hotkey">D</span>
+      </button>
+      <button class="tool-btn" data-tool="cable" title="Провода и шлейфы (C)">
+        🔌<span class="hotkey">C</span>
       </button>
       <button class="tool-btn" data-tool="select" title="Выделение и удаление сущностей (V)">
         🔍<span class="hotkey">V</span>
@@ -82,6 +99,7 @@
       <nav class="sidebar-tabs">
         <button id="tab-tiles-btn" class="tab-btn active">ТАЙЛЫ</button>
         <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
+        <button id="tab-decor-btn" class="tab-btn">ДЕКОР & ДВЕРИ</button>
         <button id="tab-settings-btn" class="tab-btn">ПАРАМЕТРЫ</button>
       </nav>
 
@@ -100,6 +118,108 @@
       <div id="tab-enemies" class="tab-content">
         <div id="palette-enemies-list">
           <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Декор & Двери (Кабели, Шлюзы) -->
+      <div id="tab-decor" class="tab-content">
+        <!-- Секция кабелей -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПРОВОДА И ШЛЕЙФЫ (CABLE TOOL)</div>
+          
+          <div class="form-label" style="font-size: 11px; margin-bottom: 4px;">Типы и пресеты кабелей:</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+            <button type="button" class="btn" id="btn-preset-sata" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #ef4444;">
+              🔴 SATA (Красный)
+            </button>
+            <button type="button" class="btn" id="btn-preset-power" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #f59e0b;">
+              🟡 Питание 12V
+            </button>
+            <button type="button" class="btn" id="btn-preset-ide" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #94a3b8;">
+              ⚪ IDE Ribbon
+            </button>
+            <button type="button" class="btn" id="btn-preset-ground" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #10b981;">
+              🟢 Заземление
+            </button>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+              <span>Провисание кабеля (Sag):</span>
+              <span id="label-cable-sag">35px</span>
+            </div>
+            <input id="slider-cable-sag" type="range" min="0" max="120" value="35" style="width: 100%; accent-color: var(--accent);" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+              <span>Толщина провода:</span>
+              <span id="label-cable-thick">3px</span>
+            </div>
+            <input id="slider-cable-thick" type="range" min="1" max="8" value="3" style="width: 100%; accent-color: var(--accent);" />
+          </div>
+
+          <div id="selected-cable-box" style="padding: 8px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; margin-top: 8px; display: none;">
+            <div style="color: #eab308; font-weight: 700; margin-bottom: 4px;">Выбран кабель:</div>
+            <div id="selected-cable-desc" style="color: var(--text-muted); margin-bottom: 6px;"></div>
+            <button id="btn-delete-cable" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить выбранный кабель
+            </button>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 14px 0;"></div>
+
+        <!-- Секция шлюзов и переходов -->
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ШЛЮЗЫ И ПЕРЕХОДЫ (DOORS)</div>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3; margin-bottom: 10px;">
+            Кликните инструментом 🚪 (D) на карте для создания портала в другую локацию.
+          </div>
+
+          <div id="transition-editor-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 12px; color: #38bdf8; margin-bottom: 8px;">Параметры перехода:</div>
+            
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">ID Перехода</label>
+              <input id="trans-id" type="text" class="text-input" style="width: 100%;" readonly />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">Название / Бейдж шлюза</label>
+              <input id="trans-label" type="text" class="text-input" style="width: 100%;" placeholder="Например: Вход в БП" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">Целевой уровень (Target Level)</label>
+              <select id="trans-target-level" class="select-input" style="width: 100%;">
+                <!-- Заполняется списком доступных уровней -->
+              </select>
+            </div>
+
+            <div class="form-row" style="margin-bottom: 6px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 11px;">Точка спавна X</label>
+                <input id="trans-target-spawn-x" type="number" class="text-input" style="width: 100%;" value="2" />
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 11px;">Точка спавна Y</label>
+                <input id="trans-target-spawn-y" type="number" class="text-input" style="width: 100%;" value="14" />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 11px;">Требуется сюжетных резисторов (0-3)</label>
+              <input id="trans-resistors" type="number" min="0" max="3" value="0" class="text-input" style="width: 100%;" />
+            </div>
+
+            <button id="btn-save-trans" type="button" class="btn btn-primary" style="width: 100%; font-size: 11px; margin-bottom: 6px;">
+              Применить к шлюзу
+            </button>
+            <button id="btn-delete-trans" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить шлюз
+            </button>
+          </div>
         </div>
       </div>
 

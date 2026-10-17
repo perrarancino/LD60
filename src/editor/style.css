@@ -113,6 +113,23 @@ body {
   background: #059669;
 }
 
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+input[type="range"] {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  outline: none;
+}
+
 .btn-icon {
   padding: 6px 8px;
 }
