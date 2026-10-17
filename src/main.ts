@@ -22,6 +22,12 @@ const BACKGROUNDS = Object.values(
   import.meta.glob('../data/backgrounds/*.json', { eager: true, import: 'default' }) as Record<string, BackgroundDef>
 );
 
+// Вертикальная камера (положение ног героя на экране)
+const CAMERA_REST_Y = 0.74; // доля высоты экрана: на этой высоте стоит герой на земле (запас под прыжок вверх ~100 px)
+const CAMERA_TOP_MARGIN = 76; // px: ближе к верху ноги не подпускаем (иначе не влезет голова) — камера поедет за героем
+const CAMERA_BOTTOM_MARGIN = 24; // px от низа экрана
+const CAMERA_SETTLE_RATE = 6; // 1/с: как быстро камера возвращает героя на привычную высоту, когда он на земле
+
 class GameApp {
   private app: Application;
   private input: InputManager;
@@ -42,6 +48,8 @@ class GameApp {
   private grid = new Graphics();
   private background: ParallaxBackground | null = null;
   private scale = 1;
+  private cameraY = 0;
+  private cameraReady = false;
   private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
 
   constructor() {
@@ -132,18 +140,40 @@ class GameApp {
     };
   }
 
-  /** Камера: следует за героем; если уровень меньше обзора по оси — центрируется (по X) / прижимается к низу (по Y). */
-  private updateCamera(): void {
-    const { x, y } = this.player.body;
+  /**
+   * Камера. По X следует за героем (если уровень уже обзора — центрируется). По Y — как в платформерах:
+   * при прыжках экран по вертикали НЕ двигается, камера плавно перенацеливается, только когда герой стоит на земле,
+   * и сдвигается жёстко лишь если герой вышел за «окно» (слишком высоко/низко на экране).
+   */
+  private updateCamera(dt = 0): void {
+    const body = this.player.body;
     const lw = this.level.pixelWidth;
     const lh = this.level.pixelHeight;
 
     const camX = lw <= this.viewW
       ? -(this.viewW - lw) / 2
-      : Math.max(0, Math.min(lw - this.viewW, x - this.viewW / 2));
-    const camY = lh <= this.viewH
-      ? lh - this.viewH
-      : Math.max(0, Math.min(lh - this.viewH, y - this.viewH * 0.6));
+      : Math.max(0, Math.min(lw - this.viewW, body.x - this.viewW / 2));
+
+    let camY: number;
+    if (lh <= this.viewH) {
+      camY = lh - this.viewH;
+    } else {
+      const maxY = lh - this.viewH;
+      const feet = body.y;
+      const target = Math.max(0, Math.min(maxY, feet - this.viewH * CAMERA_REST_Y));
+      if (!this.cameraReady) {
+        this.cameraY = target;
+        this.cameraReady = true;
+      } else if (body.grounded) {
+        // Стоим на земле: плавно ставим героя на привычную высоту экрана
+        this.cameraY += (target - this.cameraY) * (1 - Math.exp(-CAMERA_SETTLE_RATE * dt));
+      }
+      // Герой не должен выходить за окно по вертикали (иначе пропадёт из кадра)
+      this.cameraY = Math.min(this.cameraY, feet - CAMERA_TOP_MARGIN);
+      this.cameraY = Math.max(this.cameraY, feet - (this.viewH - CAMERA_BOTTOM_MARGIN));
+      this.cameraY = Math.max(0, Math.min(maxY, this.cameraY));
+      camY = this.cameraY;
+    }
 
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
@@ -256,7 +286,7 @@ class GameApp {
     this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
     // 3. Камера
-    this.updateCamera();
+    this.updateCamera(dt);
   }
 }
 
