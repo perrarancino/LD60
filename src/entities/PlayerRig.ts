@@ -55,8 +55,8 @@ interface Foot {
 }
 
 // Настройки процедурной анимации
-const HEAD_FOLLOW = 0.5; // максимальный поворот головы за курсором, рад
-const TORSO_FOLLOW = 0.12; // торс поворачивается заметно слабее
+const HEAD_MAX_TILT = 0.8; // максимальный наклон головы к курсору, рад (~46°)
+const TORSO_FOLLOW = 0.3; // торс поворачивается за головой, но заметно слабее (доля наклона головы)
 const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги от вертикали, рад
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
 const STEP_AHEAD = 0.55; // стопа приземляется впереди таза на эту долю досягаемости
@@ -93,6 +93,8 @@ export class PlayerRig {
   private headRot = 0;
   private pelvisDrop = 0;
   private wasClimbing = false;
+  /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
+  private headCenter: { x: number; y: number };
 
   constructor(private readonly def: RigDef, sprites: SpriteLibrary) {
     this.tilt.position.set(0, -28); // центр вращения — середина тела
@@ -124,9 +126,21 @@ export class PlayerRig {
     if (!torso || !head) throw new Error(`[PlayerRig] в риге "${def.id}" нужны части torso и head`);
     this.torso = torso;
     this.head = head;
+    this.headCenter = this.opaqueCenter(sprites.imageData(head.def.sprite_id));
     this.update(0, {
       bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, kick: null, wall: 0, wallX: 0
     });
+  }
+
+  private opaqueCenter(img: ImageData): { x: number; y: number } {
+    let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < img.height; y++) {
+      for (let x = 0; x < img.width; x++) {
+        if (img.data[(y * img.width + x) * 4 + 3] === 0) continue;
+        x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+    }
+    return { x: (x0 + x1 + 1) / 2, y: (y0 + y1 + 1) / 2 };
   }
 
   public update(dt: number, s: RigPose): void {
@@ -137,10 +151,10 @@ export class PlayerRig {
 
     this.container.scale.x = f;
 
-    // ---- Курсор в локальных координатах головы (вперёд = +x), нормированный вектор прицеливания
-    const neck = this.head.def.pivot;
-    const headWorldX = s.bodyX + (neck.x - this.def.anchor.x) * f;
-    const headWorldY = s.bodyY + (neck.y - this.def.anchor.y);
+    // ---- Курсор в локальных координатах от центра головы (вперёд = +x)
+    const hc = this.headCenter;
+    const headWorldX = s.bodyX + (hc.x - this.def.anchor.x) * f;
+    const headWorldY = s.bodyY + (hc.y - this.def.anchor.y) + this.pelvisDrop;
     const dx = (s.aimX - headWorldX) * f;
     const dy = s.aimY - headWorldY;
     const dist = Math.max(1, Math.hypot(dx, dy));
@@ -148,13 +162,19 @@ export class PlayerRig {
     const nx = (dx / dist) * gain;
     const ny = (dy / dist) * gain;
 
+    // Наклон головы = угол направления на курсор, отсчитанный от «вверх» (0 — курсор над головой, + — вправо).
+    // Курсор в нижней полуплоскости отражается (голова не «переворачивается»): прямо под головой — 0, сбоку — максимум.
+    const aimAngle = Math.atan2(dx, -dy);
+    const toward = Math.sign(aimAngle) * Math.min(Math.abs(aimAngle), Math.PI - Math.abs(aimAngle));
+    const headTilt = clamp(toward, -HEAD_MAX_TILT, HEAD_MAX_TILT) * gain;
+
     // ---- Ноги: шаговый контроллер -> просадка таза
     const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s);
     this.pelvisDrop = approach(this.pelvisDrop, drop, 40, dt);
 
     // ---- Торс и голова
-    let torsoTarget = nx * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
-    let headTarget = clamp(nx * HEAD_FOLLOW, -HEAD_FOLLOW, HEAD_FOLLOW);
+    let torsoTarget = headTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
+    let headTarget = headTilt - torsoTarget; // голова поворачивается вместе с торсом, итоговый наклон = headTilt
     let torsoLift = 0;
     if (climb) {
       switch (climb.phase) {
@@ -176,7 +196,7 @@ export class PlayerRig {
     this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
     this.tilt.rotation = this.tiltRot;
     this.torsoRot = approach(this.torsoRot, torsoTarget, 14, dt);
-    this.headRot = approach(this.headRot, headTarget, 18, dt);
+    this.headRot = approach(this.headRot, headTarget, 22, dt);
 
     const breathe = Math.sin(this.time * 2.4) * 0.4;
     const torsoOy = this.pelvisDrop + breathe + torsoLift;
