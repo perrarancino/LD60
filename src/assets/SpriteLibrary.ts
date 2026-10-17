@@ -18,6 +18,7 @@ const DEFAULT_FRAME_MS = 100;
 export class SpriteLibrary {
   private defs = new Map<string, SpriteDef>();
   private frames = new Map<string, Texture[]>();
+  private sheets = new Map<string, Texture>();
 
   constructor() {
     for (const def of (spritesJson as { sprites: SpriteDef[] }).sprites) {
@@ -38,6 +39,7 @@ export class SpriteLibrary {
 
     const sheet: Texture = await Assets.load(url);
     sheet.source.scaleMode = 'nearest'; // чёткий пиксель-арт
+    this.sheets.set(id, sheet);
 
     const cols = def.columns ?? def.frames;
     const textures: Texture[] = [];
@@ -51,6 +53,19 @@ export class SpriteLibrary {
       textures.push(new Texture({ source: sheet.source, frame }));
     }
     this.frames.set(id, textures);
+  }
+
+  /** Пиксели загруженного PNG (для нарезки на части кодом, например рук-канатов). */
+  public imageData(id: string): ImageData {
+    const sheet = this.sheets.get(id);
+    if (!sheet) throw new Error(`[SpriteLibrary] спрайт "${id}" не загружен (вызови load)`);
+    const { width, height } = sheet.source;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(sheet.source.resource as CanvasImageSource, 0, 0);
+    return ctx.getImageData(0, 0, width, height);
   }
 
   public def(id: string): SpriteDef {

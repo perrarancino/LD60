@@ -23,6 +23,8 @@ assets/
 `assets/source/player/player.aseprite` состоит из слоёв `Head, ALL (торс), Fhand/Bhand (руки), Fleg/Bleg (ноги)`.
 `npm run sprites` экспортирует их в `assets/sprites/player/player_layers/*.png` (все на холсте 64x64).
 Из частей риг собирается кодом (`src/entities/PlayerRig.ts`), точки вращения и порядок — в `data/rigs/player_rig.json`.
+Руки — физичные канаты (`src/entities/RopeLimb.ts`): слой режется кодом на сегменты вдоль оси плечо→кисть, поведение — verlet-цепочка;
+число сегментов — поле `rope.segments` у части-руки в риге.
 
 ## Правила
 

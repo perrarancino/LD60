@@ -33,6 +33,12 @@
             "type": "object",
             "required": ["x", "y"],
             "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+          },
+          "rope": {
+            "type": "object",
+            "description": "Только для arm: слой режется вдоль оси плечо→кисть на segments сегментов, поведение — физика каната",
+            "required": ["segments"],
+            "properties": { "segments": { "type": "integer", "minimum": 2, "maximum": 12 } }
           }
         }
       }

@@ -72,6 +72,7 @@ export interface RigPartDef {
   role: 'head' | 'torso' | 'arm' | 'leg';
   side?: 1 | -1; // 1 — левая на экране (Fhand/Fleg), -1 — правая
   pivot: { x: number; y: number };
+  rope?: { segments: number }; // рука-канат: слой режется на сегменты с verlet-физикой
 }
 
 export interface RigDef {

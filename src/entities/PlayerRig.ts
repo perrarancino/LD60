@@ -1,4 +1,5 @@
 import { Container, Sprite } from 'pixi.js';
+import { RopeLimb } from './RopeLimb.ts';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import { GAME_CONFIG } from '../core/Constants.ts';
 import type { RigDef, RigPartDef } from '../data/types.ts';
@@ -18,12 +19,8 @@ export interface RigPose {
 
 interface Part {
   def: RigPartDef;
-  sprite: Sprite;
-}
-
-interface Dangle {
-  theta: number; // угол относительно позы покоя, рад (+ = конец руки уходит влево по экрану)
-  omega: number;
+  sprite: Sprite | null; // у рук-канатов вместо спрайта — limb
+  limb: RopeLimb | null;
 }
 
 // Настройки процедурной анимации
@@ -31,9 +28,7 @@ const STEP_RATE = 11; // рад/с фазы шага при полной ско�
 const LEG_SWING = 0.65; // амплитуда качания ног, рад
 const HEAD_FOLLOW = 0.5; // максимальный поворот головы за курсором, рад
 const TORSO_FOLLOW = 0.12; // торс поворачивается заметно слабее
-const ARM_SPRING = 70;
-const ARM_DAMPING = 6;
-const ARM_ACCEL_KICK = 0.02; // насколько рывок скорости раскачивает руку
+const ARM_CLIMB_STIFFNESS = 2.2; // при залезании руки «собраны» и тянутся к уступу
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const approach = (cur: number, target: number, rate: number, dt: number) =>
@@ -45,7 +40,7 @@ const smoothstep = (a: number, b: number, x: number) => {
 
 /**
  * Процедурная анимация робота из частей-слоёв (data/rigs/*.json):
- * ходьба ногами, голова и торс поворачиваются за курсором, руки болтаются как маятники,
+ * ходьба ногами, голова и торс поворачиваются за курсором, руки — физичные канаты (verlet),
  * отдельная поза при залезании на преграду.
  */
 export class PlayerRig {
@@ -56,21 +51,27 @@ export class PlayerRig {
   private head: Part;
   private time = 0;
   private phase = 0;
-  private prevVx = 0;
   private torsoRot = 0;
   private headRot = 0;
   private legAngles = new Map<Part, number>();
-  private arms = new Map<Part, Dangle>();
+  private arms: Part[] = [];
 
   constructor(private readonly def: RigDef, sprites: SpriteLibrary) {
     for (const p of def.parts) {
-      const sprite = sprites.createSprite(p.sprite_id);
-      sprite.pivot.set(p.pivot.x, p.pivot.y);
-      const part = { def: p, sprite };
+      let part: Part;
+      if (p.role === 'arm' && p.rope) {
+        const limb = new RopeLimb(sprites.imageData(p.sprite_id), p.pivot, p.rope.segments);
+        part = { def: p, sprite: null, limb };
+        this.container.addChild(limb.container);
+      } else {
+        const sprite = sprites.createSprite(p.sprite_id);
+        sprite.pivot.set(p.pivot.x, p.pivot.y);
+        part = { def: p, sprite, limb: null };
+        this.container.addChild(sprite);
+      }
       this.parts.push(part);
-      this.container.addChild(sprite);
       if (p.role === 'leg') this.legAngles.set(part, 0);
-      if (p.role === 'arm') this.arms.set(part, { theta: 0, omega: 0 });
+      if (p.role === 'arm') this.arms.push(part);
     }
     const torso = this.parts.find((p) => p.def.role === 'torso');
     const head = this.parts.find((p) => p.def.role === 'head');
@@ -130,8 +131,9 @@ export class PlayerRig {
       return { x: waist.x + rx * c - ry * sn + torsoOx, y: waist.y + rx * sn + ry * c + torsoOy };
     };
     const place = (part: Part, x: number, y: number, rot: number) => {
-      part.sprite.position.set(x - this.def.anchor.x, y - this.def.anchor.y);
-      part.sprite.rotation = rot;
+      const sprite = part.sprite!;
+      sprite.position.set(x - this.def.anchor.x, y - this.def.anchor.y);
+      sprite.rotation = rot;
     };
 
     place(this.torso, waist.x + torsoOx, waist.y + torsoOy, this.torsoRot);
@@ -161,27 +163,33 @@ export class PlayerRig {
       place(leg, pv.x, pv.y - lift, a);
     }
 
-    // ---- Руки: маятники на пружинах, раскачиваемые рывками скорости
-    const dvx = (s.vx - this.prevVx) * f; // рывок вдоль направления взгляда (в зеркальной системе)
-    this.prevVx = s.vx;
-    for (const [arm, st] of this.arms) {
+    // ---- Руки: канаты. Здесь задаётся только поза покоя (куда рука «хочет» тянуться), остальное — физика
+    const frame = { bodyX: s.bodyX, bodyY: s.bodyY, facing: f };
+    for (const arm of this.arms) {
       const side = arm.def.side ?? 1;
       let rest = Math.sin(this.time * 1.3 + side) * 0.03; // лёгкое покачивание в покое
+      let stiffness = 1;
       if (climbing) {
         const p = s.climb!;
         const reach = smoothstep(0, 0.15, p) * (1 - smoothstep(0.55, 0.8, p));
         const push = smoothstep(0.55, 0.8, p);
         rest = side * (1.8 * reach - 0.4 * push);
+        stiffness = ARM_CLIMB_STIFFNESS;
       } else if (s.grounded) {
-        rest += -stepSin * side * 0.3 * walk; // руки качаются против ног
+        rest += -stepSin * side * 0.45 * walk; // руки качаются против ног
       } else {
         rest += side * 0.5 * clamp(s.vy / 400, -0.3, 1); // в падении руки уходят вверх-в стороны
       }
-      st.omega += dvx * ARM_ACCEL_KICK;
-      st.omega += (-ARM_SPRING * (st.theta - rest) - ARM_DAMPING * st.omega) * dt;
-      st.theta += st.omega * dt;
+      const limb = arm.limb!;
       const sh = attach(arm.def.pivot);
-      place(arm, sh.x, sh.y, this.torsoRot + st.theta);
+      limb.update(
+        dt,
+        s.bodyX + (sh.x - this.def.anchor.x) * f,
+        s.bodyY + (sh.y - this.def.anchor.y),
+        limb.drawnAngle + this.torsoRot + rest,
+        stiffness,
+        frame
+      );
     }
   }
 }
