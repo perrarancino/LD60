@@ -1,0 +1,105 @@
+{
+  "source": "bg_textalite.aseprite",
+  "canvasWidth": 512,
+  "canvasHeight": 128,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Layer 1",
+      "file": "bg_textalite_layers/Layer_1.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        0,
+        0,
+        512,
+        128
+      ]
+    },
+    {
+      "name": "Layer 2",
+      "file": "bg_textalite_layers/Layer_2.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        12,
+        0,
+        504,
+        98
+      ]
+    },
+    {
+      "name": "Layer 6",
+      "file": "bg_textalite_layers/Layer_6.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        61,
+        7,
+        375,
+        106
+      ]
+    },
+    {
+      "name": "Layer 3",
+      "file": "bg_textalite_layers/Layer_3.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        0,
+        0,
+        512,
+        128
+      ]
+    },
+    {
+      "name": "Layer 4",
+      "file": "bg_textalite_layers/Layer_4.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        0,
+        0,
+        512,
+        128
+      ]
+    },
+    {
+      "name": "Layer 7",
+      "file": "bg_textalite_layers/Layer_7.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        0,
+        49,
+        512,
+        128
+      ]
+    },
+    {
+      "name": "Layer 8",
+      "file": "bg_textalite_layers/Layer_8.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        0,
+        0,
+        512,
+        128
+      ]
+    },
+    {
+      "name": "Layer 5",
+      "file": "bg_textalite_layers/Layer_5.png",
+      "z": 7,
+      "visible": true,
+      "bbox": [
+        1,
+        33,
+        512,
+        128
+      ]
+    }
+  ]
+}

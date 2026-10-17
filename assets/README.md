@@ -34,6 +34,14 @@ assets/
 руки толкаются и взмахивают (дуга без физики). Если у стены можно залезть (уступ ≤ 2 тайлов и над ним есть
 место) — прыжок/нажатие в стену запускает залезание вместо прыжка.
 
+## Параллакс-фон
+
+`assets/source/backgrounds/bg_textalite.aseprite` (512x128, 8 слоёв) экспортируется по слоям в `assets/sprites/backgrounds/bg_textalite_layers/`.
+Слои зациклены по горизонтали и двигаются с разной скоростью (`data/backgrounds/bg_textalite.json`: `parallax_x/y` у каждого слоя,
+слои — снизу вверх; `scale` — целое увеличение пикселей, `sky_color` — заливка за слоями). Фон выбирается уровнем (`background_id`),
+рисуется классом `src/world/ParallaxBackground.ts`. Чтобы добавить новый фон: `.aseprite` в `source/backgrounds/`, экспорт
+слоёв (`--layers`), записи в `data/sprites/sprites.json` и файл в `data/backgrounds/`.
+
 ## Правила
 
 - Категория (подпапка) одинакова в `source/` и `sprites/` и совпадает с полем `category` в реестре спрайтов.

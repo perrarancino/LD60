@@ -55,6 +55,11 @@ export class SpriteLibrary {
     this.frames.set(id, textures);
   }
 
+  /** Текстура целого листа (кадра 0) — для тайлинга и т.п. */
+  public texture(id: string): Texture {
+    return this.textures(id)[0];
+  }
+
   /** Пиксели загруженного PNG (для нарезки на части кодом, например рук-канатов). */
   public imageData(id: string): ImageData {
     const sheet = this.sheets.get(id);

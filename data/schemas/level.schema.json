@@ -7,6 +7,7 @@
   "properties": {
     "id": { "type": "string" },
     "display_name": { "type": "string" },
+    "background_id": { "type": "string", "description": "Id параллакс-фона из data/backgrounds/ (необязательно)" },
     "tile_size": { "type": "integer", "minimum": 1 },
     "width": { "type": "integer", "minimum": 1, "description": "Ширина в тайлах (длина каждой строки rows)" },
     "height": { "type": "integer", "minimum": 1, "description": "Высота в тайлах (число строк rows)" },

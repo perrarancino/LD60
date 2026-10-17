@@ -1,0 +1,57 @@
+{
+  "$schema": "../schemas/background.schema.json",
+  "id": "bg_textalite",
+  "description": "Зацикленный параллакс-фон из слоёв bg_textalite.aseprite (512x128). Слои — снизу вверх (от дальнего к ближнему); parallax_x/y — доля сдвига камеры (0 — стоит на месте, 1 — двигается вместе с миром). Слои-«небо» (sky_noise, haze_*, fog) имеют одинаковый parallax_y, чтобы при движении камеры вверх не расходились и не открывали свои верхние края.",
+  "sky_color": "#120a36",
+  "scale": 1,
+  "layers": [
+    {
+      "name": "sky_noise",
+      "sprite_id": "bg_textalite_layer1",
+      "parallax_x": 0.02,
+      "parallax_y": 0.1
+    },
+    {
+      "name": "circuits",
+      "sprite_id": "bg_textalite_layer2",
+      "parallax_x": 0.08,
+      "parallax_y": 0.12
+    },
+    {
+      "name": "blobs",
+      "sprite_id": "bg_textalite_layer6",
+      "parallax_x": 0.14,
+      "parallax_y": 0.14
+    },
+    {
+      "name": "haze_dark",
+      "sprite_id": "bg_textalite_layer3",
+      "parallax_x": 0.2,
+      "parallax_y": 0.1
+    },
+    {
+      "name": "haze_light",
+      "sprite_id": "bg_textalite_layer4",
+      "parallax_x": 0.26,
+      "parallax_y": 0.1
+    },
+    {
+      "name": "machines",
+      "sprite_id": "bg_textalite_layer7",
+      "parallax_x": 0.34,
+      "parallax_y": 0.16
+    },
+    {
+      "name": "fog",
+      "sprite_id": "bg_textalite_layer8",
+      "parallax_x": 0.42,
+      "parallax_y": 0.1
+    },
+    {
+      "name": "skyline",
+      "sprite_id": "bg_textalite_layer5",
+      "parallax_x": 0.55,
+      "parallax_y": 0.2
+    }
+  ]
+}

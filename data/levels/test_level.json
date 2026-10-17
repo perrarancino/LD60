@@ -2,6 +2,7 @@
   "$schema": "../schemas/level.schema.json",
   "id": "test_level",
   "display_name": "Тестовая плата",
+  "background_id": "bg_textalite",
   "tile_size": 32,
   "width": 30,
   "height": 16,

@@ -1,9 +1,10 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
-import type { EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
+import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
 import { Player } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
+import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
@@ -15,6 +16,11 @@ import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
 import levelData from '../data/levels/test_level.json';
 import playerRigData from '../data/rigs/player_rig.json';
+
+// Все параллакс-фоны из data/backgrounds (уровень выбирает свой по background_id)
+const BACKGROUNDS = Object.values(
+  import.meta.glob('../data/backgrounds/*.json', { eager: true, import: 'default' }) as Record<string, BackgroundDef>
+);
 
 class GameApp {
   private app: Application;
@@ -34,6 +40,7 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
+  private background: ParallaxBackground | null = null;
   private scale = 1;
   private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
 
@@ -99,6 +106,7 @@ class GameApp {
     for (const t of [this.timerText, this.hudText]) if (t) t.resolution = this.scale;
 
     this.drawGrid();
+    this.background?.resize(this.viewW, this.viewH);
     if (this.level) this.updateCamera();
   }
 
@@ -140,6 +148,7 @@ class GameApp {
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
     this.worldLayer.position.set(-snap(camX), -snap(camY));
+    this.background?.update(snap(camX), snap(camY), lh - this.viewH, this.scale);
   }
 
   /**
@@ -153,14 +162,26 @@ class GameApp {
     const levelDef = levelData as LevelDef;
     const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
 
+    // Параллакс-фон уровня (если задан)
+    const bgDef = levelDef.background_id ? BACKGROUNDS.find((b) => b.id === levelDef.background_id) : undefined;
+    if (levelDef.background_id && !bgDef) throw new Error(`Уровень ссылается на неизвестный фон "${levelDef.background_id}"`);
+
     // Загружаем только те спрайты, которые реально нужны уровню
     const rigDef = playerRigData as RigDef;
     await this.sprites.load([
+      ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       playerData.sprite_id,
       ...rigDef.parts.map((p) => p.sprite_id),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id)
     ]);
+
+    if (bgDef) {
+      this.background = new ParallaxBackground(bgDef, this.sprites);
+      this.grid.visible = false; // вместо технической сетки — фон
+      this.app.stage.addChildAt(this.background.container, 0);
+      this.background.resize(this.viewW, this.viewH);
+    }
 
     this.worldLayer = new Container();
     this.app.stage.addChild(this.worldLayer);

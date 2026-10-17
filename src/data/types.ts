@@ -49,6 +49,7 @@ export interface EnemySpawnDef {
 export interface LevelDef {
   id: string;
   display_name?: string;
+  background_id?: string;
   tile_size: number;
   width: number;
   height: number;
@@ -81,4 +82,18 @@ export interface RigDef {
   canvas: { width: number; height: number };
   anchor: { x: number; y: number };
   parts: RigPartDef[]; // снизу вверх
+}
+
+export interface BackgroundLayerDef {
+  name: string;
+  sprite_id: string;
+  parallax_x: number;
+  parallax_y: number;
+}
+
+export interface BackgroundDef {
+  id: string;
+  sky_color: string;
+  scale: number;
+  layers: BackgroundLayerDef[]; // снизу вверх
 }

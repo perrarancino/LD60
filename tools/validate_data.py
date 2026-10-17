@@ -67,10 +67,20 @@ for rig in rigs.values():
             check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                   f"риг {rig['id']}: часть {part['name']} другого размера, чем холст")
 
+backgrounds = {b["id"]: b for b in [load(f"backgrounds/{p.name}") for p in sorted((DATA / "backgrounds").glob("*.json"))]}
+for bg in backgrounds.values():
+    for layer in bg["layers"]:
+        check(layer["sprite_id"] in sprites, f"фон {bg['id']}: нет спрайта {layer['sprite_id']}")
+        sp = sprites.get(layer["sprite_id"])
+        if sp:
+            check(sp["category"] == "backgrounds", f"фон {bg['id']}: слой {layer['name']} не из категории backgrounds")
+            check(sp["frame_width"] >= 16, f"фон {bg['id']}: слой {layer['name']} слишком узкий для тайлинга")
+
 for path in sorted((DATA / "levels").glob("*.json")):
     lv = json.loads(path.read_text(encoding="utf-8"))
     n = lv["id"]
     check(lv["tile_size"] == tileset["tile_size"], f"{n}: tile_size не совпадает с tiles.json")
+    check(lv.get("background_id") is None or lv["background_id"] in backgrounds, f"{n}: неизвестный фон {lv.get('background_id')}")
     check(len(lv["rows"]) == lv["height"], f"{n}: число строк != height")
     for i, row in enumerate(lv["rows"]):
         check(len(row) == lv["width"], f"{n}: строка {i} длиной {len(row)}, ожидалось {lv['width']}")

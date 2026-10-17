@@ -15,13 +15,16 @@ data/
 │   ├── sprite.schema.json        # Реестр спрайтов (id -> png, кадры, хитбокс, анимации)
 │   ├── tile.schema.json          # Определения тайлов (solid / one_way)
 │   ├── level.schema.json         # Уровень-сетка из тайлов + спавны игрока и врагов
-│   └── rig.schema.json           # Риг персонажа из частей
+│   ├── rig.schema.json           # Риг персонажа из частей
+│   └── background.schema.json    # Параллакс-фон из слоёв
 ├── sprites/                      # Реестр спрайтов: связь id -> файлы в assets/sprites/
 │   └── sprites.json              # player, enemy_transistoid_*, tile_platform_block
 ├── tiles/                        # Тайлы уровня
 │   └── tiles.json                # platform_block (32x32, solid)
 ├── rigs/                         # Процедурные риги персонажей (части-слои, pivot-точки)
 │   └── player_rig.json           # Робот-герой: голова, торс, руки, ноги
+├── backgrounds/                  # Параллакс-фоны (слои, скорости, цвет неба)
+│   └── bg_textalite.json         # Фон из bg_textalite.aseprite: 8 слоёв
 ├── levels/                       # Уровни в виде текстовой сетки
 │   └── test_level.json           # Тестовая плата 30x8 тайлов
 ├── player/                       # Начальное состояние робота
