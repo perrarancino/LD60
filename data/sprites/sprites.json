@@ -513,6 +513,64 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "enemy_worm",
+      "category": "enemies",
+      "image": "enemies/worm.png",
+      "frame_width": 32,
+      "frame_height": 96,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "hitbox": {
+        "offset_x": 0,
+        "offset_y": 5,
+        "width": 32,
+        "height": 34
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_worm_head",
+      "category": "enemies",
+      "image": "enemies/worm_layers/Layer_4.png",
+      "frame_width": 32,
+      "frame_height": 96,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_worm_body",
+      "category": "enemies",
+      "image": "enemies/worm_layers/Layer_3.png",
+      "frame_width": 32,
+      "frame_height": 96,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_worm_tail",
+      "category": "enemies",
+      "image": "enemies/worm_layers/Layer_2.png",
+      "frame_width": 32,
+      "frame_height": 96,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

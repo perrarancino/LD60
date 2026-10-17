@@ -45,6 +45,7 @@ export interface EnemySpawnDef {
   x: number;
   y: number;
   surface?: 'floor' | 'ceiling' | 'wall_left' | 'wall_right';
+  length?: number; // длина червя в сегментах (по умолчанию случайная в пределах рига)
 }
 
 export interface LevelDef {
@@ -99,11 +100,29 @@ export interface CrawlerDef {
   legs: CrawlerLegDef[];
 }
 
+export interface SegmentDef {
+  sprite_id: string;
+  center: { x: number; y: number }; // центр части на холсте
+}
+
+export interface SegmentedDef {
+  thickness: number;
+  length_min: number;
+  length_max: number;
+  head: SegmentDef;
+  body: SegmentDef;
+  tail: SegmentDef;
+  head_to_body: number;
+  body_to_body: number;
+  body_to_tail: number;
+}
+
 export interface RigDef {
   id: string;
   canvas: { width: number; height: number };
   anchor: { x: number; y: number };
   crawler?: CrawlerDef;
+  segmented?: SegmentedDef;
   parts: RigPartDef[]; // снизу вверх
 }
 

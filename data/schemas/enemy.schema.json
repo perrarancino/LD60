@@ -60,7 +60,8 @@
         "polarity_flipper",
         "diver",
         "bouncing_projectile",
-        "crawler"
+        "crawler",
+        "burrower"
       ],
       "description": "Базовый тип передвижения и поиска целей"
     },

@@ -40,9 +40,26 @@
               "hip": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
               "knee": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
               "foot": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
-                }
+              "gait_group": { "type": "integer", "minimum": 0, "description": "Группа походки: ноги одной группы шагают одновременно" }
+            }
           }
         }
+      }
+    },
+    "segmented": {
+      "type": "object",
+      "description": "Сегментированное существо (червь): голова, туловище, хвост едут по следу головы",
+      "required": ["thickness", "length_min", "length_max", "head", "body", "tail", "head_to_body", "body_to_body", "body_to_tail"],
+      "properties": {
+        "thickness": { "type": "number", "minimum": 1, "description": "Толщина червя, px (центр ползёт на половине толщины от поверхности)" },
+        "length_min": { "type": "integer", "minimum": 2 },
+        "length_max": { "type": "integer", "minimum": 2 },
+        "head": { "$ref": "#/$defs/segment" },
+        "body": { "$ref": "#/$defs/segment" },
+        "tail": { "$ref": "#/$defs/segment" },
+        "head_to_body": { "type": "number", "description": "Расстояние между центрами головы и первого туловища вдоль следа, px" },
+        "body_to_body": { "type": "number" },
+        "body_to_tail": { "type": "number" }
       }
     },
     "parts": {
@@ -94,6 +111,16 @@
             "properties": { "segments": { "type": "integer", "minimum": 2, "maximum": 12 } }
           }
         }
+      }
+    }
+  },
+  "$defs": {
+    "segment": {
+      "type": "object",
+      "required": ["sprite_id", "center"],
+      "properties": {
+        "sprite_id": { "type": "string", "description": "Слой-часть (полный холст); рисунок смотрит «вверх» = вперёд" },
+        "center": { "type": "object", "required": ["x", "y"], "description": "Центр части на холсте (px) — точка вращения и позиции на следе", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
       }
     }
   }

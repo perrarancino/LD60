@@ -264,5 +264,32 @@
       "scrap_parts_max": 1,
       "drop_chance_percent": 50.0
     }
+  },
+  {
+    "id": "worm",
+    "display_name": "Червь-землерой (модель DIP-14)",
+    "lore": "Сегментированный механический червь длиной от трёх до пяти секций. Ползёт по полу, стенам и потолку, а потом вдруг зарывается в блок и выныривает в другом месте.",
+    "sprite_variants": [
+      "enemy_worm"
+    ],
+    "rig_id": "worm_rig",
+    "stats": {
+      "max_health": 40,
+      "contact_damage": 10,
+      "movement_speed": 30.0
+    },
+    "behavior_type": "burrower",
+    "attack": {
+      "name": "Укус",
+      "damage": 12,
+      "cooldown_seconds": 1.8,
+      "range": 18.0,
+      "description": "Кусает зубастой пастью, если герой оказался перед головой."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
   }
 ]

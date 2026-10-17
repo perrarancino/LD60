@@ -3,6 +3,7 @@ import { SpriteLibrary } from './assets/SpriteLibrary.ts';
 import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
+import { Worm } from './entities/Worm.ts';
 import { Player } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
@@ -51,6 +52,7 @@ class GameApp {
   private player!: Player;
   private enemies: Enemy[] = [];
   private spiders: Spider[] = [];
+  private worms: Worm[] = [];
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -235,7 +237,8 @@ class GameApp {
         if (!rig) return [];
         return [
           ...rig.parts.map((p) => p.sprite_id),
-          ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? [])
+          ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? []),
+          ...(rig.segmented ? [rig.segmented.head.sprite_id, rig.segmented.body.sprite_id, rig.segmented.tail.sprite_id] : [])
         ];
       })
     ]);
@@ -263,6 +266,15 @@ class GameApp {
         const spider = new Spider(def, spawn, this.level, rig, this.sprites);
         this.spiders.push(spider);
         this.worldLayer.addChild(spider.container);
+        continue;
+      }
+      if (def.behavior_type === 'burrower') {
+        // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
+        const rig = RIGS.find((r) => r.id === def.rig_id);
+        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const worm = new Worm(def, spawn, this.level, rig, this.sprites);
+        this.worms.push(worm);
+        this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
@@ -330,6 +342,7 @@ class GameApp {
 
     // 3. Враги
     for (const spider of this.spiders) spider.update(dt);
+    for (const worm of this.worms) worm.update(dt);
 
     // 4. Камера
     this.updateCamera(dt);

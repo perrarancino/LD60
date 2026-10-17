@@ -1,0 +1,43 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "worm_rig",
+  "description": "Червь из слоёв cherv_textalite.aseprite (холст 32x96, части нарисованы вертикально: верх = вперёд): голова (Layer 4, пасть с зубами), туловище (Layer 3), хвост (Layer 2). Длина 3-5 сегментов: голова + 1..3 туловища + хвост. Цепочка сегментов едет по следу головы; червь ползёт по любым поверхностям и зарывается в блоки.",
+  "canvas": {
+    "width": 32,
+    "height": 96
+  },
+  "anchor": {
+    "x": 16,
+    "y": 48
+  },
+  "segmented": {
+    "thickness": 32,
+    "length_min": 3,
+    "length_max": 5,
+    "head": {
+      "sprite_id": "enemy_worm_head",
+      "center": {
+        "x": 16,
+        "y": 22
+      }
+    },
+    "body": {
+      "sprite_id": "enemy_worm_body",
+      "center": {
+        "x": 16,
+        "y": 51
+      }
+    },
+    "tail": {
+      "sprite_id": "enemy_worm_tail",
+      "center": {
+        "x": 16,
+        "y": 75.5
+      }
+    },
+    "head_to_body": 28,
+    "body_to_body": 27,
+    "body_to_tail": 23
+  },
+  "parts": []
+}

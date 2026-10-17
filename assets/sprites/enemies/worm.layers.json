@@ -1,0 +1,45 @@
+{
+  "source": "worm.aseprite",
+  "canvasWidth": 32,
+  "canvasHeight": 96,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Layer 2",
+      "file": "worm_layers/Layer_2.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        0,
+        61,
+        32,
+        90
+      ]
+    },
+    {
+      "name": "Layer 3",
+      "file": "worm_layers/Layer_3.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        0,
+        31,
+        32,
+        71
+      ]
+    },
+    {
+      "name": "Layer 4",
+      "file": "worm_layers/Layer_4.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        0,
+        5,
+        32,
+        39
+      ]
+    }
+  ]
+}

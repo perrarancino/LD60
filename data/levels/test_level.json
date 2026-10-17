@@ -77,6 +77,22 @@
       "x": 25,
       "y": 8,
       "surface": "wall_right"
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 12,
+      "y": 14,
+      "surface": "floor",
+      "length": 4
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 19,
+      "y": 14,
+      "surface": "floor",
+      "length": 5
     }
   ]
 }

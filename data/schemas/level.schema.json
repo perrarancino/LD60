@@ -33,7 +33,8 @@
           "sprite_id": { "type": "string", "description": "Вариант внешности (должен быть в sprite_variants врага)" },
           "x": { "type": "integer" },
           "y": { "type": "integer" },
-          "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" }
+          "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" },
+          "length": { "type": "integer", "minimum": 3, "maximum": 5, "description": "Только для червей: длина в сегментах (по умолчанию случайная в пределах рига)" }
         }
       }
     }
