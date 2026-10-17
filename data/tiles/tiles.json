@@ -9,6 +9,34 @@
       "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false
+    },
+    {
+      "id": "tileset1",
+      "display_name": "Тайл платформы 1",
+      "sprite_id": "tile_tileset1",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tileset2",
+      "display_name": "Тайл платформы 2",
+      "sprite_id": "tile_tileset2",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tileset3",
+      "display_name": "Тайл платформы 3",
+      "sprite_id": "tile_tileset3",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tileset4",
+      "display_name": "Тайл платформы 4",
+      "sprite_id": "tile_tileset4",
+      "solid": true,
+      "one_way": false
     }
   ]
 }

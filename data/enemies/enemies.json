@@ -22,5 +22,29 @@
       "scrap_parts_max": 2,
       "drop_chance_percent": 70.0
     }
+  },
+  {
+    "id": "swire",
+    "display_name": "Паук-проводник (Swire)",
+    "lore": "Крупный паукообразный механизм, плетущий изолированные токоведущие нити и шлейфы. Обитает в кабельных каналах и вентиляционных шахтах системного блока.",
+    "stats": {
+      "max_health": 60,
+      "contact_damage": 15,
+      "movement_speed": 85.0
+    },
+    "sprite_variants": ["enemy_swire"],
+    "behavior_type": "patrol_crawler",
+    "attack": {
+      "name": "Проводной хлыст",
+      "damage": 15,
+      "cooldown_seconds": 2.0,
+      "range": 100.0,
+      "description": "Удар гибким кабелем с высоким импульсным напряжением."
+    },
+    "drops": {
+      "scrap_parts_min": 2,
+      "scrap_parts_max": 3,
+      "drop_chance_percent": 80.0
+    }
   }
 ]

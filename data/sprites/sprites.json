@@ -280,6 +280,83 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "tile_tileset1",
+      "category": "tiles",
+      "image": "tiles/tileset1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_tileset2",
+      "category": "tiles",
+      "image": "tiles/tileset2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_tileset3",
+      "category": "tiles",
+      "image": "tiles/tileset3.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_tileset4",
+      "category": "tiles",
+      "image": "tiles/tileset4.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_swire",
+      "category": "enemies",
+      "image": "enemies/swire.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 7,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 10,
+        "offset_y": 20,
+        "width": 44,
+        "height": 44
+      },
+      "animations": {
+        "idle": {
+          "frames": [0, 1, 2, 3, 4, 5],
+          "frame_duration_ms": 100,
+          "loop": true
+        }
+      }
     }
   ]
 }
