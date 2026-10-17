@@ -1,5 +1,10 @@
 ﻿// Лаунчер LD60: одним exe запускает игру в браузере по умолчанию.
-// Собранная игра (dist.zip) вшита в exe как ресурс и раздаётся из памяти встроенным HTTP-сервером на 127.0.0.1.
+//
+// Два режима:
+//  1) «Проект»: exe лежит в <проект>\release\ — сервер раздаёт <проект>\dist с диска и при каждой перезагрузке страницы
+//     сам проверяет, не изменились ли исходники (src, data, assets, index.html, конфиги); если да — запускает
+//     `npm run build` и отдаёт свежую версию. Ошибки сборки показываются прямо на странице.
+//  2) «Автономный»: если проекта рядом нет, игра берётся из вшитого в exe dist.zip (версия на момент сборки exe).
 // Сервер сам завершается, когда вкладку с игрой закрыли (страница шлёт heartbeat на /__ping).
 using System;
 using System.Collections.Generic;
@@ -29,8 +34,15 @@ static class Launcher
         { ".txt", "text/plain; charset=utf-8" }, { ".map", "application/json" }
     };
 
-    static readonly Dictionary<string, byte[]> Files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-    static long lastPing = 0;      // Environment.TickCount64 нет в .NET 4.x — используем Stopwatch
+    // Вшитая копия игры (автономный режим)
+    static readonly Dictionary<string, byte[]> Embedded = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+
+    // Режим проекта: корень проекта и его dist (null — автономный режим)
+    static string projectRoot = null;
+    static string distDir = null;
+    static readonly object BuildLock = new object();
+
+    static long lastPing = 0;
     static long byeAt = 0;
     static readonly Stopwatch Clock = Stopwatch.StartNew();
 
@@ -39,7 +51,9 @@ static class Launcher
     {
         try
         {
-            LoadFiles();
+            DetectProject();
+            if (projectRoot == null) LoadEmbedded();
+
             int port = FreePort();
             var listener = new HttpListener();
             listener.Prefixes.Add("http://127.0.0.1:" + port + "/");
@@ -57,7 +71,7 @@ static class Launcher
                 long now = Clock.ElapsedMilliseconds;
                 long ping = Interlocked.Read(ref lastPing);
                 long bye = Interlocked.Read(ref byeAt);
-                if (ping == 0 && now > 60000) break;                // браузер так и не открыл страницу
+                if (ping == 0 && now > 240000) break;               // браузер так и не открыл страницу (сборка могла идти долго)
                 if (ping != 0 && now - ping > 150000) break;        // давно нет heartbeat
                 if (bye != 0 && ping < bye && now - bye > 4000) break; // вкладку закрыли и не перезагрузили
             }
@@ -71,7 +85,75 @@ static class Launcher
         }
     }
 
-    static void LoadFiles()
+    // ---------- Режим проекта ----------
+
+    /// Проект лежит на уровень выше exe (release\LD60.exe -> корень с package.json и src).
+    static void DetectProject()
+    {
+        string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        string parent = Path.GetDirectoryName(exeDir);
+        if (parent == null) return;
+        if (File.Exists(Path.Combine(parent, "package.json")) &&
+            File.Exists(Path.Combine(parent, "index.html")) &&
+            Directory.Exists(Path.Combine(parent, "src")))
+        {
+            projectRoot = parent;
+            distDir = Path.Combine(parent, "dist");
+        }
+    }
+
+    static DateTime NewestSourceTime()
+    {
+        DateTime newest = DateTime.MinValue;
+        foreach (string f in new[] { "index.html", "package.json", "tsconfig.json", "vite.config.ts" })
+        {
+            string p = Path.Combine(projectRoot, f);
+            if (File.Exists(p)) newest = Max(newest, File.GetLastWriteTimeUtc(p));
+        }
+        string skip = Path.DirectorySeparatorChar + "assets" + Path.DirectorySeparatorChar + "source" + Path.DirectorySeparatorChar;
+        foreach (string dir in new[] { "src", "data", "assets" })
+        {
+            string d = Path.Combine(projectRoot, dir);
+            if (!Directory.Exists(d)) continue;
+            foreach (string f in Directory.GetFiles(d, "*", SearchOption.AllDirectories))
+            {
+                if (f.IndexOf(skip, StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                newest = Max(newest, File.GetLastWriteTimeUtc(f));
+            }
+        }
+        return newest;
+    }
+
+    static DateTime Max(DateTime a, DateTime b) { return a > b ? a : b; }
+
+    /// Пересобирает игру, если исходники новее dist. Возвращает текст ошибки сборки или null.
+    static string EnsureFresh()
+    {
+        lock (BuildLock)
+        {
+            string index = Path.Combine(distDir, "index.html");
+            DateTime built = File.Exists(index) ? File.GetLastWriteTimeUtc(index) : DateTime.MinValue;
+            if (built >= NewestSourceTime()) return null;
+
+            var psi = new ProcessStartInfo("cmd.exe", "/c npm run build 2>&1")
+            {
+                WorkingDirectory = projectRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true
+            };
+            using (var p = Process.Start(psi))
+            {
+                string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(180000);
+                return p.ExitCode == 0 ? null : output;
+            }
+        }
+    }
+
+    // ---------- Автономный режим ----------
+
+    static void LoadEmbedded()
     {
         var asm = Assembly.GetExecutingAssembly();
         using (var res = asm.GetManifestResourceStream("dist.zip"))
@@ -86,17 +168,38 @@ static class Launcher
                     using (var ms = new MemoryStream())
                     {
                         s.CopyTo(ms);
-                        Files["/" + entry.FullName.Replace((char)92, '/')] = ms.ToArray();
+                        Embedded["/" + entry.FullName.Replace((char)92, '/')] = ms.ToArray();
                     }
                 }
             }
         }
-        byte[] index;
-        if (!Files.TryGetValue("/index.html", out index)) throw new InvalidOperationException("В игре нет index.html.");
-        string html = Encoding.UTF8.GetString(index);
+        if (!Embedded.ContainsKey("/index.html")) throw new InvalidOperationException("В игре нет index.html.");
+    }
+
+    // ---------- HTTP ----------
+
+    static byte[] InjectPing(byte[] indexHtml)
+    {
+        string html = Encoding.UTF8.GetString(indexHtml);
         int i = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
         html = i >= 0 ? html.Insert(i, PingScript) : html + PingScript;
-        Files["/index.html"] = Encoding.UTF8.GetBytes(html);
+        return Encoding.UTF8.GetBytes(html);
+    }
+
+    /// Содержимое файла по URL-пути или null.
+    static byte[] Load(string path)
+    {
+        byte[] data = null;
+        if (projectRoot != null)
+        {
+            string full = Path.GetFullPath(Path.Combine(distDir, path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
+            string root = Path.GetFullPath(distDir) + Path.DirectorySeparatorChar;
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(full)) return null;
+            data = File.ReadAllBytes(full);
+        }
+        else if (!Embedded.TryGetValue(path, out data)) return null;
+
+        return path == "/index.html" ? InjectPing(data) : data;
     }
 
     static int FreePort()
@@ -128,8 +231,23 @@ static class Launcher
             if (path == "/__bye") { Interlocked.Exchange(ref byeAt, Clock.ElapsedMilliseconds); Reply(ctx, 204, null, null); return; }
             if (path == "/") path = "/index.html";
 
-            byte[] data;
-            if (!Files.TryGetValue(path, out data)) { Reply(ctx, 404, "text/plain", Encoding.UTF8.GetBytes("404")); return; }
+            // Перезагрузка страницы = проверка, не устарела ли сборка
+            if (projectRoot != null && path == "/index.html")
+            {
+                string error = EnsureFresh();
+                if (error != null)
+                {
+                    string page = "<!doctype html><meta charset=utf-8><title>Ошибка сборки</title>" +
+                        "<body style=\"background:#0d0f12;color:#ff6b6b;font:14px Consolas,monospace;padding:24px\">" +
+                        "<h2>Сборка не удалась</h2><p style=\"color:#ccc\">Исправьте ошибку и перезагрузите страницу.</p><pre>" +
+                        WebUtility.HtmlEncode(error) + "</pre>" + PingScript;
+                    Reply(ctx, 500, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(page));
+                    return;
+                }
+            }
+
+            byte[] data = Load(path);
+            if (data == null) { Reply(ctx, 404, "text/plain", Encoding.UTF8.GetBytes("404")); return; }
             string mime;
             if (!Mime.TryGetValue(Path.GetExtension(path), out mime)) mime = "application/octet-stream";
             Reply(ctx, 200, mime, data);

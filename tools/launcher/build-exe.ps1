@@ -1,4 +1,6 @@
 ﻿# Собирает release\LD60.exe — один файл, запускающий игру в браузере.
+# Если exe лежит в папке release внутри проекта, он при каждой перезагрузке страницы сам пересобирает игру (npm run build), когда
+# исходники изменились; иначе берёт вшитую копию (dist.zip, версия на момент сборки exe).
 #   1) npm run build (tsc + vite)  2) dist -> zip (без .map)  3) компиляция Launcher.cs встроенным csc.exe
 # Запуск: npm run exe   (или: powershell -ExecutionPolicy Bypass -File tools\launcher\build-exe.ps1)
 $ErrorActionPreference = 'Stop'
@@ -38,7 +40,17 @@ try {
 
 Write-Host '==> csc'
 $out = Join-Path $root 'release\LD60.exe'
-& $csc /nologo /target:winexe "/out:$out" "/resource:$zipPath,dist.zip" `
+# Запущенный exe заблокирован для записи, но его можно переименовать — старый продолжит работать, новый встанет на его место
+if (Test-Path $out) {
+  try { Remove-Item $out -Force -ErrorAction Stop }
+  catch {
+    $old = Join-Path $root 'release\LD60.old.exe'
+    Remove-Item $old -Force -ErrorAction SilentlyContinue
+    Move-Item $out $old -Force
+    Write-Host 'Старый LD60.exe сейчас запущен: переименован в LD60.old.exe (закройте игру, чтобы удалить)'
+  }
+}
+& $csc /nologo /codepage:65001 /target:winexe "/out:$out" "/resource:$zipPath,dist.zip" `
   /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll @icoArg `
   (Join-Path $PSScriptRoot 'Launcher.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Компиляция лаунчера не удалась' }
