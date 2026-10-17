@@ -5,23 +5,9 @@
   "sky_color": "#120a36",
   "scale": 1,
   "ground_offset": 32,
+  "ground_color": "#1f1a38",
   "effects": {
     "sky_top_color": "#04020f",
-    "stars": {
-      "density": 0.0016,
-      "parallax": 0.02,
-      "colors": [
-        "#ffffff",
-        "#bfe9ff",
-        "#c8ffd8",
-        "#ffe9c8"
-      ]
-    },
-    "shooting_stars": {
-      "min_interval": 5,
-      "max_interval": 11,
-      "color": "#9ff6ff"
-    },
     "motes": {
       "density": 0.00035,
       "parallax": 0.35,

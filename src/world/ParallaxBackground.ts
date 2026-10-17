@@ -68,6 +68,7 @@ export class ParallaxBackground {
   private starLayer = new Container();
   private meteorLayer = new Container();
   private layerLayer = new Container();
+  private groundFill = new Graphics();
   private moteLayer = new Container();
 
   private layers: Layer[] = [];
@@ -88,7 +89,7 @@ export class ParallaxBackground {
   }
 
   constructor(private readonly def: BackgroundDef, sprites: SpriteLibrary) {
-    this.container.addChild(this.sky, this.starLayer, this.meteorLayer, this.layerLayer, this.moteLayer);
+    this.container.addChild(this.sky, this.starLayer, this.meteorLayer, this.layerLayer, this.groundFill, this.moteLayer);
     for (const l of def.layers) {
       const texture = sprites.texture(l.sprite_id);
       const sprite = new TilingSprite({ texture, width: 1, height: texture.height * def.scale });
@@ -205,6 +206,15 @@ export class ParallaxBackground {
         const tw = 0.5 + 0.5 * Math.sin(this.time * s.speed + s.phase);
         s.sprite.alpha = s.base * (0.25 + 0.75 * tw * tw);
       }
+    }
+
+    // Земля: под нижним краем ближнего слоя заливаем до низа экрана, чтобы на верхних платформах под фоном не было пустоты
+    const groundColor = this.def.ground_color;
+    this.groundFill.clear();
+    if (groundColor && this.layers.length > 0) {
+      const front = this.layers[this.layers.length - 1];
+      const top = Math.floor(front.sprite.y + front.height) - 1;
+      if (top < this.viewH) this.groundFill.rect(0, top, this.viewW, this.viewH - top + 4).fill(groundColor);
     }
 
     this.updateMeteor(dt);

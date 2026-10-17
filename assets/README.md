@@ -39,8 +39,9 @@ assets/
 `assets/source/backgrounds/bg_textalite.aseprite` (512x128, 8 слоёв) экспортируется по слоям в `assets/sprites/backgrounds/bg_textalite_layers/`.
 Слои зациклены по горизонтали и двигаются с разной скоростью (`data/backgrounds/bg_textalite.json`: `parallax_x/y` у каждого слоя,
 слои — снизу вверх; `scale` — целое увеличение пикселей, `sky_color` — заливка за слоями). Фон выбирается уровнем (`background_id`),
-рисуется классом `src/world/ParallaxBackground.ts`. Небо «живое» (блок `effects` в JSON): градиент сверху, мерцающие звёзды,
-падающие звёзды раз в 5–11 с, светящиеся частицы над землёй; у слоёв-дымки есть собственный дрейф (`drift_x`). Чтобы добавить новый фон: `.aseprite` в `source/backgrounds/`, экспорт
+рисуется классом `src/world/ParallaxBackground.ts`. Небо «живое» (блок `effects` в JSON): градиент сверху и светящиеся частицы над землёй (звёзды и падающие звёзды
+тоже поддерживаются, но для этого фона выключены); у слоёв-дымки есть собственный дрейф (`drift_x`). Под нижним краем фона
+заливка `ground_color` до низа экрана — на высоких платформах под фоном нет пустоты. Чтобы добавить новый фон: `.aseprite` в `source/backgrounds/`, экспорт
 слоёв (`--layers`), записи в `data/sprites/sprites.json` и файл в `data/backgrounds/`.
 
 ## Правила

@@ -104,6 +104,7 @@ export interface BackgroundDef {
   sky_color: string;
   scale: number;
   effects?: BackgroundEffects;
+  ground_color?: string; // цвет «земли» под нижним краем фона (заливка вниз до края экрана)
   ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
   layers: BackgroundLayerDef[]; // снизу вверх
 }
