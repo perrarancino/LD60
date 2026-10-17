@@ -18,6 +18,12 @@ assets/
     └── sfx/
 ```
 
+## Части тела героя (процедурный риг)
+
+`assets/source/player/player.aseprite` состоит из слоёв `Head, ALL (торс), Fhand/Bhand (руки), Fleg/Bleg (ноги)`.
+`npm run sprites` экспортирует их в `assets/sprites/player/player_layers/*.png` (все на холсте 64x64).
+Из частей риг собирается кодом (`src/entities/PlayerRig.ts`), точки вращения и порядок — в `data/rigs/player_rig.json`.
+
 ## Правила
 
 - Категория (подпапка) одинакова в `source/` и `sprites/` и совпадает с полем `category` в реестре спрайтов.

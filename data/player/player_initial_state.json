@@ -4,6 +4,7 @@
   "entity_id": "player_obsolete_model",
   "display_name": "Модель-7 «Утиль»",
   "sprite_id": "player",
+  "rig_id": "player_rig",
   "health": {
     "current": 100,
     "max": 100,

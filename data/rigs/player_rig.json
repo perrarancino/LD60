@@ -1,0 +1,73 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "player_rig",
+  "description": "Процедурный риг робота: части — слои char.aseprite (assets/sprites/player/player_layers), все на холсте 64x64 в одних координатах. Порядок parts — снизу вверх (z). pivot — точка вращения/крепления в пикселях холста.",
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "parts": [
+    {
+      "name": "Bleg",
+      "sprite_id": "player_part_bleg",
+      "role": "leg",
+      "side": -1,
+      "pivot": {
+        "x": 38,
+        "y": 45
+      }
+    },
+    {
+      "name": "Bhand",
+      "sprite_id": "player_part_bhand",
+      "role": "arm",
+      "side": -1,
+      "pivot": {
+        "x": 39,
+        "y": 38
+      }
+    },
+    {
+      "name": "ALL",
+      "sprite_id": "player_part_torso",
+      "role": "torso",
+      "pivot": {
+        "x": 34,
+        "y": 45
+      }
+    },
+    {
+      "name": "Fleg",
+      "sprite_id": "player_part_fleg",
+      "role": "leg",
+      "side": 1,
+      "pivot": {
+        "x": 30,
+        "y": 45
+      }
+    },
+    {
+      "name": "Head",
+      "sprite_id": "player_part_head",
+      "role": "head",
+      "pivot": {
+        "x": 31,
+        "y": 32
+      }
+    },
+    {
+      "name": "Fhand",
+      "sprite_id": "player_part_fhand",
+      "role": "arm",
+      "side": 1,
+      "pivot": {
+        "x": 28,
+        "y": 36
+      }
+    }
+  ]
+}

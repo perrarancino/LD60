@@ -28,7 +28,7 @@ def check(cond: bool, msg: str) -> None:
 sprites = {s["id"]: s for s in load("sprites/sprites.json")["sprites"]}
 for sid, s in sprites.items():
     png = SPRITES / s["image"]
-    check(png.parent.name == s["category"], f"{sid}: категория {s['category']} не совпадает с папкой {png.parent.name}")
+    check(Path(s["image"]).parts[0] == s["category"], f"{sid}: категория {s['category']} не совпадает с папкой {Path(s['image']).parts[0]}")
     if not png.exists():
         errors.append(f"{sid}: нет файла {png}")
         continue
@@ -55,7 +55,17 @@ enemies = {e["id"]: e for e in load("enemies/enemies.json")}
 for e in enemies.values():
     for sid in e["sprite_variants"]:
         check(sid in sprites, f"враг {e['id']}: нет спрайта {sid}")
-check(load("player/player_initial_state.json")["sprite_id"] in sprites, "игрок: sprite_id не найден")
+player = load("player/player_initial_state.json")
+check(player["sprite_id"] in sprites, "игрок: sprite_id не найден")
+rigs = {r["id"]: r for r in [load(f"rigs/{p.name}") for p in sorted((DATA / "rigs").glob("*.json"))]}
+check(player["rig_id"] in rigs, f"игрок: риг {player['rig_id']} не найден")
+for rig in rigs.values():
+    for part in rig["parts"]:
+        check(part["sprite_id"] in sprites, f"риг {rig['id']}: нет спрайта {part['sprite_id']}")
+        sp = sprites.get(part["sprite_id"])
+        if sp:
+            check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
+                  f"риг {rig['id']}: часть {part['name']} другого размера, чем холст")
 
 for path in sorted((DATA / "levels").glob("*.json")):
     lv = json.loads(path.read_text(encoding="utf-8"))

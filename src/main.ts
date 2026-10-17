@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
-import type { EnemyDef, LevelDef, TileSetDef } from './data/types.ts';
+import type { EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
 import { Player } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
@@ -14,6 +14,7 @@ import playerData from '../data/player/player_initial_state.json';
 import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
 import levelData from '../data/levels/test_level.json';
+import playerRigData from '../data/rigs/player_rig.json';
 
 class GameApp {
   private app: Application;
@@ -33,6 +34,8 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
+  private scale = 1;
+  private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
 
   constructor() {
     this.app = new Application();
@@ -59,6 +62,7 @@ class GameApp {
     this.gameContainer.appendChild(this.app.canvas);
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
+    window.addEventListener('pointermove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
 
     await this.setupScene();
     this.setupHUD();
@@ -71,18 +75,28 @@ class GameApp {
   }
 
   /**
-   * Полноэкранный режим без растягивания: масштаб пикселя — целое число (от высоты окна к эталонной),
-   * а область обзора камеры подстраивается под размер окна (шире окно — больше видно).
+   * Полноэкранный режим без растягивания и с рендером в родном разрешении экрана:
+   * холст = физические пиксели окна, сцена масштабируется целым числом (по высоте окна к эталонной),
+   * поэтому повёрнутые части тела и подпиксельные сдвиги рисуются без «дрожания» пикселей низкого разрешения,
+   * а область обзора камеры растёт вместе с окном.
    */
   private handleResize(): void {
-    const scale = Math.max(1, Math.round(window.innerHeight / GAME_CONFIG.VIRTUAL_HEIGHT));
-    this.viewW = Math.ceil(window.innerWidth / scale);
-    this.viewH = Math.ceil(window.innerHeight / scale);
+    const dpr = window.devicePixelRatio || 1;
+    const physW = Math.round(window.innerWidth * dpr);
+    const physH = Math.round(window.innerHeight * dpr);
 
-    this.app.renderer.resize(this.viewW, this.viewH);
+    this.scale = Math.max(1, Math.round(physH / GAME_CONFIG.VIRTUAL_HEIGHT)); // целых физ. пикселей на 1 пиксель арта
+    this.viewW = physW / this.scale;
+    this.viewH = physH / this.scale;
+
+    this.app.renderer.resize(physW, physH);
+    this.app.stage.scale.set(this.scale);
     const canvas = this.app.canvas;
-    canvas.style.width = `${this.viewW * scale}px`;
-    canvas.style.height = `${this.viewH * scale}px`;
+    canvas.style.width = `${physW / dpr}px`;
+    canvas.style.height = `${physH / dpr}px`;
+
+    // Текст рисуем в родном разрешении, а не растягиваем
+    for (const t of [this.timerText, this.hudText]) if (t) t.resolution = this.scale;
 
     this.drawGrid();
     if (this.level) this.updateCamera();
@@ -98,6 +112,18 @@ class GameApp {
     g.stroke();
   }
 
+  /** Курсор мыши в мировых координатах (null, пока мышь не двигали). */
+  private aimInWorld(): { x: number; y: number } | null {
+    if (!this.pointer) return null;
+    const canvas = this.app.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const toPhys = canvas.width / rect.width; // CSS px -> физические px
+    return {
+      x: ((this.pointer.x - rect.left) * toPhys) / this.scale - this.worldLayer.x,
+      y: ((this.pointer.y - rect.top) * toPhys) / this.scale - this.worldLayer.y
+    };
+  }
+
   /** Камера: следует за героем; если уровень меньше обзора по оси — центрируется (по X) / прижимается к низу (по Y). */
   private updateCamera(): void {
     const { x, y } = this.player.body;
@@ -111,7 +137,9 @@ class GameApp {
       ? lh - this.viewH
       : Math.max(0, Math.min(lh - this.viewH, y - this.viewH * 0.6));
 
-    this.worldLayer.position.set(-Math.round(camX), -Math.round(camY));
+    // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
+    const snap = (v: number) => Math.round(v * this.scale) / this.scale;
+    this.worldLayer.position.set(-snap(camX), -snap(camY));
   }
 
   /**
@@ -126,8 +154,10 @@ class GameApp {
     const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
 
     // Загружаем только те спрайты, которые реально нужны уровню
+    const rigDef = playerRigData as RigDef;
     await this.sprites.load([
       playerData.sprite_id,
+      ...rigDef.parts.map((p) => p.sprite_id),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id)
     ]);
@@ -146,7 +176,7 @@ class GameApp {
       this.worldLayer.addChild(enemy.sprite);
     }
 
-    this.player = new Player(playerData.sprite_id, this.sprites);
+    this.player = new Player(playerData.sprite_id, rigDef, this.sprites);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
     this.updateCamera();
@@ -176,6 +206,7 @@ class GameApp {
     });
     this.hudText.position.set(10, 22);
     hudLayer.addChild(this.hudText);
+    this.timerText.resolution = this.hudText.resolution = this.scale;
 
     // Слушатель тиков подсистемы старения
     EventBus.get().on('aging:tick', (state) => {
@@ -201,7 +232,7 @@ class GameApp {
     this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
-    this.player.update(dt, this.input.poll(), this.level);
+    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
     // 3. Камера
     this.updateCamera();

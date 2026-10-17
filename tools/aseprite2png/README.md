@@ -30,6 +30,17 @@ python tools/aseprite2png/aseprite2png.py boss.aseprite --columns 4
 
 По умолчанию результат кладётся в `assets/sprites/`. Флаг `--no-json` отключает запись JSON.
 
+## Экспорт по слоям (`--layers`)
+
+```bash
+python tools/aseprite2png/aseprite2png.py assets/source/player/player.aseprite --layers -o assets/sprites/player
+```
+
+Кроме обычного PNG каждый слой сохраняется отдельным PNG **на полном холсте** (части лежат в тех же координатах, что и в
+Aseprite — склеив их в точке (0,0), получите исходную картинку): `<имя>_layers/<слой>.png`.
+Рядом пишется `<имя>.layers.json` — порядок слоёв снизу вверх и bbox каждого. Для анимаций слой экспортируется листом кадров.
+Так готовятся части тела для процедурного рига (`data/rigs/`).
+
 ## Поддержка
 
 Цвет RGBA / Grayscale / Indexed, слои и группы (видимость, прозрачность), linked cels, теги.

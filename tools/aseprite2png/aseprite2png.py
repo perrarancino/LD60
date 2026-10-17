@@ -5,7 +5,7 @@
 Анимация (>1 кадра)      -> PNG-лист из тайлов (кадры одного размера) + JSON с метаданными.
 
 Использование:
-    python aseprite2png.py файл.aseprite [папка/ или ещё файлы ...] [-o OUT] [--columns N] [-r]
+    python aseprite2png.py файл.aseprite [папка/ или ещё файлы ...] [-o OUT] [--columns N] [-r] [--layers]
 """
 from __future__ import annotations
 
@@ -254,11 +254,15 @@ BLENDERS = {
 }
 
 
-def render_frame(sprite: Sprite, fi: int, warned: set) -> Image.Image:
+def render_frame(sprite: Sprite, fi: int, warned: set, only_layer: int | None = None) -> Image.Image:
+    """Композит кадра. only_layer — рисовать только этот слой (на полном холсте, видимость слоя игнорируется)."""
     canvas = Image.new("RGBA", (sprite.width, sprite.height), (0, 0, 0, 0))
     cels = sorted(sprite.frames[fi].cels.values(), key=lambda c: (c.layer + c.z, c.z))
     for cel in cels:
-        if cel.image is None or not layer_visible(sprite, cel.layer):
+        if only_layer is not None:
+            if cel.layer != only_layer or cel.image is None:
+                continue
+        elif cel.image is None or not layer_visible(sprite, cel.layer):
             continue
         layer = sprite.layers[cel.layer]
         if layer.kind == LAYER_GROUP:
@@ -289,6 +293,61 @@ def render_frame(sprite: Sprite, fi: int, warned: set) -> Image.Image:
     return canvas
 
 
+def safe_name(name: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in name) or "layer"
+
+
+def sheet_of(frames: list[Image.Image], columns: int | None) -> tuple[Image.Image, int, int]:
+    """Склеивает кадры в лист из тайлов: возвращает (картинка, колонок, строк)."""
+    w, h = frames[0].size
+    cols = min(columns, len(frames)) if columns else len(frames)
+    rows = -(-len(frames) // cols)
+    sheet = Image.new("RGBA", (cols * w, rows * h), (0, 0, 0, 0))
+    for i, fr in enumerate(frames):
+        sheet.paste(fr, ((i % cols) * w, (i // cols) * h))
+    return sheet, cols, rows
+
+
+def convert_layers(path: Path, out_dir: Path, columns: int | None) -> None:
+    """Каждый слой — отдельный PNG на полном холсте (положение в спрайте сохраняется: части кладутся в (0,0)).
+
+    Результат: <out>/<имя>_layers/<слой>.png (+ <имя>.layers.json: порядок слоёв снизу вверх и bbox каждого).
+    """
+    sprite = parse(path)
+    warned: set = set()
+    layers_dir = out_dir / f"{path.stem}_layers"
+    layers_dir.mkdir(parents=True, exist_ok=True)
+    meta_layers = []
+    used: set[str] = set()
+    for li, layer in enumerate(sprite.layers):
+        if layer.kind == LAYER_GROUP or not any(li in fr.cels for fr in sprite.frames):
+            continue
+        frames = [render_frame(sprite, fi, warned, only_layer=li) for fi in range(len(sprite.frames))]
+        name = safe_name(layer.name)
+        while name in used:
+            name += "_"
+        used.add(name)
+        sheet, _, _ = sheet_of(frames, columns)
+        sheet.save(layers_dir / f"{name}.png")
+        boxes = [b for b in (f.getbbox() for f in frames) if b]
+        bbox = None if not boxes else [min(b[0] for b in boxes), min(b[1] for b in boxes),
+                                       max(b[2] for b in boxes), max(b[3] for b in boxes)]
+        meta_layers.append({"name": layer.name, "file": f"{layers_dir.name}/{name}.png",
+                            "z": len(meta_layers), "visible": bool(layer.flags & L_VISIBLE), "bbox": bbox})
+    meta = {
+        "source": path.name,
+        "canvasWidth": sprite.width,
+        "canvasHeight": sprite.height,
+        "frames": len(sprite.frames),
+        "columns": min(columns, len(sprite.frames)) if columns else len(sprite.frames),
+        "layers": meta_layers,  # порядок снизу вверх (как в Aseprite)
+    }
+    (out_dir / f"{path.stem}.layers.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{path.name} -> {layers_dir.name}/  ({len(meta_layers)} слоёв: "
+          f"{', '.join(m['name'] for m in meta_layers)})")
+
+
 def convert(path: Path, out_dir: Path, columns: int | None, write_json: bool) -> None:
     sprite = parse(path)
     warned: set = set()
@@ -302,11 +361,7 @@ def convert(path: Path, out_dir: Path, columns: int | None, write_json: bool) ->
         print(f"{path.name} -> {png_path.name}  ({sprite.width}x{sprite.height}, статика)")
         return
 
-    cols = min(columns, n) if columns else n
-    rows = -(-n // cols)
-    sheet = Image.new("RGBA", (cols * sprite.width, rows * sprite.height), (0, 0, 0, 0))
-    for i, fr in enumerate(frames):
-        sheet.paste(fr, ((i % cols) * sprite.width, (i // cols) * sprite.height))
+    sheet, cols, rows = sheet_of(frames, columns)
     sheet.save(png_path)
 
     if write_json:
@@ -336,6 +391,8 @@ def main() -> int:
     ap.add_argument("-c", "--columns", type=int, default=None,
                     help="колонок в листе анимации (по умолчанию — все кадры в одну строку)")
     ap.add_argument("--no-json", action="store_true", help="не писать JSON для анимаций")
+    ap.add_argument("-l", "--layers", action="store_true",
+                    help="дополнительно экспортировать каждый слой отдельным PNG (для процедурной анимации частей)")
     ap.add_argument("-r", "--recursive", action="store_true",
                     help="для папок: обходить подпапки и повторять их структуру в папке вывода")
     args = ap.parse_args()
@@ -353,6 +410,8 @@ def main() -> int:
     for f, out_dir in jobs:
         try:
             convert(f, out_dir, args.columns, not args.no_json)
+            if args.layers:
+                convert_layers(f, out_dir, args.columns)
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"{f.name}: ОШИБКА — {e}", file=sys.stderr)

@@ -11,6 +11,8 @@ export class Body {
   public vx = 0;
   public vy = 0;
   public grounded = false;
+  /** Куда упёрлись по X при последнем move(): -1 влево, 1 вправо, 0 — нет. */
+  public blockedX: -1 | 0 | 1 = 0;
 
   private width = 0;
   private height = 0;
@@ -30,8 +32,35 @@ export class Body {
     this.offsetY = hb.offset_y - anchorY;
   }
 
+  // Границы хитбокса в мировых координатах
+  public get left(): number { return this.x + this.offsetX; }
+  public get right(): number { return this.x + this.offsetX + this.width; }
+  public get top(): number { return this.y + this.offsetY; }
+  public get bottom(): number { return this.y + this.offsetY + this.height; }
+  public get hitWidth(): number { return this.width; }
+
+  /** Значение y тела, при котором низ хитбокса стоит на feetY. */
+  public yForFeet(feetY: number): number { return feetY - (this.offsetY + this.height); }
+  /** Значение x тела, при котором центр хитбокса стоит в centerX. */
+  public xForCenter(centerX: number): number { return centerX - this.offsetX - this.width / 2; }
+
+  /** Пересекал бы хитбокс твёрдые клетки, если бы тело стояло в (x, y)? */
+  public overlapsSolidAt(level: Level, x: number, y: number): boolean {
+    const ts = level.tileSize;
+    const eps = 0.001;
+    const left = x + this.offsetX;
+    const top = y + this.offsetY;
+    for (let cy = Math.floor(top / ts); cy <= Math.floor((top + this.height - eps) / ts); cy++) {
+      for (let cx = Math.floor(left / ts); cx <= Math.floor((left + this.width - eps) / ts); cx++) {
+        if (level.isSolid(cx, cy)) return true;
+      }
+    }
+    return false;
+  }
+
   public move(dt: number, level: Level): void {
     const ts = level.tileSize;
+    this.blockedX = 0;
 
     this.x += this.vx * dt;
     this.resolveX(level, ts);
@@ -49,6 +78,7 @@ export class Body {
         if (!level.isSolid(cx, cy)) continue;
         const center = this.x + this.offsetX + this.width / 2;
         const pushRight = vx < 0 || (vx === 0 && center > cx * ts + ts / 2);
+        if (vx !== 0) this.blockedX = vx > 0 ? 1 : -1;
         this.x = pushRight ? (cx + 1) * ts - this.offsetX : cx * ts - this.width - this.offsetX;
         this.vx = 0;
       }

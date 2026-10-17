@@ -21,6 +21,10 @@
       "type": "string",
       "description": "Уникальный идентификатор сущности"
     },
+    "rig_id": {
+      "type": "string",
+      "description": "Id процедурного рига из data/rigs/ (части тела анимируются кодом); sprite_id остаётся источником хитбокса"
+    },
     "sprite_id": {
       "type": "string",
       "description": "Id спрайта из data/sprites/sprites.json"

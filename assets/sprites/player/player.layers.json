@@ -1,0 +1,81 @@
+{
+  "source": "player.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Bleg",
+      "file": "player_layers/Bleg.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        35,
+        44,
+        42,
+        60
+      ]
+    },
+    {
+      "name": "Bhand",
+      "file": "player_layers/Bhand.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        38,
+        36,
+        55,
+        47
+      ]
+    },
+    {
+      "name": "ALL",
+      "file": "player_layers/ALL.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        27,
+        30,
+        41,
+        47
+      ]
+    },
+    {
+      "name": "Fleg",
+      "file": "player_layers/Fleg.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        27,
+        44,
+        33,
+        61
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "player_layers/Head.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        18,
+        5,
+        45,
+        34
+      ]
+    },
+    {
+      "name": "Fhand",
+      "file": "player_layers/Fhand.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        14,
+        34,
+        30,
+        50
+      ]
+    }
+  ]
+}

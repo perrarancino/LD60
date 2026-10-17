@@ -65,3 +65,18 @@ export interface EnemyDef {
   stats: { max_health: number; contact_damage: number; movement_speed: number };
   behavior_type: string;
 }
+
+export interface RigPartDef {
+  name: string;
+  sprite_id: string;
+  role: 'head' | 'torso' | 'arm' | 'leg';
+  side?: 1 | -1; // 1 — левая на экране (Fhand/Fleg), -1 — правая
+  pivot: { x: number; y: number };
+}
+
+export interface RigDef {
+  id: string;
+  canvas: { width: number; height: number };
+  anchor: { x: number; y: number };
+  parts: RigPartDef[]; // снизу вверх
+}

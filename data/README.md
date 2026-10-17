@@ -14,11 +14,14 @@ data/
 │   ├── world.schema.json         # Схема открытой карты со свободным хабом
 │   ├── sprite.schema.json        # Реестр спрайтов (id -> png, кадры, хитбокс, анимации)
 │   ├── tile.schema.json          # Определения тайлов (solid / one_way)
-│   └── level.schema.json         # Уровень-сетка из тайлов + спавны игрока и врагов
+│   ├── level.schema.json         # Уровень-сетка из тайлов + спавны игрока и врагов
+│   └── rig.schema.json           # Риг персонажа из частей
 ├── sprites/                      # Реестр спрайтов: связь id -> файлы в assets/sprites/
 │   └── sprites.json              # player, enemy_transistoid_*, tile_platform_block
 ├── tiles/                        # Тайлы уровня
 │   └── tiles.json                # platform_block (32x32, solid)
+├── rigs/                         # Процедурные риги персонажей (части-слои, pivot-точки)
+│   └── player_rig.json           # Робот-герой: голова, торс, руки, ноги
 ├── levels/                       # Уровни в виде текстовой сетки
 │   └── test_level.json           # Тестовая плата 30x8 тайлов
 ├── player/                       # Начальное состояние робота

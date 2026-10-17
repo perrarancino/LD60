@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rig",
+  "description": "Процедурный риг персонажа из частей-слоёв. Все части — полнохолстные спрайты в одних координатах; pivot задаёт точку вращения.",
+  "type": "object",
+  "required": ["id", "canvas", "anchor", "parts"],
+  "properties": {
+    "id": { "type": "string" },
+    "description": { "type": "string" },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } }
+    },
+    "anchor": {
+      "type": "object",
+      "description": "Точка холста, которая ставится в позицию тела (ноги, низ по центру)",
+      "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+    },
+    "parts": {
+      "type": "array",
+      "description": "Части снизу вверх (порядок отрисовки)",
+      "items": {
+        "type": "object",
+        "required": ["name", "sprite_id", "role", "pivot"],
+        "properties": {
+          "name": { "type": "string", "description": "Имя слоя в .aseprite" },
+          "sprite_id": { "type": "string", "description": "Id из data/sprites/sprites.json" },
+          "role": { "type": "string", "enum": ["head", "torso", "arm", "leg"] },
+          "side": { "type": "integer", "enum": [-1, 1], "description": "Для рук и ног: 1 — левая на экране (Fhand/Fleg), -1 — правая" },
+          "pivot": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+          }
+        }
+      }
+    }
+  }
+}
