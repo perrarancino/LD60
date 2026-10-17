@@ -68,6 +68,13 @@ for rig in rigs.values():
         if sp:
             check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                   f"риг {rig['id']}: часть {part['name']} другого размера, чем холст")
+    for leg in rig.get("crawler", {}).get("legs", []):
+        for key in ("upper_sprite_id", "lower_sprite_id"):
+            sp = sprites.get(leg[key])
+            check(sp is not None, f"риг {rig['id']}: нога {leg['name']}: нет спрайта {leg[key]}")
+            if sp:
+                check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
+                      f"риг {rig['id']}: нога {leg['name']}: слой {leg[key]} другого размера, чем холст")
 
 backgrounds = {b["id"]: b for b in [load(f"backgrounds/{p.name}") for p in sorted((DATA / "backgrounds").glob("*.json"))]}
 for bg in backgrounds.values():

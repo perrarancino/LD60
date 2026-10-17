@@ -231,7 +231,12 @@ class GameApp {
       // части тела врагов, собранных из слоёв (паук)
       ...levelDef.enemies.flatMap((e) => {
         const rid = enemyDefs.get(e.enemy_id)?.rig_id;
-        return rid ? (RIGS.find((r) => r.id === rid)?.parts.map((p) => p.sprite_id) ?? []) : [];
+        const rig = rid ? RIGS.find((r) => r.id === rid) : undefined;
+        if (!rig) return [];
+        return [
+          ...rig.parts.map((p) => p.sprite_id),
+          ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? [])
+        ];
       })
     ]);
 

@@ -2,7 +2,7 @@ import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
-import { RopeLimb } from './RopeLimb.ts';
+import { TwoBoneLeg } from './TwoBoneLeg.ts';
 
 // ---- Ползание по поверхностям
 const BODY_FRONT = 9; // px: на таком расстоянии впереди центра проверяем стену (внутренний угол)
@@ -17,7 +17,7 @@ const STEP_TRIGGER = 5; // px: нога отстала от нейтрально
 const STEP_LEAD = 3; // px: стопа ставится чуть впереди нейтрального положения
 const STEP_DURATION = 0.13; // с
 const STEP_ARC = 3.2; // px: высота подъёма стопы в махе
-const MAX_SWINGING = 4; // одновременно в воздухе не больше стольких ног (тетраподная походка)
+const MAX_SWINGING = 2; // одновременно в воздухе не больше стольких ног (диагональная пара)
 
 interface Vec {
   x: number;
@@ -25,11 +25,10 @@ interface Vec {
 }
 
 interface Foot {
-  limb: RopeLimb;
-  hip: Vec; // бедро в системе тела (начало — точка контакта, +x по рисунку), уже с учётом body_lower
+  leg: TwoBoneLeg;
+  hip: Vec; // бедро в системе тела (начало — точка контакта, +x по рисунку), уже с учётом body_raise
   rest: Vec; // нейтральная стопа в системе тела (на поверхности, y = 0)
   group: number;
-  bend: 1 | -1;
   world: Vec; // положение стопы в мире
   swing: boolean;
   from: Vec;
@@ -40,8 +39,8 @@ const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 /**
  * Паук-ползун. Тело ползёт по любой поверхности тайлов — полу, стенам, потолку, огибая внутренние и внешние углы
- * (ориентация тела — одна из четырёх: нормаль n смотрит от поверхности). Восемь ног по два звена: стопы «приклеены» к
- * поверхности и делают шаги тетраподной походкой (две группы по 4 ноги), колени гнутся (двухзвенная дуга).
+ * (ориентация тела — одна из четырёх: нормаль n смотрит от поверхности). Четыре ноги по две фаланги: настоящий двухкостный IK
+ * (бедро -> колено -> стопа), колено смотрит вверх от тела; стопы «приклеены» к поверхности и делают шаги диагональными парами.
  * Всё процедурно — анимации не рисуются.
  */
 export class Spider {
@@ -68,34 +67,35 @@ export class Spider {
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary
   ) {
-    const lower = rig.crawler?.body_lower ?? 0;
-    const spread = rig.crawler?.leg_spread ?? 1; // множитель собственного наклона ноги из рисунка
-    const splay = rig.crawler?.leg_splay ?? 0; // дополнительный разброс стоп наружу от центра тела, px
-    const centreX = rig.crawler?.body_centre_x ?? rig.anchor.x; // центр тела по X на холсте
+    const crawler = rig.crawler;
+    if (!crawler) throw new Error(`[Spider] в риге "${rig.id}" нет блока crawler`);
+    const raise = crawler.body_raise;
+    const spread = crawler.leg_spread ?? 1; // множитель разноса стоп по сравнению с рисунком
+    const splay = crawler.leg_splay ?? 0; // дополнительный разброс стоп наружу от центра тела, px
+    const centreX = crawler.body_centre_x ?? rig.anchor.x; // центр тела по X на холсте
     this.speed = def.stats.movement_speed;
     this.turnTimer = 3 + Math.random() * 5;
 
     this.container.addChild(this.bodyContainer);
 
-    // Части тела: торс и голова — обычные спрайты (опущены к поверхности на lower), ноги — двухзвенные конечности
+    // Торс и голова — обычные спрайты (приподняты над поверхностью на raise), затем — ноги поверх
     for (const p of rig.parts) {
-      if (p.role === 'leg') {
-        const limb = new RopeLimb(sprites.imageData(p.sprite_id), p.pivot, p.rope?.segments ?? 2);
-        const hip = { x: p.pivot.x - rig.anchor.x, y: p.pivot.y - rig.anchor.y + lower };
-        // Нейтральная стопа: наклон ноги из рисунка (×spread) + разброс наружу от центра тела; стопа стоит на поверхности (y = 0)
-        const artDx = Math.cos(limb.drawnAngle) * limb.length;
-        const outward = p.pivot.x < centreX ? -1 : 1;
-        const footRest = { x: hip.x + artDx * spread + outward * splay, y: 0 };
-        this.feet.push({
-          limb, hip, rest: footRest, group: p.gait_group ?? 0, bend: p.bend ?? 1,
-          world: { x: 0, y: 0 }, swing: false, from: { x: 0, y: 0 }, t: 0
-        });
-        this.bodyContainer.addChild(limb.container);
-      } else {
-        const sprite: Sprite = sprites.createSprite(p.sprite_id);
-        sprite.position.set(-rig.anchor.x, -rig.anchor.y + lower);
-        this.bodyContainer.addChild(sprite);
-      }
+      const sprite: Sprite = sprites.createSprite(p.sprite_id);
+      sprite.position.set(-rig.anchor.x, -rig.anchor.y - raise);
+      this.bodyContainer.addChild(sprite);
+    }
+    for (const d of crawler.legs) {
+      const leg = new TwoBoneLeg(
+        sprites.createSprite(d.upper_sprite_id), sprites.createSprite(d.lower_sprite_id), d.hip, d.knee, d.foot
+      );
+      const hip = { x: d.hip.x - rig.anchor.x, y: d.hip.y - rig.anchor.y - raise };
+      // Нейтральная стопа: смещение от бедра из рисунка (×spread) + разброс наружу от центра тела; стопа на поверхности (y = 0)
+      const outward = d.hip.x < centreX ? -1 : 1;
+      const rest = { x: hip.x + (d.foot.x - d.hip.x) * spread + outward * splay, y: 0 };
+      this.feet.push({
+        leg, hip, rest, group: d.gait_group, world: { x: 0, y: 0 }, swing: false, from: { x: 0, y: 0 }, t: 0
+      });
+      this.bodyContainer.addChild(leg.container);
     }
 
     this.placeOnSurface(spawn, level.tileSize);
@@ -103,9 +103,9 @@ export class Spider {
     this.visAngle = this.targetAngle();
     this.mirror = this.targetMirror();
     this.applyTransform();
-    // Стопы сразу встают на нейтральные места (сначала делаем два прохода, чтобы кинематика ног «разогрелась»)
+    // Стопы сразу встают на нейтральные места
     for (const f of this.feet) f.world = this.neutral(f, 0);
-    for (let i = 0; i < 8; i++) this.updateLegs(0.02); // ноги «разогреваются» до полной длины
+    this.updateLegs(0);
   }
 
   /** Ставит паука на поверхность из спавна: пол (по умолчанию), потолок или стена слева/справа. */
@@ -230,6 +230,7 @@ export class Spider {
     if (this.turnTimer <= 0) {
       this.t = { x: -this.t.x, y: -this.t.y };
       this.turnTimer = 4 + Math.random() * 6;
+      this.urgent = 0.25; // при развороте тело отражается — ноги быстро подтягиваются на новые места
     }
 
     const step = this.speed * dt;
@@ -349,9 +350,9 @@ export class Spider {
         }
       }
 
-      // Двухзвенная нога: бедро -> стопа (в системе тела), колено — дуга с выгибом вперёд/назад
+      // Нога: бедро и стопа в системе тела -> колено двухкостным IK
       const footLocal = this.toLocal(foot.world.x, foot.world.y);
-      foot.limb.setKinematic(dt, foot.hip.x, foot.hip.y, footLocal.x, footLocal.y, foot.bend, { bodyX: 0, bodyY: 0, facing: 1 });
+      foot.leg.update(foot.hip, footLocal);
     }
   }
 }
