@@ -27,6 +27,8 @@ export interface RigPose {
   aimX: number; // положение курсора в мире
   aimY: number;
   climb: ClimbPose | null;
+  wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
+  wallX: number; // x поверхности стены (мир)
 }
 
 interface Part {
@@ -58,7 +60,6 @@ const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
 const STEP_AHEAD = 0.55; // стопа приземляется впереди таза на эту долю досягаемости
 const STEP_LIFT = 3.5; // высота подъёма стопы в махе, px
-const ARM_CLIMB_STIFFNESS = 3;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const approach = (cur: number, target: number, rate: number, dt: number) =>
@@ -117,7 +118,7 @@ export class PlayerRig {
     this.torso = torso;
     this.head = head;
     this.update(0, {
-      bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null
+      bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, wall: 0, wallX: 0
     });
   }
 
@@ -198,20 +199,42 @@ export class PlayerRig {
       const rootX = s.bodyX + (sh.x - this.def.anchor.x) * f;
       const rootY = s.bodyY + (sh.y - this.def.anchor.y);
 
+      // Сторона выгиба локтя (локально): левая рука выгибается влево-вниз, правая — вправо-вниз при опущенных руках
+      const bend = side;
+      const reachLen = limb.length;
+      const restDir = limb.drawnAngle + this.torsoRot; // направление «как нарисовано» (локально)
+      const dirWorld = (ang: number) => ({ x: f * Math.cos(ang), y: Math.sin(ang) });
+
       if (climb) {
-        const gx = climb.cornerX + climb.dir * (side === 1 ? 1 : 6); // две кисти на верхней грани уступа
-        const gy = climb.cornerY - 1;
-        const grab = climb.phase === 'hang' || climb.phase === 'pull' || (climb.phase === 'jump' && climb.t > 0.55)
-          || (climb.phase === 'mantle' && climb.t < 0.3);
-        let rest: number;
-        if (climb.phase === 'mantle' && climb.t >= 0.3) {
-          rest = limb.drawnAngle + this.torsoRot + side * -0.5; // отталкиваются от уступа
-        } else {
-          rest = Math.atan2(gy - rootY, (gx - rootX) * f); // тянутся к уступу (локальные координаты)
+        // Во время залезания руки не симулируются: поза однозначно задаётся хватом за край (нет дрожи)
+        const grab = { x: climb.cornerX + climb.dir * (side === 1 ? 4 : 10), y: climb.cornerY - 1 };
+        const rd = dirWorld(restDir);
+        const rest = { x: rootX + rd.x * reachLen * 0.9, y: rootY + rd.y * reachLen * 0.9 };
+        const pd = dirWorld(restDir + side * -0.5);
+        const push = { x: rootX + pd.x * reachLen * 0.9, y: rootY + pd.y * reachLen * 0.9 };
+        let tx = grab.x;
+        let ty = grab.y;
+        // Кисть переходит из позы в позу по ДУГЕ вокруг плеча (угол + длина), а не по прямой: прямая проходит
+        // у самого плеча, и рука мгновенно разворачивалась бы на 180°. Сторона обхода — наружу от тела.
+        const sweep = side * f;
+        if (climb.phase === 'jump') {
+          [tx, ty] = this.sweepVec(rootX, rootY, rest, grab, smoothstep(0.1, 0.75, climb.t), sweep); // тянутся к краю
+        } else if (climb.phase === 'mantle') {
+          [tx, ty] = this.sweepVec(rootX, rootY, grab, push, smoothstep(0.3, 0.65, climb.t), sweep); // отталкиваются от уступа
         }
-        limb.update(dt, rootX, rootY, rest, ARM_CLIMB_STIFFNESS, frame, grab ? { x: gx, y: gy } : null);
+        limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame);
         continue;
       }
+
+      if (s.wall !== 0 && !s.grounded && side === -1) {
+        // Скольжение по стене: передняя рука (к стене) упирается ладонью в стену на уровне головы
+        const wallDirLocal = s.wall * f; // стена впереди (+1) или сзади (-1) относительно взгляда
+        if (wallDirLocal > 0) {
+          limb.setKinematic(dt, rootX, rootY, s.wallX, rootY - 7, bend, frame);
+          continue;
+        }
+      }
+
 
       let rest = Math.sin(this.time * 1.3 + side) * 0.03; // лёгкое покачивание в покое
       if (s.grounded) {
@@ -223,6 +246,22 @@ export class PlayerRig {
     }
 
     this.wasClimbing = !!climb;
+  }
+
+  /**
+   * Точка между a и b, считая от плеча (rootX, rootY): угол и длина вектора меняются плавно, поворот — в сторону sweep
+   * (+1 — по возрастанию угла/по часовой на экране, -1 — против), даже если дуга длиннее 180°.
+   */
+  private sweepVec(
+    rootX: number, rootY: number, a: { x: number; y: number }, b: { x: number; y: number }, k: number, sweep: number
+  ): [number, number] {
+    const ax = a.x - rootX, ay = a.y - rootY, bx = b.x - rootX, by = b.y - rootY;
+    const a0 = Math.atan2(ay, ax);
+    let d = Math.atan2(by, bx) - a0;
+    if (sweep > 0) { while (d < 0) d += Math.PI * 2; } else { while (d > 0) d -= Math.PI * 2; }
+    const ang = a0 + d * k;
+    const len = Math.hypot(ax, ay) + (Math.hypot(bx, by) - Math.hypot(ax, ay)) * k;
+    return [rootX + Math.cos(ang) * len, rootY + Math.sin(ang) * len];
   }
 
   /** Горизонтальное положение таза над ногой (мир). */
@@ -252,6 +291,13 @@ export class PlayerRig {
         // В воздухе ноги болтаются: расходятся, при падении шире, отстают от движения
         foot.air = true;
         foot.swing = false;
+        if (s.wall !== 0) {
+          // Скольжение по стене: стопы упираются в стену впереди
+          const toward = s.wall * f > 0 ? -0.5 : 0.5; // знак: поворот по часовой уводит стопу влево
+          foot.angle = approach(foot.angle, toward + foot.side * 0.12, 18, dt);
+          foot.lift = approach(foot.lift, 0, 20, dt);
+          continue;
+        }
         const target = foot.side * (0.3 + 0.3 * clamp(s.vy / 300, 0, 1) - 0.15 * clamp(-s.vy / 300, 0, 1)) - speedL * 0.0012;
         foot.angle = approach(foot.angle, target, 14, dt);
         foot.lift = approach(foot.lift, 0, 20, dt);

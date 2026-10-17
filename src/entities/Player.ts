@@ -10,6 +10,10 @@ import type { ClimbPhase, ClimbPose } from './PlayerRig.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
+const WALL_SLIDE_SPEED = 70; // макс. скорость падения при скольжении по стене, px/с
+const WALL_JUMP_VX = 210; // скорость отскока от стены по горизонтали, px/с
+const WALL_JUMP_LOCK = 0.2; // с: управление по горизонтали заблокировано, чтобы отскочить от стены
+const WALL_COYOTE = 0.12; // с: отскок возможен чуть после потери контакта со стеной
 const HANG_FEET = 38; // на сколько ниже уступа стоят ноги, когда руки уже достают до края, px
 const HANG_PRESS = 10; // на сколько герой прижимается к стене в висе, px
 const PHASE_DURATION: Record<ClimbPhase, number> = { jump: 0.26, hang: 0.08, pull: 0.3, mantle: 0.24 };
@@ -53,6 +57,12 @@ export class Player {
   private jumpBuffer = 0;
   private climb: Climb | null = null;
   private climbCooldown = 0;
+  private wallDir: -1 | 0 | 1 = 0; // последняя стена, с которой был контакт
+  private wallCoyote = 0;
+  private lockT = 0; // время блокировки управления после отскока
+  private lockVx = 0;
+  private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
+  private wallX = 0;
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
@@ -90,7 +100,9 @@ export class Player {
       grounded: b.grounded,
       aimX: aim ? aim.x : b.x + this.facing * 100,
       aimY: aim ? aim.y : headY,
-      climb: this.climb ? this.climbPose(this.climb) : null
+      climb: this.climb ? this.climbPose(this.climb) : null,
+      wall: this.sliding,
+      wallX: this.wallX
     });
     this.sprite.position.set(b.x, b.y);
   }
@@ -103,8 +115,24 @@ export class Player {
 
   private updateMovement(dt: number, input: InputState, level: Level): void {
     const b = this.body;
-    if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    b.vx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+
+    // Контакт со стеной (только в воздухе)
+    const contact = b.grounded ? 0 : b.wallContact(level, input.horizontal);
+    if (contact !== 0) {
+      this.wallDir = contact;
+      this.wallCoyote = WALL_COYOTE;
+    } else {
+      this.wallCoyote -= dt;
+    }
+
+    // Горизонтальное управление; после отскока от стены ненадолго отключено
+    if (this.lockT > 0) {
+      this.lockT -= dt;
+      b.vx = this.lockVx;
+    } else {
+      if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
+      b.vx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+    }
 
     this.coyote = b.grounded ? GAME_CONFIG.COYOTE_TIME_SEC : this.coyote - dt;
     this.jumpBuffer = input.jumpPressed ? GAME_CONFIG.JUMP_BUFFER_SEC : this.jumpBuffer - dt;
@@ -112,13 +140,34 @@ export class Player {
     if (this.jumpBuffer > 0 && this.coyote > 0) {
       b.vy = GAME_CONFIG.JUMP_FORCE;
       this.jumpBuffer = this.coyote = 0;
+    } else if (this.jumpBuffer > 0 && !b.grounded && this.wallCoyote > 0 && this.wallDir !== 0) {
+      // Отскок от стены: вверх и от стены
+      b.vy = GAME_CONFIG.JUMP_FORCE * 0.95;
+      this.lockVx = -this.wallDir * WALL_JUMP_VX;
+      b.vx = this.lockVx;
+      this.lockT = WALL_JUMP_LOCK;
+      this.face(this.lockVx > 0 ? 1 : -1);
+      this.jumpBuffer = this.wallCoyote = 0;
+      this.wallDir = 0;
+      this.sliding = 0;
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
-    if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4) {
+    if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4 && this.lockT <= 0) {
       b.vy = GAME_CONFIG.JUMP_FORCE * 0.4;
     }
 
     b.vy += GAME_CONFIG.GRAVITY * dt;
+
+    // Скольжение по стене: жмёмся к ней в падении — падаем медленно, лицом к стене
+    this.sliding = 0;
+    if (contact !== 0 && input.horizontal === contact && b.vy > 0 && this.lockT <= 0) {
+      this.sliding = contact;
+      b.vy = Math.min(b.vy, WALL_SLIDE_SPEED);
+      this.face(contact);
+      const ts = level.tileSize;
+      this.wallX = contact > 0 ? Math.floor((b.right + 0.6) / ts) * ts : (Math.floor((b.left - 0.6) / ts) + 1) * ts;
+    }
+
     b.move(dt, level);
   }
 

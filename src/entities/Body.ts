@@ -39,6 +39,25 @@ export class Body {
   public get bottom(): number { return this.y + this.offsetY + this.height; }
   public get hitWidth(): number { return this.width; }
 
+  /**
+   * Касается ли хитбокс боковой стены (в воздухе). -1 слева, 1 справа, 0 — нет.
+   * Если стены с обеих сторон (узкая шахта), выбирается сторона prefer (куда жмёт игрок).
+   */
+  public wallContact(level: Level, prefer = 0): -1 | 0 | 1 {
+    const ts = level.tileSize;
+    const r0 = Math.floor((this.top + 3) / ts);
+    const r1 = Math.floor((this.bottom - 3) / ts);
+    const probe = (x: number): boolean => {
+      const cx = Math.floor(x / ts);
+      for (let cy = r0; cy <= r1; cy++) if (level.isSolid(cx, cy)) return true;
+      return false;
+    };
+    const right = probe(this.right + 0.6);
+    const left = probe(this.left - 0.6);
+    if (right && left) return prefer < 0 ? -1 : 1;
+    return right ? 1 : left ? -1 : 0;
+  }
+
   /** Значение y тела, при котором низ хитбокса стоит на feetY. */
   public yForFeet(feetY: number): number { return feetY - (this.offsetY + this.height); }
   /** Значение x тела, при котором центр хитбокса стоит в centerX. */

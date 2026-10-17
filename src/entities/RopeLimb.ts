@@ -48,6 +48,13 @@ export class RopeLimb {
   private ready = false;
   private angles: number[] = [];
   private anglesReady = false;
+  // Кинематический режим (хват, упор): дуга без физики. kin — степень перехода 0..1 от физической позы к дуге.
+  private kinActive = false;
+  private kin = 0;
+  private kinFromX: number[] = [];
+  private kinFromY: number[] = [];
+  private kinFromAngles: number[] = [];
+  private kinBlend = 0;
 
   /**
    * @param image пиксели слоя (холст целиком)
@@ -89,6 +96,95 @@ export class RopeLimb {
     this.y = new Array(this.n + 1).fill(0);
     this.px = new Array(this.n + 1).fill(0);
     this.py = new Array(this.n + 1).fill(0);
+  }
+
+  /** Полная длина руки (плечо -> кисть), px. */
+  public get length(): number {
+    return this.segLen * this.n;
+  }
+
+  /**
+   * Детерминированная поза без физики: плечо в (rootX, rootY), кисть в (tx, ty) (не дальше длины руки),
+   * цепочка ложится на плавную дугу (сторона выгиба задаётся bend). Нет дрожи: результат зависит только от входов.
+   * Переход из физической позы плавный (первые ~110 мс), обратно — тоже: после последнего вызова update() подхватывает позу.
+   */
+  public setKinematic(
+    dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame
+  ): void {
+    if (!this.ready) {
+      for (let i = 0; i <= this.n; i++) { this.x[i] = this.px[i] = rootX; this.y[i] = this.py[i] = rootY; }
+      this.ready = true;
+    }
+    if (!this.kinActive) {
+      this.kinActive = true;
+      this.kin = 0;
+      // Исходная поза хранится относительно плеча: тело при этом движется, а рука не должна «отставать» в мире
+      this.kinFromX = this.x.map((v) => v - this.x[0]);
+      this.kinFromY = this.y.map((v) => v - this.y[0]);
+      this.kinFromAngles = this.angles.slice();
+    }
+    this.kin = Math.min(1, this.kin + dt * 9);
+    const blend = this.kin * this.kin * (3 - 2 * this.kin);
+    this.kinBlend = blend;
+
+    // Цель не дальше длины руки
+    const total = this.length;
+    let dx = tx - rootX;
+    let dy = ty - rootY;
+    let d = Math.hypot(dx, dy);
+    const maxD = total * 0.985;
+    if (d > maxD) { dx *= maxD / d; dy *= maxD / d; d = maxD; }
+    // Слишком сильно сложенную руку не рисуем (дуга превращается в кольцо и «крутится»): минимум — 45% длины
+    const minD = total * 0.45;
+    if (d < minD) {
+      const k = d < 1e-3 ? 0 : minD / d;
+      dx = d < 1e-3 ? 0 : dx * k;
+      dy = d < 1e-3 ? minD : dy * k;
+      d = minD;
+    }
+    const ux = dx / d;
+    const uy = dy / d;
+    // Выгиб всегда в одну и ту же сторону относительно направления руки (bend — в локальной системе, при
+    // зеркалировании сторона меняется): поза непрерывна при любом повороте руки — никаких «щелчков» выгиба
+    const sign = bend * frame.facing;
+    const nx = -uy * sign;
+    const ny = ux * sign;
+
+    // Дуга длиной total с хордой d: sin(th)/th = d/total
+    const ratio = d / total;
+    let th = 0;
+    if (ratio < 0.9999) {
+      let lo = 1e-4;
+      let hi = Math.PI - 1e-3;
+      for (let it = 0; it < 24; it++) {
+        const mid = (lo + hi) / 2;
+        if (Math.sin(mid) / mid > ratio) lo = mid; else hi = mid;
+      }
+      th = (lo + hi) / 2;
+    }
+    const R = th > 1e-4 ? total / (2 * th) : 0;
+
+    for (let i = 0; i <= this.n; i++) {
+      let along: number;
+      let perp: number;
+      if (R === 0) {
+        along = (total * i) / this.n;
+        perp = 0;
+      } else {
+        const phi = ((total * i) / this.n) / R - th;
+        along = R * Math.sin(phi) + R * Math.sin(th);
+        perp = R * Math.cos(phi) - R * Math.cos(th);
+      }
+      const ax = rootX + ux * along + nx * perp;
+      const ay = rootY + uy * along + ny * perp;
+      const fx = rootX + this.kinFromX[i];
+      const fy = rootY + this.kinFromY[i];
+      this.x[i] = fx + (ax - fx) * blend;
+      this.y[i] = fy + (ay - fy) * blend;
+      this.px[i] = this.x[i];
+      this.py[i] = this.y[i];
+    }
+    this.render(frame, Math.min(dt, 1 / 30), true); // углы — прямо по точкам: переход без скачка, т.к. точки уже непрерывны
   }
 
   /** Угол оси руки в исходном рисунке — поза покоя «как нарисовано». */
@@ -156,6 +252,12 @@ export class RopeLimb {
     pin: { x: number; y: number } | null = null
   ): void {
     const f = frame.facing;
+    if (this.kinActive) {
+      // Выход из кинематики: продолжаем с текущей позы с нулевой скоростью — без рывка
+      this.kinActive = false;
+      this.kin = 0;
+      for (let i = 0; i <= this.n; i++) { this.px[i] = this.x[i]; this.py[i] = this.y[i]; }
+    }
     // Желаемое направление в мире: зеркалирование по X
     const wx = f * Math.cos(restAngle);
     const wy = Math.sin(restAngle);
@@ -250,7 +352,7 @@ export class RopeLimb {
   }
 
   /** Переносит мировые точки цепочки в сегменты-спрайты (углы сглажены). */
-  private render(frame: LimbFrame, dt: number): void {
+  private render(frame: LimbFrame, dt: number, snap = false): void {
     const f = frame.facing;
     for (let i = 0; i < this.n; i++) {
       const lx = (this.x[i] - frame.bodyX) * f;
@@ -258,17 +360,25 @@ export class RopeLimb {
       const nx = (this.x[i + 1] - frame.bodyX) * f;
       const ny = this.y[i + 1] - frame.bodyY;
       let target = Math.atan2(ny - ly, nx - lx);
-      if (i > 0) {
+      if (i > 0 && !snap) {
         // «Трубка»: сегмент не изгибается резко относительно предыдущего (уже сглаженного)
         const dPrev = Math.atan2(Math.sin(target - this.angles[i - 1]), Math.cos(target - this.angles[i - 1]));
         target = this.angles[i - 1] + dPrev * (1 - PIPE_BEND);
       }
-      if (!this.anglesReady) this.angles[i] = target;
-      // К кисти сглаживание сильнее: на конце цепочки шум максимален
-      const rate = ANGLE_SMOOTH * (1 - 0.6 * (i / Math.max(1, this.n - 1)));
-      let diff = target - this.angles[i];
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // кратчайший путь через ±π
-      this.angles[i] += diff * (1 - Math.exp(-rate * dt));
+      if (!this.anglesReady) {
+        this.angles[i] = target;
+      } else if (snap) {
+        // Кинематика: угол прямо по точкам, но на входе плавно уходим от последнего физического угла
+        const from = this.kinFromAngles[i] ?? target;
+        const dd = Math.atan2(Math.sin(target - from), Math.cos(target - from));
+        this.angles[i] = from + dd * this.kinBlend;
+      } else {
+        // К кисти сглаживание сильнее: на конце цепочки шум максимален
+        const rate = ANGLE_SMOOTH * (1 - 0.6 * (i / Math.max(1, this.n - 1)));
+        let diff = target - this.angles[i];
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // кратчайший путь через ±π
+        this.angles[i] += diff * (1 - Math.exp(-rate * dt));
+      }
       const sprite = this.segments[i].sprite;
       sprite.position.set(lx, ly);
       sprite.rotation = this.angles[i] - this.axisAngle;
