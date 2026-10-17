@@ -57,7 +57,7 @@
     {
       "id": "player_part_torso",
       "category": "player",
-      "image": "player/player_layers/ALL.png",
+      "image": "player/player_layers/Torso.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,

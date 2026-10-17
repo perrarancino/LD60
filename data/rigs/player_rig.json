@@ -17,10 +17,10 @@
       "role": "leg",
       "side": -1,
       "pivot": {
-        "x": 38,
-        "y": 45
+        "x": 39,
+        "y": 46
       },
-      "length": 16
+      "length": 15
     },
     {
       "name": "Bhand",
@@ -28,15 +28,15 @@
       "role": "arm",
       "side": -1,
       "pivot": {
-        "x": 39,
-        "y": 38
+        "x": 40,
+        "y": 37
       },
       "rope": {
         "segments": 4
       }
     },
     {
-      "name": "ALL",
+      "name": "Torso",
       "sprite_id": "player_part_torso",
       "role": "torso",
       "pivot": {
