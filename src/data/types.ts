@@ -89,12 +89,21 @@ export interface BackgroundLayerDef {
   sprite_id: string;
   parallax_x: number;
   parallax_y: number;
+  drift_x?: number; // собственный дрейф слоя, px/с (туман плывёт сам)
+}
+
+export interface BackgroundEffects {
+  sky_top_color?: string;
+  stars?: { density: number; parallax: number; colors: string[] };
+  shooting_stars?: { min_interval: number; max_interval: number; color: string };
+  motes?: { density: number; parallax: number; colors: string[] };
 }
 
 export interface BackgroundDef {
   id: string;
   sky_color: string;
   scale: number;
+  effects?: BackgroundEffects;
   ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
   layers: BackgroundLayerDef[]; // снизу вверх
 }

@@ -133,7 +133,7 @@ class GameApp {
   }
 
   /** Камера: следует за героем; если уровень меньше обзора по оси — центрируется (по X) / прижимается к низу (по Y). */
-  private updateCamera(): void {
+  private updateCamera(dt = 0): void {
     const { x, y } = this.player.body;
     const lw = this.level.pixelWidth;
     const lh = this.level.pixelHeight;
@@ -148,7 +148,7 @@ class GameApp {
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
     this.worldLayer.position.set(-snap(camX), -snap(camY));
-    this.background?.update(snap(camX), snap(camY), lh - this.viewH, this.scale);
+    this.background?.update(snap(camX), snap(camY), lh - this.viewH, this.scale, dt);
   }
 
   /**
@@ -255,8 +255,8 @@ class GameApp {
     // 2. Игрок: ввод + физика на тайлах
     this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
-    // 3. Камера
-    this.updateCamera();
+    // 3. Камера (и анимация фона)
+    this.updateCamera(dt);
   }
 }
 

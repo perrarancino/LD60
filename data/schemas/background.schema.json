@@ -10,6 +10,41 @@
     "sky_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Цвет заливки за слоями (виден, если слои не покрывают экран по высоте)" },
     "scale": { "type": "integer", "minimum": 1, "description": "Во сколько раз увеличить пиксели слоёв (целое — пиксель-арт остаётся чётким)" },
     "ground_offset": { "type": "number", "minimum": 0, "description": "На сколько px от низа уровня приподняты слои: нижний край фона стоит над землёй (например, на высоте первого ряда блоков)" },
+    "effects": {
+      "type": "object",
+      "description": "Необязательные эффекты «живого» неба",
+      "properties": {
+        "sky_top_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Цвет неба у верхнего края экрана (градиент до sky_color у горизонта)" },
+        "stars": {
+          "type": "object",
+          "required": ["density", "parallax", "colors"],
+          "properties": {
+            "density": { "type": "number", "minimum": 0, "description": "Звёзд на px² неба" },
+            "parallax": { "type": "number", "minimum": 0 },
+            "colors": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } }
+          }
+        },
+        "shooting_stars": {
+          "type": "object",
+          "required": ["min_interval", "max_interval", "color"],
+          "properties": {
+            "min_interval": { "type": "number", "minimum": 0 },
+            "max_interval": { "type": "number", "minimum": 0 },
+            "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+          }
+        },
+        "motes": {
+          "type": "object",
+          "required": ["density", "parallax", "colors"],
+          "description": "Светящиеся частицы, всплывающие над землёй",
+          "properties": {
+            "density": { "type": "number", "minimum": 0, "description": "Частиц на px² экрана" },
+            "parallax": { "type": "number", "minimum": 0 },
+            "colors": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } }
+          }
+        }
+      }
+    },
     "layers": {
       "type": "array",
       "minItems": 1,
@@ -20,7 +55,8 @@
           "name": { "type": "string" },
           "sprite_id": { "type": "string", "description": "Id спрайта-слоя из data/sprites/sprites.json (картинка тайлится по горизонтали)" },
           "parallax_x": { "type": "number", "minimum": 0, "description": "Доля сдвига камеры по X (0 — неподвижный, 1 — как мир)" },
-          "parallax_y": { "type": "number", "minimum": 0, "description": "Доля сдвига камеры по Y" }
+          "parallax_y": { "type": "number", "minimum": 0, "description": "Доля сдвига камеры по Y" },
+          "drift_x": { "type": "number", "description": "Собственный дрейф слоя по X, px/с (0 — нет); используется для тумана/дымки" }
         }
       }
     }

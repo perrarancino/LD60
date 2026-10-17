@@ -5,12 +5,40 @@
   "sky_color": "#120a36",
   "scale": 1,
   "ground_offset": 32,
+  "effects": {
+    "sky_top_color": "#04020f",
+    "stars": {
+      "density": 0.0016,
+      "parallax": 0.02,
+      "colors": [
+        "#ffffff",
+        "#bfe9ff",
+        "#c8ffd8",
+        "#ffe9c8"
+      ]
+    },
+    "shooting_stars": {
+      "min_interval": 5,
+      "max_interval": 11,
+      "color": "#9ff6ff"
+    },
+    "motes": {
+      "density": 0.00035,
+      "parallax": 0.35,
+      "colors": [
+        "#7dffc0",
+        "#5fd0ff",
+        "#b9ff8a"
+      ]
+    }
+  },
   "layers": [
     {
       "name": "sky_noise",
       "sprite_id": "bg_textalite_layer1",
       "parallax_x": 0.02,
-      "parallax_y": 0.1
+      "parallax_y": 0.1,
+      "drift_x": 1.5
     },
     {
       "name": "circuits",
@@ -28,13 +56,15 @@
       "name": "haze_dark",
       "sprite_id": "bg_textalite_layer3",
       "parallax_x": 0.2,
-      "parallax_y": 0.1
+      "parallax_y": 0.1,
+      "drift_x": -2.5
     },
     {
       "name": "haze_light",
       "sprite_id": "bg_textalite_layer4",
       "parallax_x": 0.26,
-      "parallax_y": 0.1
+      "parallax_y": 0.1,
+      "drift_x": 3.5
     },
     {
       "name": "machines",
@@ -46,7 +76,8 @@
       "name": "fog",
       "sprite_id": "bg_textalite_layer8",
       "parallax_x": 0.42,
-      "parallax_y": 0.1
+      "parallax_y": 0.1,
+      "drift_x": 6
     },
     {
       "name": "skyline",
