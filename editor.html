@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LD60 Level Editor & Engine</title>
+  <link rel="stylesheet" href="/src/editor/style.css" />
+</head>
+<body>
+  <!-- Верхняя панель -->
+  <header class="topbar">
+    <div class="topbar-group">
+      <a href="/" class="btn" style="text-decoration: none;" title="Вернуться в игру">🎮 В игру</a><div class="brand">
+        <span class="brand-badge">LD60</span>
+        <span>LEVEL ENGINE</span>
+      </div>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <select id="level-select" class="select-input" style="min-width: 170px;">
+        <option value="">Загрузка уровней...</option>
+      </select>
+      <button id="btn-new-level" class="btn" title="Создать новый уровень">+ Новый</button>
+      <button id="btn-save" class="btn btn-primary" title="Сохранить уровень в LD60 (Ctrl+S)">
+        💾 Сохранить
+      </button>
+    </div>
+
+    <div class="topbar-group">
+      <button id="btn-undo" class="btn btn-icon" title="Отмена (Ctrl+Z)">↩</button>
+      <button id="btn-redo" class="btn btn-icon" title="Повтор (Ctrl+Y)">↪</button>
+      <button id="btn-zoom-out" class="btn btn-icon" title="Уменьшить">-</button>
+      <button id="btn-zoom-fit" class="btn" title="Центрировать">100%</button>
+      <button id="btn-zoom-in" class="btn btn-icon" title="Увеличить">+</button>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <button id="toggle-grid" class="btn active" title="Сетка"># Сетка</button>
+      <button id="toggle-collisions" class="btn" title="Оверлей коллизий">🛡 Коллизии</button>
+      <button id="toggle-bg" class="btn active" title="Параллакс-фон">🖼 Фон</button>
+      <button id="toggle-entities" class="btn active" title="Сущности (Герой и Враги)">👾 Сущности</button>
+    </div>
+  </header>
+
+  <!-- Рабочая область -->
+  <main class="workspace">
+    <!-- Левый тулбар -->
+    <aside class="toolbar-left">
+      <button class="tool-btn active" data-tool="brush" title="Кисть тайлов (B)">
+        🖌️<span class="hotkey">B</span>
+      </button>
+      <button class="tool-btn" data-tool="eraser" title="Ластик (E или ПКМ)">
+        🧽<span class="hotkey">E</span>
+      </button>
+      <button class="tool-btn" data-tool="fill" title="Заливка области (G)">
+        🪣<span class="hotkey">G</span>
+      </button>
+
+      <div class="toolbar-separator"></div>
+
+      <button class="tool-btn" data-tool="move" title="Перемещение объектов / Drag-and-Drop (M)">
+        ✋<span class="hotkey">M</span>
+      </button>
+      <button class="tool-btn" data-tool="player_spawn" title="Спавн героя (P)">
+        🤖<span class="hotkey">P</span>
+      </button>
+      <button class="tool-btn" data-tool="enemy_spawn" title="Спавн врага (O)">
+        👾<span class="hotkey">O</span>
+      </button>
+      <button class="tool-btn" data-tool="select" title="Выделение и удаление сущностей (V)">
+        🔍<span class="hotkey">V</span>
+      </button>
+    </aside>
+
+    <!-- Холст уровня -->
+    <section class="canvas-container">
+      <canvas id="editor-canvas"></canvas>
+    </section>
+
+    <!-- Правая панель палитр -->
+    <aside class="sidebar-right">
+      <nav class="sidebar-tabs">
+        <button id="tab-tiles-btn" class="tab-btn active">ТАЙЛЫ</button>
+        <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
+        <button id="tab-settings-btn" class="tab-btn">ПАРАМЕТРЫ</button>
+      </nav>
+
+      <!-- Вкладка: Тайлы -->
+      <div id="tab-tiles" class="tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">КАТАЛОГ ТАЙЛОВ</span>
+          <button id="btn-add-tile" class="btn" style="padding: 3px 8px; font-size: 11px;">+ Новый тайл</button>
+        </div>
+        <div id="palette-tiles-list" class="palette-grid">
+          <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Враги -->
+      <div id="tab-enemies" class="tab-content">
+        <div id="palette-enemies-list">
+          <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Параметры уровня -->
+      <div id="tab-settings" class="tab-content">
+        <form id="level-settings-form">
+          <div class="form-group">
+            <label class="form-label">ID Уровня</label>
+            <input id="setting-level-id" type="text" class="text-input" style="width: 100%;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Название</label>
+            <input id="setting-level-name" type="text" class="text-input" style="width: 100%;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Регион мира (world_layout.json)</label>
+            <select id="setting-level-region" class="select-input" style="width: 100%;">
+              <option value="">Не привязан к локации</option>
+            </select>
+            <div id="setting-region-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.3;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Параллакс-фон</label>
+            <select id="setting-level-bg" class="select-input" style="width: 100%;">
+              <option value="">Без фона</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Ширина (тайлы)</label>
+              <input id="setting-level-width" type="number" min="5" max="256" class="text-input" style="width: 100%;" />
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Высота (тайлы)</label>
+              <input id="setting-level-height" type="number" min="5" max="256" class="text-input" style="width: 100%;" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Размер тайла (px)</label>
+            <input id="setting-level-tilesize" type="number" class="text-input" style="width: 100%;" readonly />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
+            Применить размеры
+          </button>
+        </form>
+
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+          <div class="form-label">Сдвиг содержимого карты</div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px;">
+            <button type="button" id="btn-shift-left" class="btn btn-icon" title="Сдвиг влево (Shift+←)">⬅️</button>
+            <button type="button" id="btn-shift-right" class="btn btn-icon" title="Сдвиг вправо (Shift+→)">➡️</button>
+            <button type="button" id="btn-shift-up" class="btn btn-icon" title="Сдвиг вверх (Shift+↑)">⬆️</button>
+            <button type="button" id="btn-shift-down" class="btn btn-icon" title="Сдвиг вниз (Shift+↓)">⬇️</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <div class="form-label">Быстрое расширение границ (+1)</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
+            <button type="button" id="btn-quick-expand-top" class="btn" style="font-size: 11px;">+ Вверх</button>
+            <button type="button" id="btn-quick-expand-bottom" class="btn" style="font-size: 11px;">+ Вниз</button>
+            <button type="button" id="btn-quick-expand-left" class="btn" style="font-size: 11px;">+ Влево</button>
+            <button type="button" id="btn-quick-expand-right" class="btn" style="font-size: 11px;">+ Вправо</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+          <div class="form-label">Выбранная сущность</div>
+          <div id="selected-entity-info" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+            Кликните на врага инструментом 🔍 или зажмите ✋ для перемещения.
+          </div>
+          <button id="btn-delete-enemy" class="btn" style="color: var(--danger); width: 100%; margin-top: 10px; display: none;">
+            🗑 Удалить врага
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Статус-бар -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="status-indicator"></span>
+        <span id="status-project">Подключение к LD60...</span>
+      </div>
+      <span id="status-coords">Клетка: — , —</span>
+    </div>
+    <div class="status-right">
+      <span id="status-message">Готов к работе</span>
+    </div>
+  </footer>
+
+  <!-- Модальное окно создания нового уровня -->
+  <div id="new-level-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">Создать новый уровень</div>
+      <form id="new-level-form">
+        <div class="form-group">
+          <label class="form-label">ID Уровня (англ., без пробелов)</label>
+          <input id="new-level-id" type="text" class="text-input" style="width: 100%;" required placeholder="level_hub" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Отображаемое название</label>
+          <input id="new-level-name" type="text" class="text-input" style="width: 100%;" required placeholder="Центральный Хаб" />
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Ширина (тайлов)</label>
+            <input id="new-level-width" type="number" min="10" max="256" value="30" class="text-input" style="width: 100%;" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Высота (тайлов)</label>
+            <input id="new-level-height" type="number" min="8" max="256" value="16" class="text-input" style="width: 100%;" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Параллакс-фон</label>
+          <select id="new-level-bg" class="select-input" style="width: 100%;">
+            <option value="">Без фона</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="modal-cancel-btn" class="btn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Создать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно добавления нового тайла -->
+  <div id="new-tile-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">Добавить новый тайл в tiles.json</div>
+      <form id="new-tile-form">
+        <div class="form-group">
+          <label class="form-label">ID Тайла (англ.)</label>
+          <input id="new-tile-id" type="text" class="text-input" style="width: 100%;" required placeholder="platform_copper_trace" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Отображаемое название</label>
+          <input id="new-tile-name" type="text" class="text-input" style="width: 100%;" required placeholder="Медная дорожка" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Спрайт из проекта (sprites.json)</label>
+          <select id="new-tile-sprite" class="select-input" style="width: 100%;" required>
+            <!-- Заполняется динамически -->
+          </select>
+          <div id="new-tile-sprite-preview" style="margin-top: 8px; width: 48px; height: 48px; background: #1e232f; border-radius: 6px; display: flex; align-items: center; justify-content: center;"></div>
+        </div>
+        <div class="form-group" style="display: flex; gap: 16px; margin-top: 10px;">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-tile-solid" type="checkbox" checked />
+            <span>Твёрдый (Solid / Коллизия)</span>
+          </label>
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-tile-oneway" type="checkbox" />
+            <span>One-way платформа</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="modal-tile-cancel-btn" class="btn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить тайл</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/src/editor/main.ts"></script>
+</body>
+</html>
+

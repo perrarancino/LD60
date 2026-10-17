@@ -82,6 +82,12 @@ class GameApp {
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
     window.addEventListener('pointermove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        window.location.href = './editor.html';
+      }
+    });
 
     await this.setupScene();
     this.setupHUD();

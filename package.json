@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "editor": "vite --open /editor.html",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "exe": "powershell -ExecutionPolicy Bypass -File tools/launcher/build-exe.ps1",
