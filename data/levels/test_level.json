@@ -50,6 +50,12 @@
       "sprite_id": "enemy_transistoid_purple",
       "x": 17,
       "y": 10
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 23,
+      "y": 12
     }
   ]
 }
