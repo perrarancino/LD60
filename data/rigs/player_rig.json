@@ -19,7 +19,8 @@
       "pivot": {
         "x": 38,
         "y": 45
-      }
+      },
+      "length": 16
     },
     {
       "name": "Bhand",
@@ -51,7 +52,8 @@
       "pivot": {
         "x": 30,
         "y": 45
-      }
+      },
+      "length": 16
     },
     {
       "name": "Head",

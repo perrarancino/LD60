@@ -34,6 +34,7 @@
             "required": ["x", "y"],
             "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
           },
+          "length": { "type": "number", "minimum": 1, "description": "Только для leg: длина ноги от бедра до стопы, px" },
           "rope": {
             "type": "object",
             "description": "Только для arm: слой режется вдоль оси плечо→кисть на segments сегментов, поведение — физика каната",

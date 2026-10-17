@@ -4,9 +4,13 @@ import { Container, Sprite, Texture } from 'pixi.js';
 const SUBSTEPS = 3; // подшагов на кадр — устойчивость при больших dt
 const ITERATIONS = 4; // итераций ограничений длины на подшаг
 const GRAVITY = 520; // px/с²
-const STIFFNESS_ROOT = 900; // сила возврата к позе покоя у плеча, 1/с²
-const STIFFNESS_TIP = 200; // у кисти (мягче -> болтается сильнее)
-const DAMPING = 7; // затухание скорости, 1/с
+const STIFFNESS_ROOT = 420; // сила возврата к позе покоя у плеча, 1/с²
+const STIFFNESS_TIP = 160; // у кисти (мягче -> болтается сильнее)
+const DAMPING = 14; // затухание скорости, 1/с (близко к критическому — без «дрожи»)
+const BEND_RATE = 26; // 1/с: каждый сегмент тянется продолжить направление предыдущего — плавный изгиб «трубки»/нити
+const PIPE_BEND = 0.3; // доля поворота сегмента относительно предыдущего, которая «срезается» (0 — как есть)
+const ANGLE_SMOOTH = 28; // 1/с: сглаживание поворота сегментов, убирает мелкую дрожь кисти
+const MAX_SPEED = 260; // px/с: потолок скорости точек, гасит выбросы
 const OVERLAP = 1.6; // px: сегменты слегка нахлёстывают друг на друга, чтобы на изгибе не было щелей
 const TELEPORT_DIST = 90; // если плечо «улетело» дальше — сбрасываем цепочку
 
@@ -42,6 +46,8 @@ export class RopeLimb {
   private px: number[];
   private py: number[];
   private ready = false;
+  private angles: number[] = [];
+  private anglesReady = false;
 
   /**
    * @param image пиксели слоя (холст целиком)
@@ -142,8 +148,13 @@ export class RopeLimb {
    * @param rootX плечо, мир
    * @param restAngle желаемое направление руки в локальной (зеркалируемой) системе, рад, y вниз
    * @param stiffness множитель силы возврата к позе (1 — обычная, больше — «собранная» рука)
+   * @param pin мировая точка, к которой жёстко прикреплена кисть (хват за уступ); null — рука свободна.
+   *   Если точка дальше длины руки, кисть тянется к ней в пределах досягаемости.
    */
-  public update(dt: number, rootX: number, rootY: number, restAngle: number, stiffness: number, frame: LimbFrame): void {
+  public update(
+    dt: number, rootX: number, rootY: number, restAngle: number, stiffness: number, frame: LimbFrame,
+    pin: { x: number; y: number } | null = null
+  ): void {
     const f = frame.facing;
     // Желаемое направление в мире: зеркалирование по X
     const wx = f * Math.cos(restAngle);
@@ -155,12 +166,29 @@ export class RopeLimb {
         this.y[i] = this.py[i] = rootY + wy * this.segLen * i;
       }
       this.ready = true;
+      this.anglesReady = false;
+    }
+
+    // Цель для кисти: точка хвата, но не дальше длины руки от плеча
+    let pinX = 0;
+    let pinY = 0;
+    if (pin) {
+      const reach = this.segLen * this.n * 0.985;
+      let dx = pin.x - rootX;
+      let dy = pin.y - rootY;
+      const d = Math.hypot(dx, dy);
+      if (d > reach) { dx *= reach / d; dy *= reach / d; }
+      pinX = rootX + dx;
+      pinY = rootY + dy;
     }
 
     const h = Math.min(dt, 1 / 30) / SUBSTEPS;
     const damp = Math.exp(-DAMPING * h);
+    const maxStep = MAX_SPEED * h;
+    const bend = Math.min(1, BEND_RATE * h);
     const rootStepX = (rootX - this.x[0]) / SUBSTEPS;
     const rootStepY = (rootY - this.y[0]) / SUBSTEPS;
+    const tip = this.n;
 
     for (let step = 0; step < SUBSTEPS; step++) {
       // Плечо закреплено и двигается вместе с телом
@@ -173,48 +201,78 @@ export class RopeLimb {
         const k = (STIFFNESS_ROOT + (STIFFNESS_TIP - STIFFNESS_ROOT) * ((i - 1) / this.n)) * stiffness;
         const tx = this.x[0] + wx * this.segLen * i;
         const ty = this.y[0] + wy * this.segLen * i;
-        const vx = (this.x[i] - this.px[i]) * damp;
-        const vy = (this.y[i] - this.py[i]) * damp;
+        let vx = (this.x[i] - this.px[i]) * damp;
+        let vy = (this.y[i] - this.py[i]) * damp;
+        const sp = Math.hypot(vx, vy);
+        if (sp > maxStep) { vx *= maxStep / sp; vy *= maxStep / sp; }
         this.px[i] = this.x[i];
         this.py[i] = this.y[i];
         this.x[i] += vx + k * (tx - this.x[i]) * h * h;
         this.y[i] += vy + (GRAVITY + k * (ty - this.y[i])) * h * h;
       }
 
-      // Ограничения длины сегментов (плечо неподвижно)
+      // Изгиб как у трубки: точка i+1 стремится лечь на продолжение предыдущего сегмента
+      for (let i = 1; i < this.n; i++) {
+        const dx = this.x[i] - this.x[i - 1];
+        const dy = this.y[i] - this.y[i - 1];
+        const d = Math.hypot(dx, dy) || 1e-6;
+        const sx = this.x[i] + (dx / d) * this.segLen;
+        const sy = this.y[i] + (dy / d) * this.segLen;
+        this.x[i + 1] += (sx - this.x[i + 1]) * bend;
+        this.y[i + 1] += (sy - this.y[i + 1]) * bend;
+      }
+
+      if (pin) {
+        this.x[tip] = this.px[tip] = pinX;
+        this.y[tip] = this.py[tip] = pinY;
+      }
+
+      // Ограничения длины сегментов: плечо (и кисть при хвате) неподвижны
       for (let it = 0; it < ITERATIONS; it++) {
         for (let i = 0; i < this.n; i++) {
           const dx = this.x[i + 1] - this.x[i];
           const dy = this.y[i + 1] - this.y[i];
           const dist = Math.hypot(dx, dy) || 1e-6;
           const diff = (dist - this.segLen) / dist;
-          if (i === 0) {
-            this.x[1] -= dx * diff;
-            this.y[1] -= dy * diff;
-          } else {
-            this.x[i] += dx * diff * 0.5;
-            this.y[i] += dy * diff * 0.5;
-            this.x[i + 1] -= dx * diff * 0.5;
-            this.y[i + 1] -= dy * diff * 0.5;
-          }
+          const wa = i === 0 ? 0 : 1;
+          const wb = pin && i + 1 === tip ? 0 : 1;
+          const sum = wa + wb;
+          if (sum === 0) continue;
+          this.x[i] += (dx * diff * wa) / sum;
+          this.y[i] += (dy * diff * wa) / sum;
+          this.x[i + 1] -= (dx * diff * wb) / sum;
+          this.y[i + 1] -= (dy * diff * wb) / sum;
         }
       }
     }
 
-    this.render(frame);
+    this.render(frame, Math.min(dt, 1 / 30));
   }
 
-  /** Переносит мировые точки цепочки в сегменты-спрайты. */
-  private render(frame: LimbFrame): void {
+  /** Переносит мировые точки цепочки в сегменты-спрайты (углы сглажены). */
+  private render(frame: LimbFrame, dt: number): void {
     const f = frame.facing;
     for (let i = 0; i < this.n; i++) {
       const lx = (this.x[i] - frame.bodyX) * f;
       const ly = this.y[i] - frame.bodyY;
       const nx = (this.x[i + 1] - frame.bodyX) * f;
       const ny = this.y[i + 1] - frame.bodyY;
+      let target = Math.atan2(ny - ly, nx - lx);
+      if (i > 0) {
+        // «Трубка»: сегмент не изгибается резко относительно предыдущего (уже сглаженного)
+        const dPrev = Math.atan2(Math.sin(target - this.angles[i - 1]), Math.cos(target - this.angles[i - 1]));
+        target = this.angles[i - 1] + dPrev * (1 - PIPE_BEND);
+      }
+      if (!this.anglesReady) this.angles[i] = target;
+      // К кисти сглаживание сильнее: на конце цепочки шум максимален
+      const rate = ANGLE_SMOOTH * (1 - 0.6 * (i / Math.max(1, this.n - 1)));
+      let diff = target - this.angles[i];
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // кратчайший путь через ±π
+      this.angles[i] += diff * (1 - Math.exp(-rate * dt));
       const sprite = this.segments[i].sprite;
       sprite.position.set(lx, ly);
-      sprite.rotation = Math.atan2(ny - ly, nx - lx) - this.axisAngle;
+      sprite.rotation = this.angles[i] - this.axisAngle;
     }
+    this.anglesReady = true;
   }
 }
