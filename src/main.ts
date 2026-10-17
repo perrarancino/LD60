@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
-import type { BackgroundDef, EnemyDef, FrameAnimationDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
+import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { Player } from './entities/Player.ts';
@@ -17,11 +17,6 @@ import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
 import levelData from '../data/levels/test_level.json';
 import playerRigData from '../data/rigs/player_rig.json';
-
-// Покадровые анимации из data/animations (риг ссылается на свою по crawler.animation_id)
-const ANIMATIONS = Object.values(
-  import.meta.glob('../data/animations/*.json', { eager: true, import: 'default' }) as Record<string, FrameAnimationDef>
-);
 
 // Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
 const RIGS = Object.values(
@@ -265,9 +260,7 @@ class GameApp {
         // Ползающий враг (паук): процедурное тело по поверхностям тайлов
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const anim = ANIMATIONS.find((a) => a.id === rig.crawler?.animation_id);
-        if (!anim) throw new Error(`Риг "${rig.id}" ссылается на неизвестную анимацию "${rig.crawler?.animation_id}"`);
-        const spider = new Spider(def, spawn, this.level, rig, anim, this.sprites);
+        const spider = new Spider(def, spawn, this.level, rig, this.sprites);
         this.spiders.push(spider);
         this.worldLayer.addChild(spider.container);
         continue;

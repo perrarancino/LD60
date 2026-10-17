@@ -83,25 +83,20 @@ export interface RigPartDef {
 
 export interface CrawlerLegDef {
   name: string;
-  upper_sprite_id: string; // верхняя фаланга
-  lower_sprite_id: string; // нижняя фаланга
+  upper_sprite_id: string; // верхняя фаланга (бедро -> колено)
+  lower_sprite_id: string; // нижняя фаланга (колено -> стопа)
+  hip: { x: number; y: number }; // суставы на холсте в позе из рисунка
+  knee: { x: number; y: number };
+  foot: { x: number; y: number };
+  gait_group: 0 | 1;
 }
 
 export interface CrawlerDef {
-  animation_id: string; // покадровая анимация из data/animations/
+  body_raise: number; // на сколько px тело поднято над поверхностью ногами
+  leg_spread?: number; // множитель разноса стоп по сравнению с рисунком
+  leg_splay?: number; // дополнительный разброс стоп наружу от центра тела, px
+  body_centre_x?: number; // центр тела по X на холсте (по умолчанию — якорь)
   legs: CrawlerLegDef[];
-}
-
-export interface FrameClipDef {
-  loop?: boolean;
-  fps?: number; // клипы на месте
-  px_per_frame?: number; // клипы хода: путь тела за кадр
-  frames: Record<string, [number, number]>[]; // кадр: часть -> [dx, dy] в целых пикселях
-}
-
-export interface FrameAnimationDef {
-  id: string;
-  clips: Record<string, FrameClipDef>;
 }
 
 export interface RigDef {

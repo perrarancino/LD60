@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/rig.schema.json",
   "id": "spider_rig",
-  "description": "Паук-ползун из слоёв pauk.aseprite (32x32). Четыре ноги, у каждой две фаланги: LegN_1 — верхняя, LegN_2 — нижняя. Движение — заготовленная покадровая анимация (animation_id -> data/animations), тело ползёт по поверхностям тайлов (Spider.ts).",
+  "description": "Процедурный паук-ползун. Четыре ноги, у каждой две фаланги: LegN_1 — верхняя (бедро -> колено), LegN_2 — нижняя (колено -> стопа). Суставы hip/knee/foot — точки на холсте 32x32 в позе из рисунка; ноги считаются двухкостным IK, колено смотрит вверх от тела. gait_group — группа походки (диагональные пары ног шагают вместе).",
   "canvas": {
     "width": 32,
     "height": 32
@@ -11,27 +11,81 @@
     "y": 32
   },
   "crawler": {
-    "animation_id": "spider",
+    "body_raise": 0,
+    "leg_spread": 1,
+    "leg_splay": 0,
     "legs": [
       {
         "name": "Leg1",
         "upper_sprite_id": "enemy_spider_leg1_1",
-        "lower_sprite_id": "enemy_spider_leg1_2"
+        "lower_sprite_id": "enemy_spider_leg1_2",
+        "hip": {
+          "x": 11,
+          "y": 30.5
+        },
+        "knee": {
+          "x": 10,
+          "y": 23.5
+        },
+        "foot": {
+          "x": 5.5,
+          "y": 31.5
+        },
+        "gait_group": 0
       },
       {
         "name": "Leg2",
         "upper_sprite_id": "enemy_spider_leg2_1",
-        "lower_sprite_id": "enemy_spider_leg2_2"
+        "lower_sprite_id": "enemy_spider_leg2_2",
+        "hip": {
+          "x": 14,
+          "y": 31
+        },
+        "knee": {
+          "x": 13.5,
+          "y": 22.5
+        },
+        "foot": {
+          "x": 14,
+          "y": 31.5
+        },
+        "gait_group": 1
       },
       {
         "name": "Leg3",
         "upper_sprite_id": "enemy_spider_leg3_1",
-        "lower_sprite_id": "enemy_spider_leg3_2"
+        "lower_sprite_id": "enemy_spider_leg3_2",
+        "hip": {
+          "x": 16.5,
+          "y": 30.5
+        },
+        "knee": {
+          "x": 20,
+          "y": 22.5
+        },
+        "foot": {
+          "x": 19.5,
+          "y": 31.5
+        },
+        "gait_group": 0
       },
       {
         "name": "Leg4",
         "upper_sprite_id": "enemy_spider_leg4_1",
-        "lower_sprite_id": "enemy_spider_leg4_2"
+        "lower_sprite_id": "enemy_spider_leg4_2",
+        "hip": {
+          "x": 21.5,
+          "y": 29.5
+        },
+        "knee": {
+          "x": 25,
+          "y": 21
+        },
+        "foot": {
+          "x": 27.5,
+          "y": 31.5
+        },
+        "gait_group": 1
       }
     ]
   },

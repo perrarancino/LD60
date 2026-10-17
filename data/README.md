@@ -16,8 +16,7 @@ data/
 │   ├── tile.schema.json          # Определения тайлов (solid / one_way)
 │   ├── level.schema.json         # Уровень-сетка из тайлов + спавны игрока и врагов
 │   ├── rig.schema.json           # Риг персонажа из частей
-│   ├── background.schema.json    # Параллакс-фон из слоёв
-│   └── animation.schema.json     # Покадровая анимация из частей-слоёв
+│   └── background.schema.json    # Параллакс-фон из слоёв
 ├── sprites/                      # Реестр спрайтов: связь id -> файлы в assets/sprites/
 │   └── sprites.json              # player, enemy_transistoid_*, tile_platform_block
 ├── tiles/                        # Тайлы уровня
@@ -27,8 +26,6 @@ data/
 │   └── spider_rig.json           # Паук-ползун: торс, голова, 4 ноги по 2 фаланги
 ├── backgrounds/                  # Параллакс-фоны (слои, скорости, цвет неба)
 │   └── bg_textalite.json         # Фон из bg_textalite.aseprite: 8 слоёв
-├── animations/                   # Заготовленные покадровые анимации (сдвиги слоёв в целых пикселях)
-│   └── spider.json               # Паук: клипы walk (8 кадров) и idle (6 кадров)
 ├── levels/                       # Уровни в виде текстовой сетки
 │   └── test_level.json           # Тестовая плата 30x8 тайлов
 ├── player/                       # Начальное состояние робота

@@ -68,24 +68,13 @@ for rig in rigs.values():
         if sp:
             check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                   f"риг {rig['id']}: часть {part['name']} другого размера, чем холст")
-    crawler = rig.get("crawler")
-    if crawler:
-        for leg in crawler["legs"]:
-            for key in ("upper_sprite_id", "lower_sprite_id"):
-                sp = sprites.get(leg[key])
-                check(sp is not None, f"риг {rig['id']}: нога {leg['name']}: нет спрайта {leg[key]}")
-                if sp:
-                    check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
-                          f"риг {rig['id']}: нога {leg['name']}: слой {leg[key]} другого размера, чем холст")
-        anim_path = DATA / "animations" / f"{crawler['animation_id']}.json"
-        check(anim_path.exists(), f"риг {rig['id']}: нет анимации {crawler['animation_id']}")
-        if anim_path.exists():
-            anim = json.loads(anim_path.read_text(encoding="utf-8"))
-            names = {p["name"] for p in rig["parts"]} | {f"{l['name']}.{k}" for l in crawler["legs"] for k in ("upper", "lower")}
-            for clip_name, clip in anim["clips"].items():
-                for i, frame in enumerate(clip["frames"]):
-                    for part in frame:
-                        check(part in names, f"анимация {anim['id']}.{clip_name}[{i}]: неизвестная часть {part}")
+    for leg in rig.get("crawler", {}).get("legs", []):
+        for key in ("upper_sprite_id", "lower_sprite_id"):
+            sp = sprites.get(leg[key])
+            check(sp is not None, f"риг {rig['id']}: нога {leg['name']}: нет спрайта {leg[key]}")
+            if sp:
+                check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
+                      f"риг {rig['id']}: нога {leg['name']}: слой {leg[key]} другого размера, чем холст")
 
 backgrounds = {b["id"]: b for b in [load(f"backgrounds/{p.name}") for p in sorted((DATA / "backgrounds").glob("*.json"))]}
 for bg in backgrounds.values():
