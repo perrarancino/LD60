@@ -11,34 +11,16 @@
     "scale": { "type": "integer", "minimum": 1, "description": "Во сколько раз увеличить пиксели слоёв (целое — пиксель-арт остаётся чётким)" },
     "ground_offset": { "type": "number", "minimum": 0, "description": "На сколько px от низа уровня приподняты слои: нижний край фона стоит над землёй (например, на высоте первого ряда блоков)" },
     "ground_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Цвет заливки под нижним краем фона вниз до края экрана (чтобы на верхних платформах под фоном не было пустоты); обычно цвет нижнего ряда ближнего слоя" },
-    "effects": {
-      "type": "object",
-      "description": "Необязательные эффекты «живого» неба",
-      "properties": {
-        "sky_top_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Цвет неба у верхнего края экрана (градиент до sky_color у горизонта)" },
-        "motes": {
-          "type": "object",
-          "required": ["density", "parallax", "colors"],
-          "description": "Светящиеся частицы, всплывающие над землёй",
-          "properties": {
-            "density": { "type": "number", "minimum": 0, "description": "Частиц на px² экрана" },
-            "parallax": { "type": "number", "minimum": 0 },
-            "colors": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } }
-          }
-        }
-      }
-    },
     "layers": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["name", "sprite_id", "parallax_x", "parallax_y"],
+        "required": ["name", "sprite_id", "parallax_x"],
         "properties": {
           "name": { "type": "string" },
           "sprite_id": { "type": "string", "description": "Id спрайта-слоя из data/sprites/sprites.json (картинка тайлится по горизонтали)" },
           "parallax_x": { "type": "number", "minimum": 0, "description": "Доля сдвига камеры по X (0 — неподвижный, 1 — как мир)" },
-          "parallax_y": { "type": "number", "minimum": 0, "description": "Доля сдвига камеры по Y" },
           "crop_left": { "type": "integer", "minimum": 0, "description": "Отрезать столько левых столбцов картинки (если крайний столбец «битый» и даёт шов при тайлинге)" },
           "mirror": { "type": "boolean", "description": "Тайлить зеркально (оригинал + отражение): края тайлов всегда совпадают, шва нет" }
         }

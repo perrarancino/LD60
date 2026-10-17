@@ -88,21 +88,14 @@ export interface BackgroundLayerDef {
   name: string;
   sprite_id: string;
   parallax_x: number;
-  parallax_y: number;
   crop_left?: number; // отрезать столько левых столбцов картинки («битый» край, дающий шов при тайлинге)
   mirror?: boolean; // тайлить зеркально: края тайлов всегда совпадают
-}
-
-export interface BackgroundEffects {
-  sky_top_color?: string;
-  motes?: { density: number; parallax: number; colors: string[] };
 }
 
 export interface BackgroundDef {
   id: string;
   sky_color: string;
   scale: number;
-  effects?: BackgroundEffects;
   ground_color?: string; // цвет «земли» под нижним краем фона (заливка вниз до края экрана)
   ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
   layers: BackgroundLayerDef[]; // снизу вверх
