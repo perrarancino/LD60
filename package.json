@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "exe": "powershell -ExecutionPolicy Bypass -File tools/launcher/build-exe.ps1",
     "sprites": "python tools/aseprite2png/aseprite2png.py assets/source -r -o assets/sprites && python tools/aseprite2png/aseprite2png.py assets/source/player/player.aseprite --layers -o assets/sprites/player"
   },
   "dependencies": {

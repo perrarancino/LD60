@@ -36,3 +36,6 @@ General.md
 # Python
 __pycache__/
 *.pyc
+
+# Готовые сборки (exe)
+release/
