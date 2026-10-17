@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "BossConfig",
-  "description": "Схема конфигурации боссов: у мини-боссов строго 2 вида атаки, у финального босса строго 3 вида атаки",
+  "description": "Схема конфигурации боссов: у мини-боссов строго 2 вида атаки, у финального босса строго 3 вида атаки + доп. способность",
   "type": "object",
   "required": [
     "id",
@@ -33,6 +33,10 @@
     "lore": {
       "type": "string",
       "description": "Сюжетное описание и предыстория"
+    },
+    "special_ability": {
+      "type": "string",
+      "description": "Особая способность (например, призыв миньонов)"
     },
     "stats": {
       "type": "object",

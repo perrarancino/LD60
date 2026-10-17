@@ -7,6 +7,7 @@
     "id",
     "display_name",
     "lore",
+    "location_id",
     "sprite_variants",
     "stats",
     "behavior_type",
@@ -22,15 +23,19 @@
       "type": "string",
       "description": "Имя противника на русском"
     },
+    "location_id": {
+      "type": "string",
+      "description": "Основная локация обитания врага"
+    },
     "lore": {
       "type": "string",
       "description": "Лор и визуальное описание противника"
     },
     "sprite_variants": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "items": { "type": "string" },
-      "description": "Id спрайтов из data/sprites/sprites.json — варианты внешности врага"
+      "description": "Id спрайтов из data/sprites/sprites.json (может быть пустым на этапе геймдизайна)"
     },
     "stats": {
       "type": "object",
@@ -43,7 +48,18 @@
     },
     "behavior_type": {
       "type": "string",
-      "enum": ["patrol_crawler", "jumper", "ranged", "flying_fan"],
+      "enum": [
+        "patrol_crawler",
+        "jumper",
+        "ranged",
+        "flying",
+        "flying_fan",
+        "accordion_coil",
+        "spitter",
+        "polarity_flipper",
+        "diver",
+        "bouncing_projectile"
+      ],
       "description": "Базовый тип передвижения и поиска целей"
     },
     "attack": {
@@ -55,6 +71,7 @@
         "damage": { "type": "integer", "minimum": 0 },
         "cooldown_seconds": { "type": "number", "minimum": 0.0 },
         "range": { "type": "number", "minimum": 0.0 },
+        "projectile_type": { "type": "string" },
         "description": { "type": "string" }
       }
     },

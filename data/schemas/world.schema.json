@@ -3,7 +3,7 @@
   "title": "WorldMapConfig",
   "description": "Схема открытой структуры метроидвании со свободным перемещением через центральный хаб",
   "type": "object",
-  "required": ["map_name", "navigation_model", "central_hub_id", "regions", "drive_gate_mechanism"],
+  "required": ["map_name", "navigation_model", "central_hub_id", "regions", "gate_mechanism"],
   "properties": {
     "map_name": { "type": "string" },
     "navigation_model": {
@@ -25,6 +25,25 @@
           "description": { "type": "string" },
           "has_resistor": { "type": "boolean" },
           "boss_id": { "type": ["string", "null"] },
+          "background_id": { "type": ["string", "null"] },
+          "inactive_elements": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Неактивные декоративные элементы окружения на уровне"
+          },
+          "active_elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type", "description"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["hazard", "wind_lift", "conveyor_speed", "debuff_poison"] },
+                "description": { "type": "string" }
+              }
+            },
+            "description": "Интерактивные объекты и опасности на уровне"
+          },
           "connected_regions": {
             "type": "array",
             "items": { "type": "string" }
@@ -32,7 +51,7 @@
         }
       }
     },
-    "drive_gate_mechanism": {
+    "gate_mechanism": {
       "type": "object",
       "required": ["target_location_id", "required_resistors", "status"],
       "properties": {
