@@ -14,6 +14,7 @@ const WALL_SLIDE_SPEED = 70; // макс. скорость падения при
 const WALL_JUMP_PUSH = 170; // начальный толчок от стены по горизонтали, px/с (чуть быстрее бега — плавный «вынос» вперёд)
 const WALL_JUMP_VY = 0.95; // доля силы обычного прыжка
 const WALL_JUMP_COOLDOWN = 0.28; // с: пауза между прыжками от стены (не чаще)
+const KICK_DURATION = 0.45; // с: длительность позы отталкивания от стены
 const WALL_COYOTE = 0.1; // с: прыжок от стены возможен сразу после потери контакта с ней
 const AIR_ACCEL = 900; // px/с²: управляемость в воздухе после прыжка от стены
 const AIR_DRAG = 260; // px/с²: плавное торможение без ввода
@@ -63,6 +64,7 @@ export class Player {
   private wallDir: -1 | 0 | 1 = 0; // последняя стена, с которой был контакт
   private wallCoyote = 0;
   private wallJumpCd = 0; // пауза между прыжками от стены, с
+  private kickT = 0; // оставшееся время позы отталкивания от стены
   private airSteer = false; // после прыжка от стены скорость по X меняется плавно и управляется
   private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
   private wallX = 0;
@@ -85,6 +87,7 @@ export class Player {
   public update(dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null): void {
     const b = this.body;
     this.climbCooldown -= dt;
+    this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
 
     if (this.climb) {
       this.updateClimb(dt);
@@ -107,6 +110,7 @@ export class Player {
       aimX: aim ? aim.x : b.x + this.facing * 100,
       aimY: aim ? aim.y : headY,
       climb: this.climb ? this.climbPose(this.climb) : null,
+      kick: this.kickT > 0 ? 1 - this.kickT / KICK_DURATION : null,
       wall: this.sliding,
       wallX: this.wallX
     });
@@ -241,6 +245,7 @@ export class Player {
     this.face(away);
     this.airSteer = true;
     this.wallJumpCd = WALL_JUMP_COOLDOWN;
+    this.kickT = KICK_DURATION;
     this.jumpBuffer = this.wallCoyote = 0;
     this.wallDir = 0;
     this.sliding = 0;

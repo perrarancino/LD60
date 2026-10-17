@@ -27,6 +27,7 @@ export interface RigPose {
   aimX: number; // положение курсора в мире
   aimY: number;
   climb: ClimbPose | null;
+  kick: number | null; // прогресс «отталкивания от стены» 0..1 (поза прыжка от стены), null — нет
   wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
   wallX: number; // x поверхности стены (мир)
 }
@@ -78,6 +79,9 @@ const smoothstep = (a: number, b: number, x: number) => {
  */
 export class PlayerRig {
   public readonly container = new Container();
+  /** Внутренний контейнер: наклоняется всем телом (вокруг центра тела) при отталкивании от стены. */
+  private readonly tilt = new Container();
+  private tiltRot = 0;
 
   private parts: Part[] = [];
   private torso: Part;
@@ -91,17 +95,20 @@ export class PlayerRig {
   private wasClimbing = false;
 
   constructor(private readonly def: RigDef, sprites: SpriteLibrary) {
+    this.tilt.position.set(0, -28); // центр вращения — середина тела
+    this.tilt.pivot.set(0, -28);
+    this.container.addChild(this.tilt);
     for (const p of def.parts) {
       let part: Part;
       if (p.role === 'arm' && p.rope) {
         const limb = new RopeLimb(sprites.imageData(p.sprite_id), p.pivot, p.rope.segments);
         part = { def: p, sprite: null, limb };
-        this.container.addChild(limb.container);
+        this.tilt.addChild(limb.container);
       } else {
         const sprite = sprites.createSprite(p.sprite_id);
         sprite.pivot.set(p.pivot.x, p.pivot.y);
         part = { def: p, sprite, limb: null };
-        this.container.addChild(sprite);
+        this.tilt.addChild(sprite);
       }
       this.parts.push(part);
       if (p.role === 'arm') this.arms.push(part);
@@ -118,7 +125,7 @@ export class PlayerRig {
     this.torso = torso;
     this.head = head;
     this.update(0, {
-      bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, wall: 0, wallX: 0
+      bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, kick: null, wall: 0, wallX: 0
     });
   }
 
@@ -157,6 +164,17 @@ export class PlayerRig {
         case 'mantle': torsoTarget = 0.3 * Math.sin(Math.PI * Math.min(1, climb.t * 1.2)); headTarget = 0.05; break;
       }
     }
+    const kick = s.kick;
+    let tiltTarget = 0;
+    if (kick !== null && !climb) {
+      // Отталкивание от стены: всё тело наклоняется вперёд по ходу прыжка, торс и голова поворачиваются следом
+      const arc = Math.sin(Math.PI * Math.min(1, kick / 0.85));
+      tiltTarget = 0.38 * arc;
+      torsoTarget = 0.25 * arc;
+      headTarget = 0.1 * arc;
+    }
+    this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
+    this.tilt.rotation = this.tiltRot;
     this.torsoRot = approach(this.torsoRot, torsoTarget, 14, dt);
     this.headRot = approach(this.headRot, headTarget, 18, dt);
 
@@ -226,6 +244,15 @@ export class PlayerRig {
         continue;
       }
 
+      if (s.kick !== null && !s.grounded && s.kick < 0.85) {
+        // Отталкивание от стены: руки упираются в стену позади, затем взмахивают вверх-вперёд (дуга, без физики)
+        const locBack = { x: rootX + f * -0.95 * reachLen * 0.92, y: rootY + 0.1 * reachLen * 0.92 };
+        const locThrow = { x: rootX + f * 0.55 * reachLen * 0.95, y: rootY - 0.82 * reachLen * 0.95 };
+        const [kx, ky] = this.sweepVec(rootX, rootY, locBack, locThrow, smoothstep(0.2, 0.65, s.kick), f);
+        limb.setKinematic(dt, rootX, rootY, kx, ky, bend, frame);
+        continue;
+      }
+
       if (s.wall !== 0 && !s.grounded && side === -1) {
         // Скольжение по стене: передняя рука (к стене) упирается ладонью в стену на уровне головы
         const wallDirLocal = s.wall * f; // стена впереди (+1) или сзади (-1) относительно взгляда
@@ -286,6 +313,17 @@ export class PlayerRig {
       const L = foot.length;
       const reach = L * Math.sin(LEG_MAX_ANGLE);
       const hipX = this.hipWorldX(foot, s);
+
+      if (!s.grounded && s.kick !== null) {
+        // Отталкивание: сначала стопы упираются в стену (она сзади), затем подтягиваются
+        foot.air = true;
+        foot.swing = false;
+        const k = smoothstep(0.3, 0.7, s.kick);
+        const target = (0.85 + foot.side * 0.1) * (1 - k) + foot.side * 0.55 * k;
+        foot.angle = approach(foot.angle, target, 24, dt);
+        foot.lift = approach(foot.lift, 3 * k, 20, dt);
+        continue;
+      }
 
       if (!s.grounded) {
         // В воздухе ноги болтаются: расходятся, при падении шире, отстают от движения

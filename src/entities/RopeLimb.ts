@@ -55,6 +55,7 @@ export class RopeLimb {
   private kinFromY: number[] = [];
   private kinFromAngles: number[] = [];
   private kinBlend = 0;
+  private lastFacing = 0;
 
   /**
    * @param image пиксели слоя (холст целиком)
@@ -98,6 +99,21 @@ export class RopeLimb {
     this.py = new Array(this.n + 1).fill(0);
   }
 
+  /**
+   * Герой развернулся (зеркалирование): отражаем цепочку относительно тела, чтобы руки сохранили положение в локальной
+   * системе. Без этого поза покоя мгновенно «перекидывалась» через тело и руки яростно хлестали.
+   */
+  private syncFacing(frame: LimbFrame): void {
+    if (this.lastFacing !== 0 && this.lastFacing !== frame.facing && this.ready) {
+      for (let i = 0; i <= this.n; i++) {
+        this.x[i] = 2 * frame.bodyX - this.x[i];
+        this.px[i] = 2 * frame.bodyX - this.px[i];
+        if (this.kinFromX[i] !== undefined) this.kinFromX[i] = -this.kinFromX[i];
+      }
+    }
+    this.lastFacing = frame.facing;
+  }
+
   /** Полная длина руки (плечо -> кисть), px. */
   public get length(): number {
     return this.segLen * this.n;
@@ -111,6 +127,7 @@ export class RopeLimb {
   public setKinematic(
     dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame
   ): void {
+    this.syncFacing(frame);
     if (!this.ready) {
       for (let i = 0; i <= this.n; i++) { this.x[i] = this.px[i] = rootX; this.y[i] = this.py[i] = rootY; }
       this.ready = true;
@@ -252,11 +269,15 @@ export class RopeLimb {
     pin: { x: number; y: number } | null = null
   ): void {
     const f = frame.facing;
+    this.syncFacing(frame);
     if (this.kinActive) {
-      // Выход из кинематики: продолжаем с текущей позы с нулевой скоростью — без рывка
+      // Выход из кинематики: продолжаем с текущей позы, а скорость берём такой же, как у тела (плеча) —
+      // иначе при быстром движении цепочка «отставала» бы и хлестала
       this.kinActive = false;
       this.kin = 0;
-      for (let i = 0; i <= this.n; i++) { this.px[i] = this.x[i]; this.py[i] = this.y[i]; }
+      const dxr = rootX - this.x[0];
+      const dyr = rootY - this.y[0];
+      for (let i = 0; i <= this.n; i++) { this.px[i] = this.x[i] - dxr / SUBSTEPS; this.py[i] = this.y[i] - dyr / SUBSTEPS; }
     }
     // Желаемое направление в мире: зеркалирование по X
     const wx = f * Math.cos(restAngle);
