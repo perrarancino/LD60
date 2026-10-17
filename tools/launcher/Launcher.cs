@@ -5,6 +5,7 @@
 //     сам проверяет, не изменились ли исходники (src, data, assets, index.html, конфиги); если да — запускает
 //     `npm run build` и отдаёт свежую версию. Ошибки сборки показываются прямо на странице.
 //  2) «Автономный»: если проекта рядом нет, игра берётся из вшитого в exe dist.zip (версия на момент сборки exe).
+//     Релизная сборка (define STANDALONE, `npm run exe:release`) всегда автономная — ни Node, ни проекта не нужно.
 // Сервер сам завершается, когда вкладку с игрой закрыли (страница шлёт heartbeat на /__ping).
 using System;
 using System.Collections.Generic;
@@ -90,6 +91,9 @@ static class Launcher
     /// Проект лежит на уровень выше exe (release\LD60.exe -> корень с package.json и src).
     static void DetectProject()
     {
+#if STANDALONE
+        return; // релизный exe: только вшитая игра
+#else
         string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         string parent = Path.GetDirectoryName(exeDir);
         if (parent == null) return;
@@ -100,6 +104,7 @@ static class Launcher
             projectRoot = parent;
             distDir = Path.Combine(parent, "dist");
         }
+#endif
     }
 
     static DateTime NewestSourceTime()

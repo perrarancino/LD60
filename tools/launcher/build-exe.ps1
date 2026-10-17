@@ -3,6 +3,11 @@
 # исходники изменились; иначе берёт вшитую копию (dist.zip, версия на момент сборки exe).
 #   1) npm run build (tsc + vite)  2) dist -> zip (без .map)  3) компиляция Launcher.cs встроенным csc.exe
 # Запуск: npm run exe   (или: powershell -ExecutionPolicy Bypass -File tools\launcher\build-exe.ps1)
+# Релизная сборка:  npm run exe:release  ->  release\LD60-<версия>.exe  (флаг -Standalone: всегда вшитая игра, без проекта/Node)
+param(
+  [switch]$Standalone,
+  [string]$Version = '0.1.0-alpha'
+)
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 Set-Location $root
@@ -39,20 +44,34 @@ try {
 } catch { }
 
 Write-Host '==> csc'
-$out = Join-Path $root 'release\LD60.exe'
+# Версия и название в свойствах exe
+$numeric = ($Version -split '-')[0]
+$asmInfo = Join-Path $work 'AssemblyInfo.cs'
+@"
+using System.Reflection;
+[assembly: AssemblyTitle("LD60 - Scrapbound Robot")]
+[assembly: AssemblyProduct("LD60 - Scrapbound Robot")]
+[assembly: AssemblyVersion("$numeric.0")]
+[assembly: AssemblyFileVersion("$numeric.0")]
+[assembly: AssemblyInformationalVersion("$Version")]
+"@ | Set-Content -Path $asmInfo -Encoding UTF8
+$defineArg = @()
+if ($Standalone) { $defineArg = @('/define:STANDALONE') }
+$exeName = if ($Standalone) { "LD60-$Version.exe" } else { 'LD60.exe' }
+$out = Join-Path $root "release\$exeName"
 # Запущенный exe заблокирован для записи, но его можно переименовать — старый продолжит работать, новый встанет на его место
 if (Test-Path $out) {
   try { Remove-Item $out -Force -ErrorAction Stop }
   catch {
-    $old = Join-Path $root 'release\LD60.old.exe'
+    $old = Join-Path $root "release\$($exeName -replace '\.exe$', '.old.exe')"
     Remove-Item $old -Force -ErrorAction SilentlyContinue
     Move-Item $out $old -Force
-    Write-Host 'Старый LD60.exe сейчас запущен: переименован в LD60.old.exe (закройте игру, чтобы удалить)'
+    Write-Host "Старый $exeName сейчас запущен: переименован (закройте игру, чтобы удалить .old.exe)"
   }
 }
 & $csc /nologo /codepage:65001 /target:winexe "/out:$out" "/resource:$zipPath,dist.zip" `
-  /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll @icoArg `
-  (Join-Path $PSScriptRoot 'Launcher.cs')
+  /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll @icoArg @defineArg `
+  (Join-Path $PSScriptRoot 'Launcher.cs') $asmInfo
 if ($LASTEXITCODE -ne 0) { throw 'Компиляция лаунчера не удалась' }
 
 Write-Host ("Готово: {0} ({1:N0} КБ)" -f $out, ((Get-Item $out).Length / 1KB))
