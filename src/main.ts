@@ -1,4 +1,9 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { SpriteLibrary } from './assets/SpriteLibrary.ts';
+import type { EnemyDef, LevelDef, TileSetDef } from './data/types.ts';
+import { Enemy } from './entities/Enemy.ts';
+import { Player } from './entities/Player.ts';
+import { Level } from './world/Level.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
@@ -6,6 +11,9 @@ import { EventBus } from './core/EventBus.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
+import enemiesData from '../data/enemies/enemies.json';
+import tilesData from '../data/tiles/tiles.json';
+import levelData from '../data/levels/test_level.json';
 
 class GameApp {
   private app: Application;
@@ -15,12 +23,11 @@ class GameApp {
   private gameContainer: HTMLElement;
   private hudText!: Text;
   private timerText!: Text;
-  private playerGraphics!: Graphics;
-
-  private playerX = 120;
-  private playerY = 180;
-  private playerVy = 0;
-  private isGrounded = true;
+  private sprites = new SpriteLibrary();
+  private worldLayer!: Container;
+  private level!: Level;
+  private player!: Player;
+  private enemies: Enemy[] = [];
 
   constructor() {
     this.app = new Application();
@@ -48,7 +55,7 @@ class GameApp {
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
 
-    this.setupScene();
+    await this.setupScene();
     this.setupHUD();
 
     // Запуск основного игрового цикла (Pixi ticker)
@@ -80,13 +87,10 @@ class GameApp {
   }
 
   /**
-   * Базовая сцена: дорожки текстолита и платформа
+   * Сцена: фоновая сетка, тестовый уровень из data/levels, герой и враги
    */
-  private setupScene(): void {
-    const worldLayer = new Container();
-    this.app.stage.addChild(worldLayer);
-
-    // Фоновая сетка токоведущих дорожек материнской платы
+  private async setupScene(): Promise<void> {
+    // Фоновая сетка токоведущих дорожек материнской платы (неподвижная)
     const grid = new Graphics();
     grid.setStrokeStyle({ width: 1, color: 0x18202c, alpha: 0.6 });
     for (let x = 0; x < GAME_CONFIG.VIRTUAL_WIDTH; x += 16) {
@@ -96,30 +100,38 @@ class GameApp {
       grid.moveTo(0, y).lineTo(GAME_CONFIG.VIRTUAL_WIDTH, y);
     }
     grid.stroke();
-    worldLayer.addChild(grid);
+    this.app.stage.addChild(grid);
 
-    // Платформа пола (край текстолитовой платы)
-    const floor = new Graphics();
-    floor.rect(0, 210, GAME_CONFIG.VIRTUAL_WIDTH, 60);
-    floor.fill(0x133025); // Темно-зеленый текстолит
-    floor.stroke({ width: 2, color: 0x22c55e });
-    worldLayer.addChild(floor);
+    const tileset = tilesData as TileSetDef;
+    const levelDef = levelData as LevelDef;
+    const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
 
-    // Временная визуализация робота модели «Утиль»
-    this.playerGraphics = new Graphics();
-    this.drawRobot(this.playerGraphics, 0x00f0ff);
-    worldLayer.addChild(this.playerGraphics);
-  }
+    // Загружаем только те спрайты, которые реально нужны уровню
+    await this.sprites.load([
+      playerData.sprite_id,
+      ...Level.spriteIds(levelDef, tileset),
+      ...levelDef.enemies.map((e) => e.sprite_id)
+    ]);
 
-  private drawRobot(g: Graphics, color: number): void {
-    g.clear();
-    // Корпус робота (угловатый каркас)
-    g.rect(-8, -16, 16, 16).fill(0x334155).stroke({ width: 1, color });
-    // Визор / светящееся ядро
-    g.rect(-4, -13, 8, 4).fill(color);
-    // Опоры / манипуляторы
-    g.rect(-6, 0, 4, 6).fill(0x1e293b);
-    g.rect(2, 0, 4, 6).fill(0x1e293b);
+    this.worldLayer = new Container();
+    this.app.stage.addChild(this.worldLayer);
+
+    this.level = new Level(levelDef, tileset, this.sprites);
+    this.worldLayer.addChild(this.level.container);
+    // Прижимаем уровень к низу экрана
+    this.worldLayer.y = GAME_CONFIG.VIRTUAL_HEIGHT - this.level.pixelHeight;
+
+    for (const spawn of levelDef.enemies) {
+      const def = enemyDefs.get(spawn.enemy_id);
+      if (!def) throw new Error(`Уровень ссылается на неизвестного врага "${spawn.enemy_id}"`);
+      const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
+      this.enemies.push(enemy);
+      this.worldLayer.addChild(enemy.sprite);
+    }
+
+    this.player = new Player(playerData.sprite_id, this.sprites);
+    this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
+    this.worldLayer.addChild(this.player.sprite);
   }
 
   /**
@@ -165,36 +177,18 @@ class GameApp {
    * Главный цикл обновления физики и логики
    */
   private update(dt: number): void {
+    dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
+
     // 1. Обновление таймера старения
     this.aging.update(dt);
 
-    // 2. Опрос ввода игрока
-    const input = this.input.poll();
+    // 2. Игрок: ввод + физика на тайлах
+    this.player.update(dt, this.input.poll(), this.level);
 
-    // Горизонтальное перемещение
-    this.playerX += input.horizontal * GAME_CONFIG.PLAYER_SPEED * dt;
-    this.playerX = Math.max(16, Math.min(GAME_CONFIG.VIRTUAL_WIDTH - 16, this.playerX));
-
-    // Прыжок и гравитация
-    if (this.isGrounded && input.jumpPressed) {
-      this.playerVy = GAME_CONFIG.JUMP_FORCE;
-      this.isGrounded = false;
-    }
-
-    if (!this.isGrounded) {
-      this.playerVy += GAME_CONFIG.GRAVITY * dt;
-      this.playerY += this.playerVy * dt;
-
-      // Коллизия с полом на высоте y = 210
-      if (this.playerY >= 210) {
-        this.playerY = 210;
-        this.playerVy = 0;
-        this.isGrounded = true;
-      }
-    }
-
-    // Применение рассчитанных координат к объекту отрисовки
-    this.playerGraphics.position.set(this.playerX, this.playerY);
+    // 3. Камера следует за героем по горизонтали и не выходит за границы уровня
+    const maxScroll = Math.max(0, this.level.pixelWidth - GAME_CONFIG.VIRTUAL_WIDTH);
+    const scroll = Math.max(0, Math.min(maxScroll, this.player.body.x - GAME_CONFIG.VIRTUAL_WIDTH / 2));
+    this.worldLayer.x = -Math.round(scroll);
   }
 }
 

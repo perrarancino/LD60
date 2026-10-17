@@ -16,7 +16,7 @@ export const GAME_CONFIG = {
   // Базовые параметры кинематики платформера
   GRAVITY: 850,
   PLAYER_SPEED: 130,
-  JUMP_FORCE: -310,
+  JUMP_FORCE: -420, // высота прыжка ~104px (≈3 тайла) под тайлы 32px и героя 64px
   COYOTE_TIME_SEC: 0.1,
   JUMP_BUFFER_SEC: 0.12,
 
