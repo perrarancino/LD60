@@ -11,6 +11,11 @@ import type { ClimbPhase, ClimbPose } from './PlayerRig.ts';
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
 const WALL_SLIDE_SPEED = 70; // макс. скорость падения при скольжении по стене, px/с
+const WALL_JUMP_PUSH = 170; // начальный толчок от стены по горизонтали, px/с (чуть быстрее бега — плавный «вынос» вперёд)
+const WALL_JUMP_VY = 0.95; // доля силы обычного прыжка
+const WALL_COYOTE = 0.1; // с: прыжок от стены возможен сразу после потери контакта с ней
+const AIR_ACCEL = 900; // px/с²: управляемость в воздухе после прыжка от стены
+const AIR_DRAG = 260; // px/с²: плавное торможение без ввода
 const HANG_FEET = 38; // на сколько ниже уступа стоят ноги, когда руки уже достают до края, px
 const HANG_PRESS = 10; // на сколько герой прижимается к стене в висе, px
 const PHASE_DURATION: Record<ClimbPhase, number> = { jump: 0.26, hang: 0.08, pull: 0.3, mantle: 0.24 };
@@ -54,6 +59,10 @@ export class Player {
   private jumpBuffer = 0;
   private climb: Climb | null = null;
   private climbCooldown = 0;
+  private wallDir: -1 | 0 | 1 = 0; // последняя стена, с которой был контакт
+  private wallCoyote = 0;
+  private lastJumpWall: -1 | 0 | 1 = 0; // от этой стены уже прыгали (с неё повторно нельзя, пока не коснулись земли/другой стены)
+  private airSteer = false; // после прыжка от стены скорость по X меняется плавно и управляется
   private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
   private wallX = 0;
 
@@ -114,9 +123,24 @@ export class Player {
 
     // Контакт со стеной (только в воздухе)
     const contact = b.grounded ? 0 : b.wallContact(level, input.horizontal);
+    if (contact !== 0) {
+      this.wallDir = contact;
+      this.wallCoyote = WALL_COYOTE;
+    } else {
+      this.wallCoyote -= dt;
+    }
+    if (b.grounded) this.lastJumpWall = 0;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    b.vx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+    const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+    if (this.airSteer && !b.grounded) {
+      // Скорость плавно подстраивается под ввод: после прыжка от стены героя можно вести в любую сторону
+      const accel = (input.horizontal !== 0 ? AIR_ACCEL : AIR_DRAG) * dt;
+      b.vx += Math.max(-accel, Math.min(accel, targetVx - b.vx));
+    } else {
+      this.airSteer = false;
+      b.vx = targetVx;
+    }
 
     this.coyote = b.grounded ? GAME_CONFIG.COYOTE_TIME_SEC : this.coyote - dt;
     this.jumpBuffer = input.jumpPressed ? GAME_CONFIG.JUMP_BUFFER_SEC : this.jumpBuffer - dt;
@@ -124,14 +148,15 @@ export class Player {
     if (this.jumpBuffer > 0 && this.coyote > 0) {
       b.vy = GAME_CONFIG.JUMP_FORCE;
       this.jumpBuffer = this.coyote = 0;
-    } else if (this.jumpBuffer > 0 && contact !== 0 && !this.climbBlocked()) {
-      // Прыжок у стены: если можно залезть — лезем
-      const plan = this.planClimb(contact, level);
+    } else if (this.jumpBuffer > 0 && !b.grounded && this.wallCoyote > 0 && this.wallDir !== 0) {
+      // Прыжок у стены: если можно залезть — лезем, иначе прыжок от стены
+      const plan = contact !== 0 && !this.climbBlocked() ? this.planClimb(contact, level) : null;
       if (plan) {
         this.beginClimb(plan);
         this.jumpBuffer = 0;
         return;
       }
+      if (this.wallDir !== this.lastJumpWall) this.wallJump();
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
     if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4) {
@@ -199,6 +224,25 @@ export class Player {
     this.climb = plan;
     this.face(plan.dir);
     this.body.vx = this.body.vy = 0;
+    this.airSteer = false;
+    this.sliding = 0;
+  }
+
+  /**
+   * Прыжок от стены: полноценный прыжок вверх с лёгким толчком от стены; дальше герой управляется как в обычном прыжке
+   * (скорость по X плавно подстраивается под ввод). С одной и той же стены повторно прыгнуть нельзя — только с другой
+   * или после касания земли, поэтому по одиночной стене не взобраться бесконечно.
+   */
+  private wallJump(): void {
+    const b = this.body;
+    const away = -this.wallDir as -1 | 1;
+    b.vy = GAME_CONFIG.JUMP_FORCE * WALL_JUMP_VY;
+    b.vx = away * WALL_JUMP_PUSH;
+    this.face(away);
+    this.airSteer = true;
+    this.lastJumpWall = this.wallDir;
+    this.jumpBuffer = this.wallCoyote = 0;
+    this.wallDir = 0;
     this.sliding = 0;
   }
 
