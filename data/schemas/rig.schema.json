@@ -20,27 +20,21 @@
     },
     "crawler": {
       "type": "object",
-      "description": "Ползающее существо (паук): тело на двухфаланговых ногах",
-      "required": ["body_raise", "legs"],
+      "description": "Ползающее существо (паук): части-ноги и покадровая анимация",
+      "required": ["animation_id", "legs"],
       "properties": {
-        "body_raise": { "type": "number", "minimum": 0, "description": "На сколько px тело поднято над поверхностью ногами" },
-        "leg_spread": { "type": "number", "minimum": 0, "description": "Множитель разноса стоп (1 — как в рисунке)" },
-        "leg_splay": { "type": "number", "minimum": 0, "description": "Дополнительный разброс стоп наружу от центра тела, px" },
-        "body_centre_x": { "type": "number", "description": "Центр тела по X на холсте (px); по умолчанию — якорь" },
+        "animation_id": { "type": "string", "description": "Id покадровой анимации из data/animations/" },
         "legs": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["name", "upper_sprite_id", "lower_sprite_id", "hip", "knee", "foot", "gait_group"],
+            "required": ["name", "upper_sprite_id", "lower_sprite_id"],
             "properties": {
-              "name": { "type": "string" },
-              "upper_sprite_id": { "type": "string", "description": "Верхняя фаланга (бедро -> колено), id спрайта-слоя" },
-              "lower_sprite_id": { "type": "string", "description": "Нижняя фаланга (колено -> стопа), id спрайта-слоя" },
-              "hip": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
-              "knee": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
-              "foot": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
-                }
+              "name": { "type": "string", "description": "Имя ноги; в анимации части называются <name>.upper и <name>.lower" },
+              "upper_sprite_id": { "type": "string", "description": "Верхняя фаланга, id спрайта-слоя" },
+              "lower_sprite_id": { "type": "string", "description": "Нижняя фаланга, id спрайта-слоя" }
+            }
           }
         }
       }
