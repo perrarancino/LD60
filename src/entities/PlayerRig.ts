@@ -55,7 +55,7 @@ interface Foot {
 }
 
 // Настройки процедурной анимации
-const HEAD_MAX_TILT = 0.8; // максимальный наклон головы к курсору, рад (~46°)
+const HEAD_MAX_TILT = 1.3; // максимальный наклон головы к курсору, рад (~75°): курсор почти на уровне шеи — голова почти горизонтально
 const TORSO_FOLLOW = 0.3; // торс поворачивается за головой, но заметно слабее (доля наклона головы)
 const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги от вертикали, рад
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
@@ -93,6 +93,7 @@ export class PlayerRig {
   private headRot = 0;
   private pelvisDrop = 0;
   private wasClimbing = false;
+  private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
 
@@ -160,21 +161,15 @@ export class PlayerRig {
     const dist = Math.max(1, Math.hypot(dx, dy));
     const gain = Math.min(1, dist / 24); // у самой головы курсор не дёргает её
     const nx = (dx / dist) * gain;
-    const ny = (dy / dist) * gain;
-
-    // Наклон головы = угол направления на курсор, отсчитанный от «вверх» (0 — курсор над головой, + — вправо).
-    // Курсор в нижней полуплоскости отражается (голова не «переворачивается»): прямо под головой — 0, сбоку — максимум.
-    const aimAngle = Math.atan2(dx, -dy);
-    const toward = Math.sign(aimAngle) * Math.min(Math.abs(aimAngle), Math.PI - Math.abs(aimAngle));
-    const headTilt = clamp(toward, -HEAD_MAX_TILT, HEAD_MAX_TILT) * gain;
 
     // ---- Ноги: шаговый контроллер -> просадка таза
     const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s);
     this.pelvisDrop = approach(this.pelvisDrop, drop, 40, dt);
 
     // ---- Торс и голова
-    let torsoTarget = headTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
-    let headTarget = headTilt - torsoTarget; // голова поворачивается вместе с торсом, итоговый наклон = headTilt
+    let torsoTarget = this.prevTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
+    // Поворот головы относительно торса: null — головой управляет курсор (считается ниже, от шеи); число — поза (залезание/отскок)
+    let headTarget: number | null = null;
     let torsoLift = 0;
     if (climb) {
       switch (climb.phase) {
@@ -196,7 +191,6 @@ export class PlayerRig {
     this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
     this.tilt.rotation = this.tiltRot;
     this.torsoRot = approach(this.torsoRot, torsoTarget, 14, dt);
-    this.headRot = approach(this.headRot, headTarget, 22, dt);
 
     const breathe = Math.sin(this.time * 2.4) * 0.4;
     const torsoOy = this.pelvisDrop + breathe + torsoLift;
@@ -219,7 +213,29 @@ export class PlayerRig {
 
     place(this.torso, waist.x + torsoOx, waist.y + torsoOy, this.torsoRot);
     const headPos = attach(this.head.def.pivot);
-    place(this.head, headPos.x + nx * 1.5, headPos.y + ny, this.torsoRot + this.headRot);
+
+    // Голова смотрит на курсор серединой: ось «шея -> центр головы» направлена точно на курсор.
+    // Угол считается от шеи (вокруг неё голова и вращается), от «вверх»: 0 — курсор над шеей, + — вправо.
+    // Курсор в нижней полуплоскости отражается (голова не переворачивается): прямо под шеей — 0, на уровне шеи — максимум.
+    if (headTarget === null) {
+      const nxw = s.bodyX + (headPos.x - this.def.anchor.x) * f;
+      const nyw = s.bodyY + (headPos.y - this.def.anchor.y);
+      const adx = (s.aimX - nxw) * f;
+      const ady = s.aimY - nyw;
+      const adist = Math.hypot(adx, ady);
+      const agin = Math.min(1, adist / 24); // у самой шеи курсор не дёргает голову
+      const aimAngle = Math.atan2(adx, -ady);
+      const toward = Math.sign(aimAngle) * Math.min(Math.abs(aimAngle), Math.PI - Math.abs(aimAngle));
+      const hc = this.headCenter;
+      const nk = this.head.def.pivot;
+      const restOffset = Math.atan2(hc.x - nk.x, nk.y - hc.y); // центр головы чуть смещён от вертикали над шеей
+      this.prevTilt = clamp(toward, -HEAD_MAX_TILT, HEAD_MAX_TILT) * agin;
+      headTarget = this.prevTilt - restOffset - this.torsoRot; // итоговый поворот головы = torsoRot + headRot
+    } else {
+      this.prevTilt = 0;
+    }
+    this.headRot = approach(this.headRot, headTarget, 22, dt);
+    place(this.head, headPos.x, headPos.y, this.torsoRot + this.headRot);
 
     for (const foot of this.feet) {
       const pv = foot.part.def.pivot;
