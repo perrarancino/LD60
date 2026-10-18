@@ -3,7 +3,8 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import type { Level } from '../world/Level.ts';
-import type { Hittable, HitCircle } from './Hittable.ts';
+import { boxOfCircles } from './Hittable.ts';
+import type { Hittable, HitCircle, SolidBox } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import { TwoBoneLeg } from './TwoBoneLeg.ts';
 
@@ -349,6 +350,12 @@ export class Spider implements Hittable {
       { x: c.x + this.t.x * sp, y: c.y + this.t.y * sp, r: HIT_RADIUS * k },
       { x: c.x - this.t.x * sp, y: c.y - this.t.y * sp, r: HIT_RADIUS * k }
     ];
+  }
+
+  /** На паука можно встать: твёрдая коробка вокруг тела. */
+  public solidBoxes(): SolidBox[] {
+    const box = boxOfCircles(this, this.hitCircles());
+    return box ? [box] : [];
   }
 
   /** Удар: белая вспышка и сплющивание (как при посадке). */

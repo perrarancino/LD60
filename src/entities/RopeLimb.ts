@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture } from 'pixi.js';
+import { Container, Matrix, Sprite, Texture } from 'pixi.js';
 
 // Настройки физики каната
 const SUBSTEPS = 3; // подшагов на кадр — устойчивость при больших dt
@@ -13,6 +13,7 @@ const ANGLE_SMOOTH = 28; // 1/с: сглаживание поворота сег
 const MAX_SPEED = 260; // px/с: потолок скорости точек, гасит выбросы
 const OVERLAP = 1.6; // px: сегменты слегка нахлёстывают друг на друга, чтобы на изгибе не было щелей
 const TELEPORT_DIST = 90; // если плечо «улетело» дальше — сбрасываем цепочку
+const STRETCH_RELAX = 20; // 1/с: растянутая рука (удар) сжимается обратно к нарисованной длине, когда её отпускают
 
 interface Segment {
   sprite: Sprite;
@@ -56,6 +57,8 @@ export class RopeLimb {
   private kinFromAngles: number[] = [];
   private kinBlend = 0;
   private lastFacing = 0;
+  private stretch = 1; // во сколько раз рука сейчас длиннее нарисованной (удар): сегменты растягиваются вдоль своей оси
+  private stretched = false;
 
   /**
    * @param image пиксели слоя (холст целиком)
@@ -126,8 +129,9 @@ export class RopeLimb {
    * обратно — тоже: после последнего вызова update() подхватывает позу.
    */
   public setKinematic(
-    dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame, blendRate = 9
+    dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame, blendRate = 9, stretch = 1
   ): void {
+    this.stretch = Math.max(1, stretch);
     this.syncFacing(frame);
     if (!this.ready) {
       for (let i = 0; i <= this.n; i++) { this.x[i] = this.px[i] = rootX; this.y[i] = this.py[i] = rootY; }
@@ -145,8 +149,8 @@ export class RopeLimb {
     const blend = this.kin * this.kin * (3 - 2 * this.kin);
     this.kinBlend = blend;
 
-    // Цель не дальше длины руки
-    const total = this.length;
+    // Цель не дальше длины руки (с учётом растяжения)
+    const total = this.length * this.stretch;
     let dx = tx - rootX;
     let dy = ty - rootY;
     let d = Math.hypot(dx, dy);
@@ -271,6 +275,9 @@ export class RopeLimb {
   ): void {
     const f = frame.facing;
     this.syncFacing(frame);
+    this.stretch = 1 + (this.stretch - 1) * Math.exp(-STRETCH_RELAX * dt);
+    if (this.stretch < 1.01) this.stretch = 1;
+    const segLen = this.segLen * this.stretch;
     if (this.kinActive) {
       // Выход из кинематики: продолжаем с текущей позы, а скорость берём такой же, как у тела (плеча) —
       // иначе при быстром движении цепочка «отставала» бы и хлестала
@@ -286,8 +293,8 @@ export class RopeLimb {
 
     if (!this.ready || Math.hypot(rootX - this.x[0], rootY - this.y[0]) > TELEPORT_DIST) {
       for (let i = 0; i <= this.n; i++) {
-        this.x[i] = this.px[i] = rootX + wx * this.segLen * i;
-        this.y[i] = this.py[i] = rootY + wy * this.segLen * i;
+        this.x[i] = this.px[i] = rootX + wx * segLen * i;
+        this.y[i] = this.py[i] = rootY + wy * segLen * i;
       }
       this.ready = true;
       this.anglesReady = false;
@@ -297,7 +304,7 @@ export class RopeLimb {
     let pinX = 0;
     let pinY = 0;
     if (pin) {
-      const reach = this.segLen * this.n * 0.985;
+      const reach = segLen * this.n * 0.985;
       let dx = pin.x - rootX;
       let dy = pin.y - rootY;
       const d = Math.hypot(dx, dy);
@@ -323,8 +330,8 @@ export class RopeLimb {
 
       for (let i = 1; i <= this.n; i++) {
         const k = (STIFFNESS_ROOT + (STIFFNESS_TIP - STIFFNESS_ROOT) * ((i - 1) / this.n)) * stiffness;
-        const tx = this.x[0] + wx * this.segLen * i;
-        const ty = this.y[0] + wy * this.segLen * i;
+        const tx = this.x[0] + wx * segLen * i;
+        const ty = this.y[0] + wy * segLen * i;
         let vx = (this.x[i] - this.px[i]) * damp;
         let vy = (this.y[i] - this.py[i]) * damp;
         const sp = Math.hypot(vx, vy);
@@ -340,8 +347,8 @@ export class RopeLimb {
         const dx = this.x[i] - this.x[i - 1];
         const dy = this.y[i] - this.y[i - 1];
         const d = Math.hypot(dx, dy) || 1e-6;
-        const sx = this.x[i] + (dx / d) * this.segLen;
-        const sy = this.y[i] + (dy / d) * this.segLen;
+        const sx = this.x[i] + (dx / d) * segLen;
+        const sy = this.y[i] + (dy / d) * segLen;
         this.x[i + 1] += (sx - this.x[i + 1]) * bend;
         this.y[i + 1] += (sy - this.y[i + 1]) * bend;
       }
@@ -357,7 +364,7 @@ export class RopeLimb {
           const dx = this.x[i + 1] - this.x[i];
           const dy = this.y[i + 1] - this.y[i];
           const dist = Math.hypot(dx, dy) || 1e-6;
-          const diff = (dist - this.segLen) / dist;
+          const diff = (dist - segLen) / dist;
           const wa = i === 0 ? 0 : 1;
           const wb = pin && i + 1 === tip ? 0 : 1;
           const sum = wa + wb;
@@ -371,6 +378,24 @@ export class RopeLimb {
     }
 
     this.render(frame, Math.min(dt, 1 / 30));
+  }
+
+  /** Сегмент растянут вдоль оси руки в stretch раз (в картинке: масштаб вдоль оси, поперёк — как был), затем повёрнут в позу. */
+  private stretchSegment(sprite: Sprite, x: number, y: number, rot: number): void {
+    const k = this.stretch - 1;
+    const ca = Math.cos(this.axisAngle);
+    const sa = Math.sin(this.axisAngle);
+    const s00 = 1 + k * ca * ca;
+    const s01 = k * ca * sa;
+    const s11 = 1 + k * sa * sa;
+    const cr = Math.cos(rot);
+    const sr = Math.sin(rot);
+    const a = cr * s00 - sr * s01;
+    const c = cr * s01 - sr * s11;
+    const b = sr * s00 + cr * s01;
+    const d = sr * s01 + cr * s11;
+    const { x: px, y: py } = sprite.pivot;
+    sprite.setFromMatrix(new Matrix(a, b, c, d, x - (px * a + py * c), y - (px * b + py * d)));
   }
 
   /** Переносит мировые точки цепочки в сегменты-спрайты (углы сглажены). */
@@ -402,9 +427,17 @@ export class RopeLimb {
         this.angles[i] += diff * (1 - Math.exp(-rate * dt));
       }
       const sprite = this.segments[i].sprite;
-      sprite.position.set(lx, ly);
-      sprite.rotation = this.angles[i] - this.axisAngle;
+      const rot = this.angles[i] - this.axisAngle;
+      if (this.stretch > 1) {
+        this.stretchSegment(sprite, lx, ly, rot);
+      } else {
+        if (this.stretched) sprite.skew.set(0, 0);
+        sprite.scale.set(1, 1);
+        sprite.position.set(lx, ly);
+        sprite.rotation = rot;
+      }
     }
+    this.stretched = this.stretch > 1;
     this.anglesReady = true;
   }
 }

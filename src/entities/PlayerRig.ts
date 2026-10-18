@@ -23,6 +23,7 @@ export const PUNCH_STRIKE = 0.05;
 export const PUNCH_HOLD = 0.07;
 export const PUNCH_DURATION = PUNCH_WINDUP + PUNCH_STRIKE + PUNCH_HOLD;
 const PUNCH_FOLDED = 0.5; // доля длины руки при замахе (рука сложена у плеча)
+const PUNCH_REACH = 1.55; // во сколько раз рука вытягивается в ударе относительно нарисованной длины (растягивается)
 const PUNCH_BLEND = 34; // 1/с: как быстро рука переходит из физической позы в ударную (по умолчанию у каната 9 — слишком вяло для удара)
 const PUNCH_LEAN = 0.2; // рад: наклон торса в сторону удара
 
@@ -374,12 +375,12 @@ export class PlayerRig {
         const reach = limb.length;
         const k = t < PUNCH_WINDUP
           ? PUNCH_FOLDED
-          : PUNCH_FOLDED + (1 - PUNCH_FOLDED) * easeOutQuad(clamp((t - PUNCH_WINDUP) / PUNCH_STRIKE, 0, 1));
+          : PUNCH_FOLDED + (PUNCH_REACH - PUNCH_FOLDED) * easeOutQuad(clamp((t - PUNCH_WINDUP) / PUNCH_STRIKE, 0, 1));
         const tx = rootX + punch.dirX * reach * k;
         const ty = rootY + punch.dirY * reach * k;
-        limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame, PUNCH_BLEND);
+        limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame, PUNCH_BLEND, Math.max(1, k));
         const fist = this.fist;
-        fist.active = k > 0.8; // кулак почти выпрямлен — удар засчитывается
+        fist.active = k > 1.1; // рука выпрямлена и растягивается — удар засчитывается
         fist.x1 = rootX; fist.y1 = rootY; fist.x2 = tx; fist.y2 = ty;
         continue;
       }

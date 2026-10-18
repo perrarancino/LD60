@@ -248,6 +248,32 @@
       }
     },
     {
+      "id": "fx_smoke",
+      "category": "effects",
+      "image": "effects/smoke.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 6,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {
+        "puff": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "frame_duration_ms": 70,
+          "loop": false
+        }
+      }
+    },
+    {
       "id": "enemy_transistoid_purple",
       "category": "enemies",
       "image": "enemies/transistoid_purple.png",

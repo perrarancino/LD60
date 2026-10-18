@@ -5,7 +5,7 @@ import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { SpiderMother } from './entities/SpiderMother.ts';
 import { Particles } from './effects/Particles.ts';
-import { PUNCH_FX_SPRITE, PunchEffects } from './effects/PunchEffects.ts';
+import { PUNCH_FX, SMOKE_FX, SpriteEffects } from './effects/SpriteEffects.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { Player } from './entities/Player.ts';
@@ -64,7 +64,7 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private fx = new Particles(); // частицы: брызги, пыль, след
-  private punchFx!: PunchEffects; // вспышка удара по врагу
+  private spriteFx!: SpriteEffects; // покадровые эффекты: удар по врагу, дым отскока от стены
   private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
   private punchHitId = 0;
 
@@ -240,7 +240,8 @@ class GameApp {
     const rigDef = RIGS.find((r) => r.id === playerData.rig_id);
     if (!rigDef) throw new Error(`Герой ссылается на неизвестный риг "${playerData.rig_id}"`);
     await this.sprites.load([
-      PUNCH_FX_SPRITE,
+      PUNCH_FX.sprite,
+      SMOKE_FX.sprite,
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       playerData.sprite_id,
       ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
@@ -303,8 +304,10 @@ class GameApp {
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
-    this.punchFx = new PunchEffects(this.sprites);
-    this.worldLayer.addChild(this.punchFx.container);
+    this.spriteFx = new SpriteEffects(this.sprites);
+    this.worldLayer.addChild(this.spriteFx.container);
+    // Отскок от стены: клуб дыма у стены на уровне корпуса
+    this.player.onWallKick = (x, y) => this.spriteFx.spawn(SMOKE_FX, x, y);
     this.updateCamera();
   }
 
@@ -405,7 +408,7 @@ class GameApp {
     const angle = Math.atan2(strike.dirY, strike.dirX);
     const hx = x + strike.dirX * FIST_RADIUS;
     const hy = y + strike.dirY * FIST_RADIUS;
-    this.punchFx.spawn(hx, hy, angle);
+    this.spriteFx.spawn(PUNCH_FX, hx, hy, angle);
     this.fx.burst(hx, hy, {
       count: 8, colors: PUNCH_SPARKS, speed: [60, 150], angle, spread: 0.8, life: [0.12, 0.3], size: [1, 2], drag: 5, grow: 0.4
     });
@@ -452,7 +455,8 @@ class GameApp {
     this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
-    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
+    const solids = [...this.hittables()].flatMap((h) => h.solidBoxes()); // враги твёрдые: на них можно встать
+    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld(), solids);
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -461,7 +465,7 @@ class GameApp {
     for (const mother of this.mothers) mother.update(dt);
     this.resolveStrike();
     this.fx.update(dt);
-    this.punchFx.update();
+    this.spriteFx.update();
     // Выплюнутые паучки живут ограниченное время
     for (let i = this.spiders.length - 1; i >= 0; i--) {
       if (!this.spiders[i].expired) continue;

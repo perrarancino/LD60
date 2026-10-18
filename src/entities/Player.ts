@@ -4,6 +4,7 @@ import { GAME_CONFIG } from '../core/Constants.ts';
 import type { InputState } from '../core/InputManager.ts';
 import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
+import type { SolidBox } from './Hittable.ts';
 import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
 import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
@@ -22,6 +23,7 @@ const HANG_FEET = 38; // на сколько ниже уступа стоят н
 const HANG_PRESS = 10; // на сколько герой прижимается к стене в висе, px
 const PHASE_DURATION: Record<ClimbPhase, number> = { jump: 0.26, hang: 0.08, pull: 0.3, mantle: 0.24 };
 const PHASE_ORDER: ClimbPhase[] = ['jump', 'hang', 'pull', 'mantle'];
+const WALL_KICK_FX_HEIGHT = 26; // на какой высоте над ногами у стены появляется дым отскока, px
 const PUNCH_COOLDOWN = 0.26; // с: пауза между ударами (от начала предыдущего)
 const PUNCH_BUFFER = 0.12; // с: нажатие чуть раньше конца паузы не теряется
 const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: от них считается направление удара
@@ -67,6 +69,8 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 export class Player {
   public readonly sprite: Container;
   public readonly body = new Body();
+  /** Вызывается при прыжке от стены: точка касания стены (мир) и сторона стены — для эффекта дыма. */
+  public onWallKick: ((x: number, y: number, wallDir: -1 | 1) => void) | null = null;
 
   private readonly rig: PlayerRig;
   private readonly spriteDef;
@@ -104,8 +108,11 @@ export class Player {
   }
 
   /** aim — положение курсора в мире (null, пока мышь не двигали). */
-  public update(dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null): void {
+  public update(
+    dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null, solids: readonly SolidBox[] = []
+  ): void {
     const b = this.body;
+    b.solids = solids;
     this.climbCooldown -= dt;
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
 
@@ -301,6 +308,7 @@ export class Player {
   private wallJump(): void {
     const b = this.body;
     const away = -this.wallDir as -1 | 1;
+    if (this.wallDir !== 0) this.onWallKick?.(this.wallDir > 0 ? b.right + 1 : b.left - 1, b.y - WALL_KICK_FX_HEIGHT, this.wallDir);
     b.vy = GAME_CONFIG.JUMP_FORCE * WALL_JUMP_VY;
     b.vx = away * WALL_JUMP_PUSH;
     this.face(away);
