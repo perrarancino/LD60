@@ -21,7 +21,7 @@ export class SpriteLibrary {
   private sheets = new Map<string, Texture>();
 
   constructor() {
-    for (const def of (spritesJson as { sprites: SpriteDef[] }).sprites) {
+    for (const def of (spritesJson as unknown as { sprites: SpriteDef[] }).sprites) {
       this.defs.set(def.id, def);
     }
   }

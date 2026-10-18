@@ -17,6 +17,32 @@ export interface ClimbPose {
   dir: 1 | -1;
 }
 
+/** Тайминг удара, с: замах -> рывок руки -> удержание; дальше рука сама возвращается (физика каната). */
+export const PUNCH_WINDUP = 0.05;
+export const PUNCH_STRIKE = 0.05;
+export const PUNCH_HOLD = 0.07;
+export const PUNCH_DURATION = PUNCH_WINDUP + PUNCH_STRIKE + PUNCH_HOLD;
+const PUNCH_FOLDED = 0.5; // доля длины руки при замахе (рука сложена у плеча)
+const PUNCH_BLEND = 34; // 1/с: как быстро рука переходит из физической позы в ударную (по умолчанию у каната 9 — слишком вяло для удара)
+const PUNCH_LEAN = 0.2; // рад: наклон торса в сторону удара
+
+/** Удар: время от начала, мировое направление (единичный вектор) и какая рука бьёт (side руки в риге). */
+export interface PunchPose {
+  time: number;
+  dirX: number;
+  dirY: number;
+  arm: 1 | -1;
+}
+
+/** Бьющая часть руки в мире: от плеча к кулаку. active — кулак выброшен и может попасть. */
+export interface Fist {
+  active: boolean;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 /** Состояние героя, из которого рисуется поза. Все координаты — мировые. */
 export interface RigPose {
   bodyX: number;
@@ -31,6 +57,7 @@ export interface RigPose {
   kick: number | null; // прогресс «отталкивания от стены» 0..1 (поза прыжка от стены), null — нет
   wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
   wallX: number; // x поверхности стены (мир)
+  punch?: PunchPose | null; // идёт удар: ближайшая к цели рука резко выбрасывается вперёд
 }
 
 interface Part {
@@ -71,6 +98,7 @@ const smoothstep = (a: number, b: number, x: number) => {
   const t = clamp((x - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 };
+const easeOutQuad = (t: number) => 1 - (1 - t) * (1 - t);
 
 /**
  * Процедурная анимация робота из частей-слоёв (data/rigs/*.json):
@@ -97,6 +125,8 @@ export class PlayerRig {
   private wasClimbing = false;
   private faceSprite: Sprite | null = null; // лицо (глаза, рот) поверх черепа: сдвигается к курсору
   private faceShift = { x: 0, y: 0 };
+  /** Кулак бьющей руки в мире (обновляется в update): по нему игра проверяет попадания. */
+  public readonly fist: Fist = { active: false, x1: 0, y1: 0, x2: 0, y2: 0 };
   private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
@@ -113,10 +143,18 @@ export class PlayerRig {
         this.tilt.addChild(limb.container);
       } else if (p.role === 'head' && p.face) {
         // Череп и лицо — отдельные спрайты: лицо сдвигается по черепу, и голова «смотрит» на курсор
-        const { skull, face } = splitFace(sprites.imageData(p.sprite_id), p.face.feature_colors, p.face.region);
-        const sprite = new Sprite(skull);
+        let sprite: Sprite;
+        let faceSprite: Sprite;
+        if (p.face.sprite_id) {
+          // лицо нарисовано отдельным слоем (глаза): просто лежит поверх головы
+          sprite = sprites.createSprite(p.sprite_id);
+          faceSprite = sprites.createSprite(p.face.sprite_id);
+        } else {
+          const { skull, face } = splitFace(sprites.imageData(p.sprite_id), p.face.feature_colors ?? [], p.face.region);
+          sprite = new Sprite(skull);
+          faceSprite = new Sprite(face);
+        }
         sprite.pivot.set(p.pivot.x, p.pivot.y);
-        const faceSprite = new Sprite(face);
         faceSprite.pivot.set(p.pivot.x, p.pivot.y);
         this.faceSprite = faceSprite;
         part = { def: p, sprite, limb: null };
@@ -201,6 +239,12 @@ export class PlayerRig {
       tiltTarget = 0.38 * arc;
       torsoTarget = 0.25 * arc;
       headTarget = 0.1 * arc;
+    }
+    const punch = s.punch && !climb ? s.punch : null;
+    if (punch) {
+      // Удар: торс подаётся в сторону удара (вперёд по взгляду +, назад -), пик — в момент выброса руки
+      const arc = Math.sin(Math.PI * clamp(punch.time / PUNCH_DURATION, 0, 1));
+      torsoTarget += PUNCH_LEAN * clamp(punch.dirX * f, -1, 1) * arc;
     }
     this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
     this.tilt.rotation = this.tiltRot;
@@ -287,6 +331,7 @@ export class PlayerRig {
 
     // ---- Руки: канаты. Здесь задаётся поза покоя и хват, остальное — физика
     const frame = { bodyX: s.bodyX, bodyY: s.bodyY, facing: f };
+    this.fist.active = false;
     const speed = clamp(Math.abs(s.vx) / GAME_CONFIG.PLAYER_SPEED, 0, 1);
     const stepSin = Math.sin(this.time * 14);
     for (const arm of this.arms) {
@@ -320,6 +365,22 @@ export class PlayerRig {
           [tx, ty] = this.sweepVec(rootX, rootY, grab, push, smoothstep(0.3, 0.65, climb.t), sweep); // отталкиваются от уступа
         }
         limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame);
+        continue;
+      }
+
+      if (punch && side === punch.arm) {
+        // Удар: рука резко выбрасывается от плеча по направлению удара (дуга без физики)
+        const t = punch.time;
+        const reach = limb.length;
+        const k = t < PUNCH_WINDUP
+          ? PUNCH_FOLDED
+          : PUNCH_FOLDED + (1 - PUNCH_FOLDED) * easeOutQuad(clamp((t - PUNCH_WINDUP) / PUNCH_STRIKE, 0, 1));
+        const tx = rootX + punch.dirX * reach * k;
+        const ty = rootY + punch.dirY * reach * k;
+        limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame, PUNCH_BLEND);
+        const fist = this.fist;
+        fist.active = k > 0.8; // кулак почти выпрямлен — удар засчитывается
+        fist.x1 = rootX; fist.y1 = rootY; fist.x2 = tx; fist.y2 = ty;
         continue;
       }
 

@@ -2,6 +2,8 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SegmentDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
+import { HitReaction } from './HitReaction.ts';
 
 // ---- Ползание по поверхностям (как у паука, но тело толстое: центр головы идёт на радиусе от поверхности)
 const WALL_PROBE_HEIGHT = 4; // px над поверхностью, на которой проверяем стену впереди
@@ -46,10 +48,11 @@ const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
  * из другой поверхности. Часть тела внутри твёрдых клеток скрыта инвертированной маской (тела не просвечивают сквозь углы тайлов);
  * контейнер рисуется под тайлами.
  */
-export class Worm {
+export class Worm implements Hittable {
   public readonly container = new Container();
 
   private readonly segments: Segment[] = [];
+  private readonly react: HitReaction;
   private readonly radius: number; // половина толщины
   private readonly speed: number;
 
@@ -100,6 +103,7 @@ export class Worm {
     dist += bodies === 0 ? seg.head_to_body : seg.body_to_tail;
     this.segments.push(make(seg.tail, dist, (bodies + 1) * SQUASH_LAG));
     this.trailLimit = dist + 24;
+    this.react = new HitReaction(this.segments.map((s) => s.sprite));
     // голова сверху: добавляем с хвоста
     for (let i = this.segments.length - 1; i >= 0; i--) this.container.addChild(this.segments[i].sprite);
 
@@ -209,8 +213,26 @@ export class Worm {
 
   // ---------- Обновление ----------
 
+  /** Круг на каждый сегмент; те, что сейчас внутри твёрдых клеток (червь в земле), не бьются. */
+  public hitCircles(): HitCircle[] {
+    const ts = this.level.tileSize;
+    const circles: HitCircle[] = [];
+    for (const seg of this.segments) {
+      const { x, y } = seg.sprite.position;
+      if (this.level.isSolid(Math.floor(x / ts), Math.floor(y / ts))) continue;
+      circles.push({ x, y, r: this.radius });
+    }
+    return circles;
+  }
+
+  /** Удар: белая вспышка. */
+  public onHit(dirX: number, dirY: number): void {
+    this.react.trigger(dirX, dirY);
+  }
+
   public update(dt: number): void {
     dt = Math.min(dt, 1 / 30);
+    this.react.update(dt);
     this.phase += Math.PI * 2 * INCH_RATE * dt;
 
     if (this.state === 'crawl') {

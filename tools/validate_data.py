@@ -72,6 +72,14 @@ for rig in rigs.values():
         if sp:
             check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                   f"риг {rig['id']}: часть {part['name']} другого размера, чем холст")
+    for part in rig["parts"]:
+        face_id = part.get("face", {}).get("sprite_id")
+        if face_id:
+            sp = sprites.get(face_id)
+            check(sp is not None, f"риг {rig['id']}: лицо части {part['name']}: нет спрайта {face_id}")
+            if sp:
+                check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
+                      f"риг {rig['id']}: лицо части {part['name']}: слой {face_id} другого размера, чем холст")
     for leg in rig.get("crawler", {}).get("legs", []):
         for key in ("upper_sprite_id", "lower_sprite_id"):
             sp = sprites.get(leg[key])

@@ -1,0 +1,92 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "player2_rig",
+  "description": "Процедурный риг второго героя: части — слои new_char.aseprite (assets/sprites/player/new_char_layers), все на холсте 64x64 в одних координатах. Порядок parts — снизу вверх (z). pivot — точка вращения/крепления в пикселях холста. Глаза — отдельный слой (face.sprite_id): сдвигаются по голове к курсору.",
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "parts": [
+    {
+      "name": "LLeg",
+      "sprite_id": "player2_part_lleg",
+      "role": "leg",
+      "side": -1,
+      "pivot": {
+        "x": 36,
+        "y": 43
+      },
+      "length": 20
+    },
+    {
+      "name": "RLeg",
+      "sprite_id": "player2_part_rleg",
+      "role": "leg",
+      "side": 1,
+      "pivot": {
+        "x": 28,
+        "y": 43
+      },
+      "length": 20
+    },
+    {
+      "name": "LHand",
+      "sprite_id": "player2_part_lhand",
+      "role": "arm",
+      "side": -1,
+      "pivot": {
+        "x": 38,
+        "y": 33
+      },
+      "rope": {
+        "segments": 4
+      }
+    },
+    {
+      "name": "RHand",
+      "sprite_id": "player2_part_rhand",
+      "role": "arm",
+      "side": 1,
+      "pivot": {
+        "x": 26,
+        "y": 33
+      },
+      "rope": {
+        "segments": 4
+      }
+    },
+    {
+      "name": "Torso",
+      "sprite_id": "player2_part_torso",
+      "role": "torso",
+      "pivot": {
+        "x": 33,
+        "y": 43
+      }
+    },
+    {
+      "name": "Head",
+      "sprite_id": "player2_part_head",
+      "role": "head",
+      "pivot": {
+        "x": 32,
+        "y": 28
+      },
+      "gaze_origin": {
+        "x": 33.5,
+        "y": 20
+      },
+      "face": {
+        "sprite_id": "player2_part_eyes",
+        "max_shift": {
+          "x": 3,
+          "y": 2
+        }
+      }
+    }
+  ]
+}

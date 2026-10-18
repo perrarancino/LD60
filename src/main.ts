@@ -5,8 +5,11 @@ import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { SpiderMother } from './entities/SpiderMother.ts';
 import { Particles } from './effects/Particles.ts';
+import { PUNCH_FX_SPRITE, PunchEffects } from './effects/PunchEffects.ts';
+import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { Player } from './entities/Player.ts';
+import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
@@ -19,7 +22,6 @@ import playerData from '../data/player/player_initial_state.json';
 import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
 import levelData from '../data/levels/test_level.json';
-import playerRigData from '../data/rigs/player_rig.json';
 
 // Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
 const RIGS = Object.values(
@@ -30,6 +32,11 @@ const RIGS = Object.values(
 const BACKGROUNDS = Object.values(
   import.meta.glob('../data/backgrounds/*.json', { eager: true, import: 'default' }) as Record<string, BackgroundDef>
 );
+
+// Удар героя
+const FIST_RADIUS = 6; // px: «толщина» кулака при проверке попаданий
+const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
+const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
 
 // Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
 const CAMERA_REST_Y = 0.64; // доля высоты экрана, на которой камера старается держать ноги героя
@@ -57,6 +64,9 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private fx = new Particles(); // частицы: брызги, пыль, след
+  private punchFx!: PunchEffects; // вспышка удара по врагу
+  private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
+  private punchHitId = 0;
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -227,11 +237,13 @@ class GameApp {
     if (levelDef.background_id && !bgDef) throw new Error(`Уровень ссылается на неизвестный фон "${levelDef.background_id}"`);
 
     // Загружаем только те спрайты, которые реально нужны уровню
-    const rigDef = playerRigData as RigDef;
+    const rigDef = RIGS.find((r) => r.id === playerData.rig_id);
+    if (!rigDef) throw new Error(`Герой ссылается на неизвестный риг "${playerData.rig_id}"`);
     await this.sprites.load([
+      PUNCH_FX_SPRITE,
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       playerData.sprite_id,
-      ...rigDef.parts.map((p) => p.sprite_id),
+      ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id),
       // части тела врагов, собранных из слоёв (паук, червь, паучиха), и тех, кого они порождают
@@ -291,6 +303,8 @@ class GameApp {
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
+    this.punchFx = new PunchEffects(this.sprites);
+    this.worldLayer.addChild(this.punchFx.container);
     this.updateCamera();
   }
 
@@ -331,6 +345,69 @@ class GameApp {
       } else if (state.isWarning) {
         this.timerText.style.fill = GAME_CONFIG.ACCENT_AMBER;
       }
+    });
+  }
+
+  /** Всё, по чему можно ударить. */
+  private *hittables(): Iterable<Hittable> {
+    yield* this.enemies;
+    yield* this.spiders;
+    yield* this.worms;
+    yield* this.mothers;
+  }
+
+  /**
+   * Попадания кулака героя: пока кулак выброшен, проверяется отрезок «предплечье — кулак» с толщиной FIST_RADIUS против кругов
+   * попадания врагов. Каждый удар задевает каждого врага один раз: вспышка, отдача, эффект punch по направлению удара и искры.
+   */
+  private resolveStrike(): void {
+    const strike = this.player.strike;
+    if (!strike) return;
+    if (strike.id !== this.punchHitId) {
+      this.punchHitId = strike.id;
+      this.punchHits.clear();
+    }
+    const ax = strike.x1 + (strike.x2 - strike.x1) * FORE_ARM_START;
+    const ay = strike.y1 + (strike.y2 - strike.y1) * FORE_ARM_START;
+    for (const target of this.hittables()) {
+      if (this.punchHits.has(target)) continue;
+      const contact = this.strikeContact(strike, ax, ay, target);
+      if (!contact) continue;
+      this.punchHits.add(target);
+      target.onHit(strike.dirX, strike.dirY);
+      this.landPunch(contact.x, contact.y, strike);
+    }
+  }
+
+  /** Точка касания кулака с ближайшим кругом цели (null — не достал). */
+  private strikeContact(strike: Strike, ax: number, ay: number, target: Hittable): { x: number; y: number } | null {
+    const bx = strike.x2;
+    const by = strike.y2;
+    const abx = bx - ax;
+    const aby = by - ay;
+    const len2 = abx * abx + aby * aby || 1;
+    let best: { x: number; y: number } | null = null;
+    let bestGap = 0;
+    for (const c of target.hitCircles()) {
+      const t = Math.max(0, Math.min(1, ((c.x - ax) * abx + (c.y - ay) * aby) / len2));
+      const px = ax + abx * t;
+      const py = ay + aby * t;
+      const gap = Math.hypot(c.x - px, c.y - py) - c.r - FIST_RADIUS;
+      if (gap > 0 || (best && gap >= bestGap)) continue;
+      best = { x: px, y: py };
+      bestGap = gap;
+    }
+    return best;
+  }
+
+  /** Эффект удара в точке попадания: картинка punch повёрнута по направлению удара + искры. */
+  private landPunch(x: number, y: number, strike: Strike): void {
+    const angle = Math.atan2(strike.dirY, strike.dirX);
+    const hx = x + strike.dirX * FIST_RADIUS;
+    const hy = y + strike.dirY * FIST_RADIUS;
+    this.punchFx.spawn(hx, hy, angle);
+    this.fx.burst(hx, hy, {
+      count: 8, colors: PUNCH_SPARKS, speed: [60, 150], angle, spread: 0.8, life: [0.12, 0.3], size: [1, 2], drag: 5, grow: 0.4
     });
   }
 
@@ -378,10 +455,13 @@ class GameApp {
     this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
     // 3. Враги
+    for (const enemy of this.enemies) enemy.update(dt);
     for (const spider of this.spiders) spider.update(dt);
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
+    this.resolveStrike();
     this.fx.update(dt);
+    this.punchFx.update();
     // Выплюнутые паучки живут ограниченное время
     for (let i = this.spiders.length - 1; i >= 0; i--) {
       if (!this.spiders[i].expired) continue;

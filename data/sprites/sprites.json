@@ -107,6 +107,147 @@
       "animations": {}
     },
     {
+      "id": "player2",
+      "category": "player",
+      "image": "player/new_char.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 21,
+        "offset_y": 8,
+        "width": 22,
+        "height": 55
+      },
+      "animations": {
+        "idle": {
+          "frames": [
+            0
+          ],
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "player2_part_lleg",
+      "category": "player",
+      "image": "player/new_char_layers/LLeg.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_rleg",
+      "category": "player",
+      "image": "player/new_char_layers/RLeg.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_lhand",
+      "category": "player",
+      "image": "player/new_char_layers/LHand.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_rhand",
+      "category": "player",
+      "image": "player/new_char_layers/RHand.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_torso",
+      "category": "player",
+      "image": "player/new_char_layers/Torso.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_head",
+      "category": "player",
+      "image": "player/new_char_layers/Head.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "player2_part_eyes",
+      "category": "player",
+      "image": "player/new_char_layers/Eyes.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "fx_punch",
+      "category": "effects",
+      "image": "effects/punch.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 4,
+      "origin": {
+        "x": 0.27,
+        "y": 0.5
+      },
+      "animations": {
+        "hit": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "frame_duration_ms": 60,
+          "loop": false
+        }
+      }
+    },
+    {
       "id": "enemy_transistoid_purple",
       "category": "enemies",
       "image": "enemies/transistoid_purple.png",

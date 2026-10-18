@@ -3,6 +3,8 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { FlexBody } from './FlexBody.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
+import { HitReaction } from './HitReaction.ts';
 import type { Spider } from './Spider.ts';
 import { ThreadRope } from './ThreadRope.ts';
 
@@ -40,6 +42,8 @@ const RECOIL_TILT = 0.38; // рад/с: насколько отдача раск
 const RECOIL_DIP = 55; // px/с: рывок вдоль нитки
 const SPIT_SPEED_X: [number, number] = [30, 95]; // px/с по горизонтали (знак случайный)
 const SPIT_SPEED_Y: [number, number] = [-45, 70]; // px/с по вертикали (вверх — минус): рот снизу, паучки вылетают вниз и в стороны
+const HIT_RADIUS = 20; // px: круг попадания вокруг тела
+const HIT_SWING = 0.45; // рад/с: насколько удар раскачивает нитку
 const RETRY_TIME = 1.5; // с: если плюнуть нельзя (слишком много паучков) — подождать
 const RELEASE_DIST = 40; // px: паучок вылетел за такой радиус от центра матки — его можно перекладывать на передний слой
 const RELEASE_TIME = 0.3; // с: ...и не раньше, чем через столько после вылета
@@ -73,7 +77,7 @@ const ease = (x: number) => x * x * (3 - 2 * x);
  * лапки раскрываются, брызги, отдача раскачивает нитку), паучок вылетает изо рта ПОД маткой по слоям и выходит вперёд, когда
  * отлетит. Сам паучок создаётся снаружи (spawnBaby).
  */
-export class SpiderMother {
+export class SpiderMother implements Hittable {
   /** Корень в мировых координатах (0, 0): слой паучков под маткой, сама матка с ниткой. */
   public readonly container = new Container();
 
@@ -84,6 +88,7 @@ export class SpiderMother {
   private readonly thread: ThreadRope | null;
   private readonly flex: FlexBody;
   private readonly limbs: Limb[] = [];
+  private readonly react: HitReaction;
 
   private readonly bodyOffset: Vec; // центр тела относительно точки привязки
   private readonly mouth: Vec; // пасть относительно точки привязки
@@ -148,6 +153,7 @@ export class SpiderMother {
     this.bodyHolder.addChild(this.flex.container);
     this.hang.addChild(this.bodyHolder);
 
+    this.react = new HitReaction(this.swing);
     this.container.addChild(this.swing); // под ней добавлены: нитка (выше) и слой паучков (самый нижний)
     this.container.addChildAt(this.babyLayer, 0);
 
@@ -202,8 +208,23 @@ export class SpiderMother {
 
   // ---------- Обновление ----------
 
+  public hitCircles(): HitCircle[] {
+    const c = this.bodyPoint(this.bodyOffset);
+    return [{ x: c.x, y: c.y, r: HIT_RADIUS }];
+  }
+
+  /** Удар: белая вспышка, нитку и тело раскачивает по направлению удара. */
+  public onHit(dirX: number): void {
+    this.react.trigger(dirX, 0);
+    const sign = dirX >= 0 ? 1 : -1;
+    this.omega -= sign * HIT_SWING; // удар вправо отталкивает тело вправо: нитка уходит от вертикали в ту же сторону
+    this.psiVel -= sign * HIT_SWING * 2;
+    this.dipVel += RECOIL_DIP * 0.5;
+  }
+
   public update(dt: number): void {
     dt = Math.min(dt, 1 / 30);
+    this.react.update(dt);
     this.time += dt;
     this.stateTime += dt;
 

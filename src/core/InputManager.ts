@@ -1,3 +1,5 @@
+const MOUSE_ATTACK = 'Mouse0';
+
 export interface InputState {
   horizontal: number; // Горизонтальная ось: -1 (влево), 0 (покой), 1 (вправо)
   vertical: number;   // Вертикальная ось: -1 (вверх), 0 (покой), 1 (вниз)
@@ -9,7 +11,7 @@ export interface InputState {
 }
 
 /**
- * Менеджер ввода: объединяет опрос клавиатуры (WASD, Стрелки, Пробел) и геймпадов
+ * Менеджер ввода: объединяет опрос клавиатуры (WASD, Стрелки, Пробел), левой кнопки мыши (атака) и геймпадов
  */
 export class InputManager {
   private static instance: InputManager;
@@ -19,6 +21,15 @@ export class InputManager {
   private constructor() {
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
+    // Левая кнопка мыши — атака (как J/Z/X)
+    window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (!this.keysDown.has(MOUSE_ATTACK)) this.keysJustPressed.add(MOUSE_ATTACK);
+      this.keysDown.add(MOUSE_ATTACK);
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.keysDown.delete(MOUSE_ATTACK);
+    });
   }
 
   public static get(): InputManager {
@@ -56,8 +67,9 @@ export class InputManager {
     const jumpPressed = this.keysJustPressed.has('Space') || this.keysJustPressed.has('KeyW') || this.keysJustPressed.has('ArrowUp');
     const jumpHeld = this.keysDown.has('Space') || this.keysDown.has('KeyW') || this.keysDown.has('ArrowUp');
 
-    const attackPressed = this.keysJustPressed.has('KeyJ') || this.keysJustPressed.has('KeyZ') || this.keysJustPressed.has('KeyX');
-    const attackHeld = this.keysDown.has('KeyJ') || this.keysDown.has('KeyZ') || this.keysDown.has('KeyX');
+    const attackPressed = this.keysJustPressed.has('KeyJ') || this.keysJustPressed.has('KeyZ') || this.keysJustPressed.has('KeyX') ||
+      this.keysJustPressed.has(MOUSE_ATTACK);
+    const attackHeld = this.keysDown.has('KeyJ') || this.keysDown.has('KeyZ') || this.keysDown.has('KeyX') || this.keysDown.has(MOUSE_ATTACK);
 
     const interactPressed = this.keysJustPressed.has('KeyE') || this.keysJustPressed.has('KeyF') || this.keysJustPressed.has('Enter');
 

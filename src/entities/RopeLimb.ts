@@ -122,10 +122,11 @@ export class RopeLimb {
   /**
    * Детерминированная поза без физики: плечо в (rootX, rootY), кисть в (tx, ty) (не дальше длины руки),
    * цепочка ложится на плавную дугу (сторона выгиба задаётся bend). Нет дрожи: результат зависит только от входов.
-   * Переход из физической позы плавный (первые ~110 мс), обратно — тоже: после последнего вызова update() подхватывает позу.
+   * Переход из физической позы плавный (по умолчанию первые ~110 мс; blendRate — быстрее для резких движений вроде удара),
+   * обратно — тоже: после последнего вызова update() подхватывает позу.
    */
   public setKinematic(
-    dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame
+    dt: number, rootX: number, rootY: number, tx: number, ty: number, bend: 1 | -1, frame: LimbFrame, blendRate = 9
   ): void {
     this.syncFacing(frame);
     if (!this.ready) {
@@ -140,7 +141,7 @@ export class RopeLimb {
       this.kinFromY = this.y.map((v) => v - this.y[0]);
       this.kinFromAngles = this.angles.slice();
     }
-    this.kin = Math.min(1, this.kin + dt * 9);
+    this.kin = Math.min(1, this.kin + dt * blendRate);
     const blend = this.kin * this.kin * (3 - 2 * this.kin);
     this.kinBlend = blend;
 

@@ -1,0 +1,93 @@
+{
+  "source": "new_char.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "LLeg",
+      "file": "new_char_layers/LLeg.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        33,
+        41,
+        40,
+        63
+      ]
+    },
+    {
+      "name": "RLeg",
+      "file": "new_char_layers/RLeg.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        24,
+        41,
+        32,
+        63
+      ]
+    },
+    {
+      "name": "LHand",
+      "file": "new_char_layers/LHand.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        36,
+        31,
+        52,
+        47
+      ]
+    },
+    {
+      "name": "RHand",
+      "file": "new_char_layers/RHand.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        11,
+        31,
+        28,
+        48
+      ]
+    },
+    {
+      "name": "Torso",
+      "file": "new_char_layers/Torso.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        24,
+        26,
+        42,
+        45
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "new_char_layers/Head.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        21,
+        7,
+        43,
+        30
+      ]
+    },
+    {
+      "name": "Eyes",
+      "file": "new_char_layers/Eyes.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        27,
+        16,
+        40,
+        28
+      ]
+    }
+  ]
+}

@@ -5,8 +5,8 @@ import type { InputState } from '../core/InputManager.ts';
 import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
 import { Body } from './Body.ts';
-import { PlayerRig } from './PlayerRig.ts';
-import type { ClimbPhase, ClimbPose } from './PlayerRig.ts';
+import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
+import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
@@ -22,6 +22,20 @@ const HANG_FEET = 38; // на сколько ниже уступа стоят н
 const HANG_PRESS = 10; // на сколько герой прижимается к стене в висе, px
 const PHASE_DURATION: Record<ClimbPhase, number> = { jump: 0.26, hang: 0.08, pull: 0.3, mantle: 0.24 };
 const PHASE_ORDER: ClimbPhase[] = ['jump', 'hang', 'pull', 'mantle'];
+const PUNCH_COOLDOWN = 0.26; // с: пауза между ударами (от начала предыдущего)
+const PUNCH_BUFFER = 0.12; // с: нажатие чуть раньше конца паузы не теряется
+const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: от них считается направление удара
+
+/** Удар в мире: от плеча к кулаку; id растёт с каждым ударом (чтобы один удар засчитывался врагу один раз). */
+export interface Strike {
+  id: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  dirX: number;
+  dirY: number;
+}
 
 /** Залезание: подпрыгнуть к краю -> схватиться -> подтянуться -> перекатиться на уступ. */
 interface Climb {
@@ -68,6 +82,12 @@ export class Player {
   private airSteer = false; // после прыжка от стены скорость по X меняется плавно и управляется
   private sliding: -1 | 0 | 1 = 0; // сейчас скользит по стене (сторона)
   private wallX = 0;
+  private punchT = -1; // время от начала удара, с; < 0 — не бьёт
+  private punchCd = 0;
+  private punchBuffer = 0;
+  private punchId = 0;
+  private punchDir = { x: 1, y: 0 };
+  private punchArm: 1 | -1 = -1;
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
@@ -99,6 +119,8 @@ export class Player {
       }
     }
 
+    this.updatePunch(dt, input, aim);
+
     const headY = b.y - 40;
     this.rig.update(dt, {
       bodyX: b.x,
@@ -112,9 +134,48 @@ export class Player {
       climb: this.climb ? this.climbPose(this.climb) : null,
       kick: this.kickT > 0 ? 1 - this.kickT / KICK_DURATION : null,
       wall: this.sliding,
-      wallX: this.wallX
+      wallX: this.wallX,
+      punch: this.punchT >= 0 ? this.punchPose() : null
     });
     this.sprite.position.set(b.x, b.y);
+  }
+
+  /**
+   * Удар в мире, пока кулак выброшен и может попасть (иначе null). Руку выбирает сам удар: бьёт та, что ближе к цели.
+   * Читать после update().
+   */
+  public get strike(): Strike | null {
+    const f = this.rig.fist;
+    if (this.punchT < 0 || !f.active) return null;
+    return { id: this.punchId, x1: f.x1, y1: f.y1, x2: f.x2, y2: f.y2, dirX: this.punchDir.x, dirY: this.punchDir.y };
+  }
+
+  private punchPose(): PunchPose {
+    return { time: this.punchT, dirX: this.punchDir.x, dirY: this.punchDir.y, arm: this.punchArm };
+  }
+
+  /** Удар по кнопке атаки: в сторону курсора бьёт ближайшая к нему рука. Во время залезания не бьём. */
+  private updatePunch(dt: number, input: InputState, aim: { x: number; y: number } | null): void {
+    this.punchCd -= dt;
+    this.punchBuffer = input.attackPressed ? PUNCH_BUFFER : this.punchBuffer - dt;
+    if (this.punchT >= 0) {
+      this.punchT += dt;
+      if (this.punchT >= PUNCH_DURATION) this.punchT = -1;
+    }
+    if (this.climb || this.punchBuffer <= 0 || this.punchCd > 0) return;
+
+    const b = this.body;
+    let dx = aim ? aim.x - b.x : this.facing;
+    let dy = aim ? aim.y - (b.y - PUNCH_CHEST) : 0;
+    let len = Math.hypot(dx, dy);
+    if (len < 6) { dx = this.facing; dy = 0; len = 1; } // курсор прямо у плеч — бьём вперёд
+    this.punchDir = { x: dx / len, y: dy / len };
+    // сторона рига: рука на экране справа от героя (мир) — side -1 при взгляде вправо, и наоборот
+    this.punchArm = (dx >= 0 ? -this.facing : this.facing) as 1 | -1;
+    this.punchT = 0;
+    this.punchCd = PUNCH_COOLDOWN;
+    this.punchBuffer = 0;
+    this.punchId++;
   }
 
   private face(dir: 1 | -1): void {

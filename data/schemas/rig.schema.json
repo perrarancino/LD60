@@ -114,9 +114,10 @@
           },
           "face": {
             "type": "object",
-            "required": ["feature_colors", "max_shift"],
-            "description": "Только для head: слой режется на череп и лицо (пиксели этих цветов — глаза, брови, рот); лицо сдвигается по черепу в сторону курсора",
+            "required": ["max_shift"],
+            "description": "Только для head: лицо сдвигается по черепу в сторону курсора. Либо отдельный слой лица (sprite_id, например глаза), либо слой головы режется на череп и лицо (feature_colors — пиксели этих цветов: глаза, брови, рот)",
             "properties": {
+              "sprite_id": { "type": "string", "description": "Отдельный слой лица на том же холсте, что и голова (рисуется поверх головы); тогда feature_colors и region не нужны" },
               "feature_colors": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } },
               "region": {
                 "type": "object",

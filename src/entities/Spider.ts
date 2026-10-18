@@ -3,6 +3,8 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import type { Level } from '../world/Level.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
+import { HitReaction } from './HitReaction.ts';
 import { TwoBoneLeg } from './TwoBoneLeg.ts';
 
 // ---- Ползание по поверхностям
@@ -30,6 +32,11 @@ const GRAVITY = 520; // px/с²
 const FLY_STEP = 2; // px: максимальный шаг интегрирования полёта (чтобы не пролететь сквозь тайл)
 const FLY_GROW = 0.3; // с: паучок «вылетает из глубины» — вырастает от малого размера до своего
 const FADE_TIME = 1.5; // с: плавное исчезновение перед концом жизни
+
+// ---- Удар по пауку: круги попадания вдоль тела и реакция
+const HIT_RADIUS = 8; // px (при scale = 1)
+const HIT_SPREAD = 7; // px: круги разнесены вдоль тела (при scale = 1)
+const HIT_LIFT = 7; // px: центр тела над поверхностью (при scale = 1)
 
 export interface SpiderOptions {
   scale?: number; // размер относительно нарисованного (паучки меньше)
@@ -60,7 +67,7 @@ const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
  * процедурно: диагональные пары ног в противофазе, стопа идёт назад по поверхности и взмахом возвращается вперёд,
  * тело и голова покачиваются; паук бегает рывками, замирает и «осматривается».
  */
-export class Spider {
+export class Spider implements Hittable {
   public readonly container = new Container();
 
   private readonly bodyContainer = new Container();
@@ -102,6 +109,7 @@ export class Spider {
   private squash = 0; // 0..1: сплющивание при посадке (затухает)
   private readonly fx: Particles | null;
   public expired = false;
+  private readonly react = new HitReaction(this.container);
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -329,8 +337,29 @@ export class Spider {
     this.applyTransform();
   }
 
+  /** Два круга попадания вдоль тела: тело лежит на поверхности и вытянуто по направлению движения. */
+  public hitCircles(): HitCircle[] {
+    const k = this.scale;
+    const c = this.flying
+      ? { x: this.pos.x, y: this.pos.y + 4 * k }
+      : { x: this.visPos.x + this.n.x * HIT_LIFT * k, y: this.visPos.y + this.n.y * HIT_LIFT * k };
+    if (this.flying) return [{ ...c, r: HIT_RADIUS * k }];
+    const sp = HIT_SPREAD * k;
+    return [
+      { x: c.x + this.t.x * sp, y: c.y + this.t.y * sp, r: HIT_RADIUS * k },
+      { x: c.x - this.t.x * sp, y: c.y - this.t.y * sp, r: HIT_RADIUS * k }
+    ];
+  }
+
+  /** Удар: белая вспышка и сплющивание (как при посадке). */
+  public onHit(): void {
+    this.react.trigger(0, 0);
+    this.squash = 1;
+  }
+
   public update(dt: number): void {
     dt = Math.min(dt, 1 / 30);
+    this.react.update(dt);
     this.age += dt;
     if (this.age >= this.lifetime) {
       this.expired = true;
