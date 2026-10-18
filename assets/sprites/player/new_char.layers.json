@@ -18,21 +18,9 @@
       ]
     },
     {
-      "name": "RLeg",
-      "file": "new_char_layers/RLeg.png",
-      "z": 1,
-      "visible": true,
-      "bbox": [
-        24,
-        41,
-        32,
-        63
-      ]
-    },
-    {
       "name": "LHand",
       "file": "new_char_layers/LHand.png",
-      "z": 2,
+      "z": 1,
       "visible": true,
       "bbox": [
         36,
@@ -42,27 +30,39 @@
       ]
     },
     {
-      "name": "RHand",
-      "file": "new_char_layers/RHand.png",
-      "z": 3,
-      "visible": true,
-      "bbox": [
-        11,
-        31,
-        28,
-        48
-      ]
-    },
-    {
       "name": "Torso",
       "file": "new_char_layers/Torso.png",
-      "z": 4,
+      "z": 2,
       "visible": true,
       "bbox": [
         24,
         26,
         42,
         45
+      ]
+    },
+    {
+      "name": "RLeg",
+      "file": "new_char_layers/RLeg.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        24,
+        41,
+        32,
+        63
+      ]
+    },
+    {
+      "name": "RHand",
+      "file": "new_char_layers/RHand.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        11,
+        31,
+        28,
+        48
       ]
     },
     {

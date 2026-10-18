@@ -23,17 +23,6 @@
       "length": 20
     },
     {
-      "name": "RLeg",
-      "sprite_id": "player2_part_rleg",
-      "role": "leg",
-      "side": 1,
-      "pivot": {
-        "x": 28,
-        "y": 43
-      },
-      "length": 20
-    },
-    {
       "name": "LHand",
       "sprite_id": "player2_part_lhand",
       "role": "arm",
@@ -47,6 +36,26 @@
       }
     },
     {
+      "name": "Torso",
+      "sprite_id": "player2_part_torso",
+      "role": "torso",
+      "pivot": {
+        "x": 33,
+        "y": 43
+      }
+    },
+    {
+      "name": "RLeg",
+      "sprite_id": "player2_part_rleg",
+      "role": "leg",
+      "side": 1,
+      "pivot": {
+        "x": 28,
+        "y": 43
+      },
+      "length": 20
+    },
+    {
       "name": "RHand",
       "sprite_id": "player2_part_rhand",
       "role": "arm",
@@ -57,15 +66,6 @@
       },
       "rope": {
         "segments": 4
-      }
-    },
-    {
-      "name": "Torso",
-      "sprite_id": "player2_part_torso",
-      "role": "torso",
-      "pivot": {
-        "x": 33,
-        "y": 43
       }
     },
     {
