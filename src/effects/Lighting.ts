@@ -114,30 +114,54 @@ void main(void) {
 `;
 
 /**
- * Тень существ — тот же «свет», только отрицательный: силуэт существа (по его прозрачности) сдвинут по направлению от источника света и
- * ложится затемнением на всё, что сзади — фон, тайлы, декор, — вместе со светом (кромкой, свечением), который там лежит: в тени света нет.
- * Затемняется вся площадь силуэта, а не только пиксели рядом с телом. Сам силуэт не затемняется (существо рисуется поверх).
- * Сдвиг кратен пикселю арта, поэтому тень повторяет пиксели спрайта один в один.
+ * Тень существ лежит только на земле — на поверхностях тайлов под ними — и никогда на заднем плане. Для каждого пикселя тайла у открытого края
+ * (до 3 пикселей арта вглубь) шейдер смотрит наружу от поверхности (вверх для пола, вниз для потолка, в стороны для стен): есть ли там существо.
+ * Если есть, пиксель затемняется: на самом краю сильнее, глубже слабее, чем существо дальше от поверхности — тем бледнее. Так под персонажем
+ * закрашивается полоска пола по всей его ширине (с руками), у ползущих по стене/потолку — полоска на стене/потолке. Тень идёт поверх света, поэтому
+ * кромка и свечение на закрашенных пикселях гаснут. Сдвиг вдоль поверхности (по направлению от света) кратен пикселю арта.
  */
 const SHADOW_FRAGMENT = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
-uniform sampler2D uTexture; // только существа (физические пиксели)
+uniform sampler2D uTexture; // только тайлы (физические пиксели): поверхности, на которые падает тень
+uniform sampler2D uCaster;  // только существа
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
-uniform vec2 uOffset;       // смещение тени, физ. px (вправо и вниз)
+uniform float uScale;       // физических пикселей на пиксель арта
+uniform float uShift;       // сдвиг тени вдоль поверхности, пиксели арта
+uniform float uReach;       // на каком расстоянии от поверхности существо ещё отбрасывает тень, пиксели арта
 uniform vec3 uColor;
 uniform float uStrength;
+float tileAt(vec2 o) {
+  return texture(uTexture, vTextureCoord + o * uScale * uInputSize.zw).a;
+}
+float casterAt(vec2 o) {
+  return texture(uCaster, vTextureCoord + o * uScale * uInputSize.zw).a;
+}
+// Тень на этом пикселе от существа, стоящего снаружи поверхности в направлении dir (side — вдоль поверхности)
+float shadowFrom(vec2 dir, vec2 side) {
+  float band = (1.0 - tileAt(dir)) > 0.5 ? 1.0 : ((1.0 - tileAt(dir * 2.0)) > 0.5 ? 0.75 : ((1.0 - tileAt(dir * 3.0)) > 0.5 ? 0.45 : 0.0));
+  if (band == 0.0) return 0.0;
+  for (int i = 1; i <= 24; i++) {
+    float k = float(i) * 2.0 - 1.0;
+    if (casterAt(dir * k - side * uShift) > 0.5) return clamp(1.0 - (k - 1.0) / uReach, 0.0, 1.0) * band;
+  }
+  return 0.0;
+}
 void main(void) {
-  float own = texture(uTexture, vTextureCoord).a;
-  float shade = texture(uTexture, vTextureCoord - uOffset * uInputSize.zw).a; // есть ли существо там, откуда падает тень
-  float a = shade * (1.0 - own) * uStrength;
+  if (tileAt(vec2(0.0)) < 0.5 || texture(uCaster, vTextureCoord).a > 0.5) { finalColor = vec4(0.0); return; }
+  float s = max(
+    max(shadowFrom(vec2(0.0, -1.0), vec2(1.0, 0.0)), shadowFrom(vec2(0.0, 1.0), vec2(1.0, 0.0))),
+    max(shadowFrom(vec2(-1.0, 0.0), vec2(0.0, 1.0)), shadowFrom(vec2(1.0, 0.0), vec2(0.0, 1.0)))
+  );
+  float a = s * uStrength;
   finalColor = vec4(uColor * a, a);
 }
 `;
 
-const SHADOW_OFFSET = [5, 3]; // px арта: куда падает тень (свет — сверху-слева)
-const SHADOW_STRENGTH = 0.6; // насколько тень гасит то, что под ней (включая свет)
-const SHADOW_COLOR = [0.01, 0.02, 0.06];
+const SHADOW_SHIFT = 2; // px арта: тень чуть смещена вправо (свет — слева)
+const SHADOW_REACH = 44; // px арта: выше этого существо тень не даёт
+const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
+const SHADOW_COLOR = [0.0, 0.01, 0.04];
 
 const PURPLE_CORE = [0.8, 0.5, 1.0];
 const GREEN = [0.2, 1.0, 0.55];
@@ -181,7 +205,8 @@ export class Lighting {
   public readonly container = new Container();
 
   private worldRT: RenderTexture | null = null;
-  private casterRT: RenderTexture | null = null; // только существа — из них получается тень
+  private casterRT: RenderTexture | null = null; // только существа: от них зависит тень
+  private groundRT: RenderTexture | null = null; // только тайлы: на них тень ложится
   private glowRT: RenderTexture | null = null;
   private readonly glowRoot = new Container(); // источники для рендера свечения в низком разрешении
   private readonly glowSprites: Sprite[] = [];
@@ -195,8 +220,11 @@ export class Lighting {
   private viewH = 270;
   private readonly matrix = new Matrix();
 
-  /** noCasters — слои мира, которые не отбрасывают тень (тайлы, декор, эффекты): остаются только существа. */
-  constructor(private readonly renderer: Renderer, private readonly world: Container, private readonly noCasters: Container[] = []) {
+  /** noCasters — слои мира, которые не отбрасывают тень (тайлы, декор, эффекты): остаются только существа; ground — слой тайлов, на который падает тень. */
+  constructor(
+    private readonly renderer: Renderer, private readonly world: Container, private readonly noCasters: Container[] = [],
+    private readonly ground: Container | null = null
+  ) {
     this.compSprite.blendMode = 'add';
 
     // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
@@ -233,9 +261,11 @@ export class Lighting {
     this.viewH = physH / scale;
     this.worldRT?.destroy(true);
     this.casterRT?.destroy(true);
+    this.groundRT?.destroy(true);
     this.glowRT?.destroy(true);
     this.worldRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
     this.casterRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
+    this.groundRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
     // свечение — в разрешении арта (+ запас на сдвиг сетки под дробное положение камеры), на экран растягивается плавно
     const gw = Math.ceil(this.viewW) + 2;
     const gh = Math.ceil(this.viewH) + 2;
@@ -254,13 +284,15 @@ export class Lighting {
       uLevels: { value: 5, type: 'f32' }
     }, { uGlow: this.glowRT.source });
     this.compSprite.filters = [this.comp];
-    this.shadowSprite.texture = this.casterRT;
+    this.shadowSprite.texture = this.groundRT;
     this.shadowSprite.scale.set(1 / scale);
     this.shadow = makeFilter(SHADOW_FRAGMENT, 'shadow', {
-      uOffset: { value: new Float32Array([SHADOW_OFFSET[0] * scale, SHADOW_OFFSET[1] * scale]), type: 'vec2<f32>' },
+      uScale: { value: scale, type: 'f32' },
+      uShift: { value: SHADOW_SHIFT, type: 'f32' },
+      uReach: { value: SHADOW_REACH, type: 'f32' },
       uColor: { value: new Float32Array(SHADOW_COLOR), type: 'vec3<f32>' },
       uStrength: { value: SHADOW_STRENGTH, type: 'f32' }
-    });
+    }, { uCaster: this.casterRT.source });
     this.shadowSprite.filters = [this.shadow];
     for (const s of this.glowSprites) {
       s.texture = this.worldRT;
@@ -272,7 +304,7 @@ export class Lighting {
 
   /** Раз в кадр после обновления камеры (до отрисовки сцены). */
   public update(): void {
-    if (!this.worldRT || !this.glowRT || !this.casterRT) return;
+    if (!this.worldRT || !this.glowRT || !this.casterRT || !this.groundRT) return;
     const s = this.scale;
     const wx = this.world.x;
     const wy = this.world.y;
@@ -290,6 +322,12 @@ export class Lighting {
       container: this.world, target: this.casterRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
     });
     for (const c of hidden) c.visible = true;
+    // 1в. только тайлы -> текстура (поверхности, на которые падает тень)
+    if (this.ground) {
+      this.renderer.render({
+        container: this.ground, target: this.groundRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
+      });
+    }
 
     // 2. свечение: сетка пикселей свечения совпадает с сеткой арта (дробная часть сдвига камеры)
     const fx = wx - Math.floor(wx);
