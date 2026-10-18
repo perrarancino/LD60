@@ -1,38 +1,50 @@
-import { Container, Sprite, Texture } from 'pixi.js';
+import { Container, Mesh, MeshGeometry, Texture } from 'pixi.js';
 
-const OVERLAP = 1.4; // px: соседние сегменты слегка нахлёстывают друг на друга — на изгибе нет щелей
+const SAMPLES = 48; // точек таблицы изогнутой оси
 
 /**
- * Лапка с костями: рисунок режется на N сегментов вдоль оси «корень -> кончик», каждый сегмент — кость с суставом
- * на оси. Поза задаётся двумя числами: поворот у корня и суммарный изгиб к кончику; изгиб равномерно растёт вдоль
- * лапки, поэтому она сгибается плавной дугой (а не ломается в одном «колене»). В позе покоя (оба угла 0) сегменты
- * складываются в исходный рисунок без изменений.
+ * Лапка со скелетом и скиннингом: рисунок — это ОДНА сетка (по вершине на угол каждого пикселя), которую ведёт цепочка костей
+ * вдоль оси «корень -> кончик». Вершины общие у соседних пикселей, поэтому при изгибе поверхность не рвётся: пиксели
+ * только растягиваются и сжимаются, между цветами нет щелей. Углы соседних костей плавно смешиваются (линейный скиннинг),
+ * ось лапки превращается в гладкую кривую. В позе покоя (все углы 0) сетка в точности повторяет исходный рисунок.
  */
 export class FlexLimb {
-  /** Начало координат — корень лапки; спрайты сегментов лежат в системе контейнера. */
+  /** Начало координат — корень лапки; сетка лежит в системе контейнера. */
   public readonly container = new Container();
 
-  private readonly n: number;
-  private readonly segLen: number;
-  private readonly axis: number; // угол оси корень -> кончик, y вниз
-  private readonly segments: Sprite[] = [];
+  private readonly bones: number;
+  private readonly length: number; // длина оси корень -> кончик, px
+  private readonly axis: number; // угол оси, y вниз
+  private readonly mesh: Mesh;
+  private readonly positions: Float32Array;
+  // Для каждой вершины: координата вдоль оси t и смещение поперёк оси d (в покое)
+  private readonly vt: Float32Array;
+  private readonly vd: Float32Array;
+  // Таблица изогнутой оси: точка и угол в SAMPLES + 1 местах
+  private readonly tx = new Float32Array(SAMPLES + 1);
+  private readonly ty = new Float32Array(SAMPLES + 1);
+  private readonly ta = new Float32Array(SAMPLES + 1);
 
   /**
    * @param image пиксели слоя лапки (холст целиком)
+   * @param texture текстура этого же слоя (тот же холст)
    * @param root корень лапки в координатах холста
-   * @param bones сколько костей (сегментов)
+   * @param bones сколько костей в цепочке
    */
-  constructor(image: ImageData, root: { x: number; y: number }, bones: number) {
-    this.n = Math.max(2, Math.round(bones));
+  constructor(image: ImageData, texture: Texture, root: { x: number; y: number }, bones: number) {
+    this.bones = Math.max(2, Math.round(bones));
     const { data, width, height } = image;
 
-    // Кончик — самый дальний от корня непрозрачный пиксель
+    // Кончик — самый дальний от корня непрозрачный пиксель; границы непрозрачной области
     let tipX = root.x;
     let tipY = root.y;
     let best = -1;
+    let minX = width, minY = height, maxX = -1, maxY = -1;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         if (data[(y * width + x) * 4 + 3] === 0) continue;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
         const d = Math.hypot(x + 0.5 - root.x, y + 0.5 - root.y);
         if (d > best) {
           best = d;
@@ -46,61 +58,88 @@ export class FlexLimb {
     const ux = (tipX - root.x) / best;
     const uy = (tipY - root.y) / best;
     this.axis = Math.atan2(uy, ux);
-    this.segLen = best / this.n;
+    this.length = best;
 
-    for (let s = 0; s < this.n; s++) {
-      const sprite = this.slice(image, root, ux, uy, s);
-      this.segments.push(sprite);
-      this.container.addChild(sprite);
+    // Сетка вершин по углам пикселей; треугольники — только на непрозрачных пикселях
+    const gw = maxX - minX + 2;
+    const gh = maxY - minY + 2;
+    const vertexCount = gw * gh;
+    this.positions = new Float32Array(vertexCount * 2);
+    this.vt = new Float32Array(vertexCount);
+    this.vd = new Float32Array(vertexCount);
+    const uvs = new Float32Array(vertexCount * 2);
+    for (let j = 0; j < gh; j++) {
+      for (let i = 0; i < gw; i++) {
+        const k = j * gw + i;
+        const cx = minX + i; // координата угла на холсте
+        const cy = minY + j;
+        uvs[k * 2] = cx / width;
+        uvs[k * 2 + 1] = cy / height;
+        const rx = cx - root.x;
+        const ry = cy - root.y;
+        this.vt[k] = rx * ux + ry * uy;
+        this.vd[k] = -rx * uy + ry * ux;
+      }
     }
+    const idx: number[] = [];
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (data[(y * width + x) * 4 + 3] === 0) continue;
+        const a = (y - minY) * gw + (x - minX);
+        const b = a + 1;
+        const c = a + gw;
+        const d = c + 1;
+        idx.push(a, b, c, b, d, c);
+      }
+    }
+
+    const geometry = new MeshGeometry({ positions: this.positions, uvs, indices: new Uint32Array(idx) });
+    this.mesh = new Mesh({ geometry, texture });
+    this.container.addChild(this.mesh);
     this.setPose(0, 0);
   }
 
-  /** Вырезает сегмент s: пиксели, чья координата вдоль оси попадает в [s*len, (s+1)*len + нахлёст). */
-  private slice(image: ImageData, root: { x: number; y: number }, ux: number, uy: number, s: number): Sprite {
-    const { data, width, height } = image;
-    const t0 = s * this.segLen;
-    const t1 = (s + 1) * this.segLen;
-    const last = s === this.n - 1;
-
-    const picked: number[] = [];
-    let minX = width, minY = height, maxX = -1, maxY = -1;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (data[(y * width + x) * 4 + 3] === 0) continue;
-        const t = (x + 0.5 - root.x) * ux + (y + 0.5 - root.y) * uy;
-        if ((s === 0 || t >= t0) && (last || t < t1 + OVERLAP)) {
-          picked.push(y * width + x);
-          minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-        }
-      }
+  /**
+   * Поза через углы костей (рад, относительно покоя): bone j охватывает отрезок оси [j, j+1] / bones.
+   * Угол оси в точке получается плавным смешиванием углов соседних костей.
+   */
+  public setBoneAngles(angles: number[]): void {
+    const n = this.bones;
+    const ds = this.length / SAMPLES;
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i <= SAMPLES; i++) {
+      const f = (i * ds) / this.length; // 0..1 вдоль оси
+      // угол оси в точке f: линейная интерполяция между центрами костей
+      const g = Math.min(Math.max(f * n - 0.5, 0), n - 1);
+      const j = Math.min(Math.floor(g), n - 2);
+      const w = g - j;
+      const theta = this.axis + angles[j] * (1 - w) + angles[j + 1] * w;
+      this.tx[i] = x;
+      this.ty[i] = y;
+      this.ta[i] = theta;
+      x += Math.cos(theta) * ds;
+      y += Math.sin(theta) * ds;
     }
-    if (picked.length === 0) {
-      return new Sprite(Texture.EMPTY);
-    }
 
-    const w = maxX - minX + 1;
-    const h = maxY - minY + 1;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d')!;
-    const out = ctx.createImageData(w, h);
-    for (const i of picked) {
-      const x = i % width;
-      const y = (i - x) / width;
-      const o = ((y - minY) * w + (x - minX)) * 4;
-      out.data.set(data.subarray(i * 4, i * 4 + 4), o);
+    const p = this.positions;
+    for (let k = 0; k < this.vt.length; k++) {
+      const t = this.vt[k];
+      const s = Math.min(Math.max(t, 0), this.length); // за пределами оси продолжаем по касательной
+      const f = (s / this.length) * SAMPLES;
+      const i = Math.min(Math.floor(f), SAMPLES - 1);
+      const w = f - i;
+      const cx = this.tx[i] * (1 - w) + this.tx[i + 1] * w;
+      const cy = this.ty[i] * (1 - w) + this.ty[i + 1] * w;
+      const th = this.ta[i] * (1 - w) + this.ta[i + 1] * w;
+      const c = Math.cos(th);
+      const sn = Math.sin(th);
+      const extra = t - s;
+      const d = this.vd[k];
+      p[k * 2] = cx + c * extra - sn * d;
+      p[k * 2 + 1] = cy + sn * extra + c * d;
     }
-    ctx.putImageData(out, 0, 0);
-
-    const texture = Texture.from(canvas);
-    texture.source.scaleMode = 'nearest';
-    const sprite = new Sprite(texture);
-    // Сустав сегмента — точка на оси на расстоянии t0 от корня; поворачиваем вокруг неё
-    sprite.pivot.set(root.x + ux * t0 - minX, root.y + uy * t0 - minY);
-    return sprite;
+    this.mesh.geometry.getBuffer('aPosition').update();
   }
 
   /**
@@ -108,17 +147,8 @@ export class FlexLimb {
    * @param bend дополнительный изгиб, накопленный к кончику, рад (растёт равномерно по длине)
    */
   public setPose(rootAngle: number, bend: number): void {
-    let jx = 0;
-    let jy = 0;
-    for (let i = 0; i < this.n; i++) {
-      // угол сегмента: общий поворот + доля изгиба, растущая к кончику (середина сегмента)
-      const a = rootAngle + bend * ((i + 0.5) / this.n);
-      const sprite = this.segments[i];
-      sprite.position.set(jx, jy);
-      sprite.rotation = a;
-      // следующий сустав — на оси, повёрнутой на a
-      jx += Math.cos(this.axis + a) * this.segLen;
-      jy += Math.sin(this.axis + a) * this.segLen;
-    }
+    const angles: number[] = [];
+    for (let j = 0; j < this.bones; j++) angles.push(rootAngle + bend * ((j + 0.5) / this.bones));
+    this.setBoneAngles(angles);
   }
 }

@@ -6,7 +6,7 @@ import type { Spider } from './Spider.ts';
 
 // ---- Лапки шатаются: цепочка костей (FlexLimb), поворот у корня + плавный изгиб к кончику; по две несоизмеримые синусоиды
 const ROOT_SWING = 0.06; // рад: размах поворота у корня лапки
-const BEND_SWING = 0.22; // рад: размах изгиба, накопленного к кончику
+const BEND_SWING = 0.3; // рад: размах изгиба, накопленного к кончику
 const WOBBLE_FREQ: [number, number] = [0.8, 1.5]; // Гц: диапазон частот лапок (медленно — пиксели не «рябят»)
 const TWITCH_CHANCE = 0.25; // 1/с: как часто какая-нибудь лапка вздрагивает
 const TWITCH_SIZE = 0.22; // рад: вздрагивание (плавное, не рывок)
@@ -72,7 +72,7 @@ export class SpiderMother {
 
     // Лапки — под телом; каждая — цепочка костей, режется из целого слоя
     for (const l of wob.limbs) {
-      const bones = new FlexLimb(sprites.imageData(l.sprite_id), l.root, l.bones ?? 6);
+      const bones = new FlexLimb(sprites.imageData(l.sprite_id), sprites.texture(l.sprite_id), l.root, l.bones ?? 6);
       bones.container.position.set(l.root.x - rig.anchor.x, l.root.y - rig.anchor.y);
       this.container.addChild(bones.container);
       this.limbs.push({
