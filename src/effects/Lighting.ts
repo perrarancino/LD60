@@ -128,6 +128,7 @@ uniform sampler2D uCaster;  // только существа
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
 uniform float uScale;       // физических пикселей на пиксель арта
 uniform float uShift;       // сдвиг тени вдоль поверхности, пиксели арта
+uniform float uSmall;       // доля густоты тени у мелких предметов (транзисторов)
 uniform float uReach;       // на каком расстоянии от поверхности существо ещё отбрасывает тень, пиксели арта
 uniform vec3 uColor;
 uniform float uStrength;
@@ -137,29 +138,18 @@ float tileAt(vec2 o) {
 float casterAt(vec2 o) {
   return texture(uCaster, vTextureCoord + o * uScale * uInputSize.zw).a;
 }
-// Высота (в пикселях арта) ближайшей части существа над этой точкой поверхности, 0 — нет: ищется шагом 2 px наружу от поверхности
-float firstHit(vec2 dir, vec2 side, float lateral) {
+// Вид отбрасывающего тень задаёт прозрачность в текстуре существ: ≈0.55 — мелкий предмет (транзистор, тень слабее), ≈0.75 — паук (может отбрасывать
+// тень и на стены с потолком), 1 — остальные (только на пол)
+float hitMark = 1.0;
+// Высота (в пикселях арта) ближайшей части существа над этой точкой поверхности, 0 — нет: ищется шагом 2 px наружу от поверхности.
+// onlySpiders — на потолок и стены тень дают только пауки
+float firstHit(vec2 dir, vec2 side, float lateral, bool onlySpiders) {
   for (int i = 1; i <= 24; i++) {
     float k = float(i) * 2.0 - 1.0;
-    if (casterAt(dir * k + side * lateral) > 0.5) return k;
+    float a = casterAt(dir * k + side * lateral);
+    if (a > 0.5 && (!onlySpiders || (a > 0.65 && a < 0.9))) { hitMark = a; return k; }
   }
   return 0.0;
-}
-// Стоит ли существо на полу: от точки p (пиксели арта от этого пикселя) вниз по его телу до конца, затем до 4 px вниз — тайл. Проверяется в окне
-// вдоль поверхности, чтобы руки и голова не давали ложного «нет». Тогда у героя одна тень — внизу, на полу: на потолке и стенах её нет.
-bool restsOnFloor(vec2 p) {
-  for (int l = -2; l <= 2; l++) {
-    vec2 q = p + vec2(float(l) * 5.0, 0.0);
-    for (int i = 0; i < 72; i++) {
-      if (casterAt(q + vec2(0.0, float(i))) < 0.5) {
-        for (int j = 0; j < 4; j++) {
-          if (tileAt(q + vec2(0.0, float(i + j))) > 0.5) return true;
-        }
-        break;
-      }
-    }
-  }
-  return false;
 }
 // Тень на этом пикселе от существа, стоящего снаружи поверхности в направлении dir (side — вдоль поверхности).
 // Форма — скруглённый овал: по глубине вглубь тайла (0, 1, 2 пикселя от края) нужна всё большая доля существа в окне ±3 пикселя вдоль поверхности,
@@ -171,16 +161,15 @@ float shadowFrom(vec2 dir, vec2 side) {
   float band = depth < 0.5 ? 1.0 : (depth < 1.5 ? 0.75 : 0.45);
   float cover = 0.0;
   float nearest = 1000.0;
-  float nearestLat = 0.0;
+  float nearestMark = 1.0;
+  bool onlySpiders = dir.y > -0.5; // пол (dir вверх) — для всех, потолок и стены — только для пауков
   for (int j = -3; j <= 3; j++) {
-    float lat = float(j) - uShift;
-    float k = firstHit(dir, side, lat);
-    if (k > 0.0) { cover += 1.0; if (k < nearest) { nearest = k; nearestLat = lat; } }
+    float k = firstHit(dir, side, float(j) - uShift, onlySpiders);
+    if (k > 0.0) { cover += 1.0; if (k < nearest) { nearest = k; nearestMark = hitMark; } }
   }
   if (cover / 7.0 < need) return 0.0;
-  // пол — основная поверхность тени; на потолке и стенах тень не нужна, если существо стоит на полу
-  if (dir.y > -0.5 && restsOnFloor(dir * nearest + side * nearestLat)) return 0.0;
-  return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band;
+  float weight = nearestMark < 0.65 ? uSmall : 1.0; // мелкие предметы дают тень слабее
+  return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band * weight;
 }
 void main(void) {
   if (tileAt(vec2(0.0)) < 0.5 || texture(uCaster, vTextureCoord).a > 0.5) { finalColor = vec4(0.0); return; }
@@ -195,6 +184,9 @@ void main(void) {
 
 const SHADOW_SHIFT = 2; // px арта: тень чуть смещена вправо (свет — слева)
 const SHADOW_REACH = 44; // px арта: выше этого существо тень не даёт
+const SHADOW_SMALL = 0.5; // у мелких предметов (транзисторов) тень вдвое слабее: без чёрных пятен у ножек
+const SPIDER_MARK = 0.75; // прозрачность пауков в текстуре существ: отметка «может отбросить тень на потолок и стены»
+const SMALL_MARK = 0.55; // прозрачность мелких предметов в ней же: отметка «тень слабее»
 const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
 const SHADOW_COLOR = [0.0, 0.01, 0.04];
 
@@ -258,7 +250,8 @@ export class Lighting {
   /** noCasters — слои мира, которые не отбрасывают тень (тайлы, декор, эффекты): остаются только существа; ground — слой тайлов, на который падает тень. */
   constructor(
     private readonly renderer: Renderer, private readonly world: Container, private readonly noCasters: Container[] = [],
-    private readonly ground: Container | null = null
+    private readonly ground: Container | null = null, private readonly small: Container[] = [],
+    private readonly spiders: () => Container[] = () => []
   ) {
     this.compSprite.blendMode = 'add';
 
@@ -325,6 +318,7 @@ export class Lighting {
       uScale: { value: scale, type: 'f32' },
       uShift: { value: SHADOW_SHIFT, type: 'f32' },
       uReach: { value: SHADOW_REACH, type: 'f32' },
+      uSmall: { value: SHADOW_SMALL, type: 'f32' },
       uColor: { value: new Float32Array(SHADOW_COLOR), type: 'vec3<f32>' },
       uStrength: { value: SHADOW_STRENGTH, type: 'f32' }
     }, { uCaster: this.casterRT.source });
@@ -351,11 +345,19 @@ export class Lighting {
     });
 
     // 1б. только существа -> текстура (скрываем всё, что тени не отбрасывает)
+    // вид существа кодируется прозрачностью (шейдер читает её): пауки — SPIDER_MARK, мелкие предметы — SMALL_MARK
     const hidden = this.noCasters.filter((c) => c.visible);
     for (const c of hidden) c.visible = false;
+    const spiders = this.spiders();
+    const saved = spiders.map((c) => c.alpha);
+    for (const c of spiders) c.alpha = SPIDER_MARK;
+    const savedSmall = this.small.map((c) => c.alpha);
+    for (const c of this.small) c.alpha = SMALL_MARK;
     this.renderer.render({
       container: this.world, target: this.casterRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
     });
+    spiders.forEach((c, i) => { c.alpha = saved[i]; });
+    this.small.forEach((c, i) => { c.alpha = savedSmall[i]; });
     for (const c of hidden) c.visible = true;
     // 1в. только тайлы -> текстура (поверхности, на которые падает тень)
     if (this.ground) {

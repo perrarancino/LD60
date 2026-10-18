@@ -322,7 +322,7 @@ class GameApp {
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container
-    ], this.level.container);
+    ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container));
     this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
     this.sceneLayer.addChild(this.lighting.container);
     if (levelDef.grade) {
