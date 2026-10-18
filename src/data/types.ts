@@ -56,8 +56,6 @@ export interface DecorDef {
   x: number;
   y: number;
   layer?: 'back' | 'front';
-  solid?: boolean; // герой встаёт на хитбокс спрайта
-  solid_cells?: [number, number, number, number][]; // клетки сетки, ставшие твёрдыми: [колонка, ряд, ширина, высота]
 }
 
 /** Зона автодекора: в прямоугольнике клеток (включительно) декор раскладывается сам, детерминированно. */

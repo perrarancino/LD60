@@ -107,15 +107,7 @@
       "sprite_id": "deco_cooler",
       "x": 15.5,
       "y": 15,
-      "layer": "back",
-      "solid_cells": [
-        [
-          14,
-          12,
-          3,
-          3
-        ]
-      ]
+      "layer": "back"
     }
   ],
   "zones": [
@@ -129,11 +121,19 @@
     },
     {
       "kind": "webs",
-      "x0": 18,
-      "y0": 8,
-      "x1": 25,
+      "x0": 17,
+      "y0": 3,
+      "x1": 28,
       "y1": 15,
-      "density": 0.65
+      "density": 0.75
+    },
+    {
+      "kind": "webs",
+      "x0": 3,
+      "y0": 10,
+      "x1": 12,
+      "y1": 13,
+      "density": 0.3
     }
   ]
 }

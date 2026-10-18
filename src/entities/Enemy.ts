@@ -1,7 +1,7 @@
 import type { AnimatedSprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, HitboxDef } from '../data/types.ts';
-import type { Hittable, HitCircle, SolidBox } from './Hittable.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 
 const KNOCKBACK = 140; // px/с: отдача от удара
@@ -39,12 +39,6 @@ export class Enemy implements Hittable {
       left: this.sprite.x - this.sprite.width * anchor.x + this.hitbox.offset_x,
       top: this.sprite.y - this.sprite.height * anchor.y + this.hitbox.offset_y
     };
-  }
-
-  /** На врага можно встать: твёрдый прямоугольник по хитбоксу. */
-  public solidBoxes(): SolidBox[] {
-    const { left, top } = this.boxLeftTop();
-    return [{ key: this, x: left, y: top, w: this.hitbox.width, h: this.hitbox.height }];
   }
 
   /** Хитбокс спрайта, покрытый кругами по вертикали (враги высокие и узкие). */

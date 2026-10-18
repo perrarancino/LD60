@@ -2,8 +2,7 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SegmentDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
-import { boxOfCircles } from './Hittable.ts';
-import type { Hittable, HitCircle, SolidBox } from './Hittable.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 
 // ---- Ползание по поверхностям (как у паука, но тело толстое: центр головы идёт на радиусе от поверхности)
@@ -224,19 +223,6 @@ export class Worm implements Hittable {
       circles.push({ x, y, r: this.radius });
     }
     return circles;
-  }
-
-  /** На червя можно встать: каждый сегмент (вне земли) — твёрдый квадрат. */
-  public solidBoxes(): SolidBox[] {
-    const ts = this.level.tileSize;
-    const boxes: SolidBox[] = [];
-    for (const seg of this.segments) {
-      const { x, y } = seg.sprite.position;
-      if (this.level.isSolid(Math.floor(x / ts), Math.floor(y / ts))) continue;
-      const box = boxOfCircles(seg, [{ x, y, r: this.radius }], 0.9);
-      if (box) boxes.push(box);
-    }
-    return boxes;
   }
 
   /** Удар: белая вспышка. */

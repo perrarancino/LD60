@@ -4,7 +4,6 @@ import { GAME_CONFIG } from '../core/Constants.ts';
 import type { InputState } from '../core/InputManager.ts';
 import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
-import type { SolidBox } from './Hittable.ts';
 import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
 import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
@@ -108,11 +107,8 @@ export class Player {
   }
 
   /** aim — положение курсора в мире (null, пока мышь не двигали). */
-  public update(
-    dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null, solids: readonly SolidBox[] = []
-  ): void {
+  public update(dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null): void {
     const b = this.body;
-    b.solids = solids;
     this.climbCooldown -= dt;
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
 

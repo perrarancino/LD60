@@ -491,8 +491,7 @@ class GameApp {
     this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
-    const solids = [...this.hittables()].flatMap((h) => h.solidBoxes()).concat(this.level.staticSolids); // враги твёрдые: на них можно встать
-    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld(), solids);
+    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -512,7 +511,8 @@ class GameApp {
     // 4. Камера и анимация декора (отростки качаются только в обзоре)
     this.updateCamera(dt);
     const camLeft = -this.worldLayer.x;
-    this.level.update(dt, camLeft, camLeft + this.viewW);
+    const b = this.player.body;
+    this.level.update(dt, camLeft, camLeft + this.viewW, [{ left: b.left, right: b.right, top: b.top, bottom: b.bottom, vx: b.vx, vy: b.vy }]);
     this.lighting?.update(dt);
   }
 }

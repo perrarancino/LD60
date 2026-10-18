@@ -3,8 +3,7 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { FlexBody } from './FlexBody.ts';
-import { boxOfCircles } from './Hittable.ts';
-import type { Hittable, HitCircle, SolidBox } from './Hittable.ts';
+import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import type { Spider } from './Spider.ts';
 import { ThreadRope } from './ThreadRope.ts';
@@ -212,12 +211,6 @@ export class SpiderMother implements Hittable {
   public hitCircles(): HitCircle[] {
     const c = this.bodyPoint(this.bodyOffset);
     return [{ x: c.x, y: c.y, r: HIT_RADIUS }];
-  }
-
-  /** На матку можно встать: твёрдая коробка вокруг тела (качается вместе с ним). */
-  public solidBoxes(): SolidBox[] {
-    const box = boxOfCircles(this, this.hitCircles());
-    return box ? [box] : [];
   }
 
   /** Удар: белая вспышка, нитку и тело раскачивает по направлению удара. */

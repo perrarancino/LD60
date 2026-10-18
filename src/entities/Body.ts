@@ -1,6 +1,5 @@
 import type { SpriteDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
-import type { SolidBox } from './Hittable.ts';
 
 /**
  * Физическое тело: AABB-хитбокс, привязанный к точке (x, y) — «ногам» спрайта (низ по центру).
@@ -14,11 +13,6 @@ export class Body {
   public grounded = false;
   /** Куда упёрлись по X при последнем move(): -1 влево, 1 вправо, 0 — нет. */
   public blockedX: -1 | 0 | 1 = 0;
-
-  /** Твёрдые прямоугольники врагов на этот кадр (на них можно встать; задаёт владелец тела перед move). */
-  public solids: readonly SolidBox[] = [];
-  /** Кто несёт тело (враг под ногами) и где он был в прошлый раз: тело едет вместе с ним. */
-  private ride: { key: object; x: number; y: number } | null = null;
 
   private width = 0;
   private height = 0;
@@ -59,13 +53,8 @@ export class Body {
       for (let cy = r0; cy <= r1; cy++) if (level.isSolid(cx, cy)) return true;
       return false;
     };
-    const probeBox = (x: number): boolean => {
-      const y0 = this.top + 3;
-      const y1 = this.bottom - 3;
-      return this.solids.some((s) => x >= s.x && x <= s.x + s.w && y1 > s.y && y0 < s.y + s.h);
-    };
-    const right = probe(this.right + 0.6) || probeBox(this.right + 0.6);
-    const left = probe(this.left - 0.6) || probeBox(this.left - 0.6);
+    const right = probe(this.right + 0.6);
+    const left = probe(this.left - 0.6);
     if (right && left) return prefer < 0 ? -1 : 1;
     return right ? 1 : left ? -1 : 0;
   }
@@ -93,53 +82,12 @@ export class Body {
     const ts = level.tileSize;
     this.blockedX = 0;
 
-    if (this.ride) {
-      const under = this.solids.find((s) => s.key === this.ride!.key);
-      if (under) {
-        this.x += under.x - this.ride.x;
-        this.y += under.y - this.ride.y;
-      }
-      this.ride = null;
-    }
-
     this.x += this.vx * dt;
     this.resolveX(level, ts);
 
     this.y += this.vy * dt;
     this.grounded = false;
     this.resolveY(level, ts);
-    this.resolveSolids();
-  }
-
-  /**
-   * Враги — твёрдые коробки: сверху на них встают (и едут вместе с ними), сбоку не проходят, снизу упираются головой.
-   * Выбирается ось с наименьшим проникновением; верх в приоритете — чуть зашёл на врага сбоку, значит встал на него.
-   */
-  private resolveSolids(): void {
-    for (const s of this.solids) {
-      const penTop = this.bottom - s.y;
-      const penBottom = s.y + s.h - this.top;
-      const penLeft = this.right - s.x;
-      const penRight = s.x + s.w - this.left;
-      if (penTop <= 0 || penBottom <= 0 || penLeft <= 0 || penRight <= 0) continue;
-      const topBias = penTop * 0.6;
-      const best = Math.min(this.vy >= 0 ? topBias : Infinity, penBottom, penLeft, penRight);
-      if (best === topBias && this.vy >= 0) {
-        this.y -= penTop;
-        this.vy = 0;
-        this.grounded = true;
-        this.ride = { key: s.key, x: s.x, y: s.y };
-      } else if (best === penBottom) {
-        this.y += penBottom;
-        if (this.vy < 0) this.vy = 0;
-      } else if (best === penLeft) {
-        this.x -= penLeft;
-        this.blockedX = 1;
-      } else {
-        this.x += penRight;
-        this.blockedX = -1;
-      }
-    }
   }
 
   private resolveX(level: Level, ts: number): void {

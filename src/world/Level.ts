@@ -1,11 +1,10 @@
 import { Container } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { DecorZoneDef, LevelDef, TileSetDef } from '../data/types.ts';
-import type { SolidBox } from '../entities/Hittable.ts';
-import { SPROUT_SPRITE, Sprouts } from './Sprouts.ts';
+import { THREAD_SPRITE, Webs } from './Webs.ts';
+import type { Actor } from './Webs.ts';
 
 const SPRITE_TRANSISTORS = ['deco_transistor', 'deco_transistor2'];
-const SPRITE_WEBS = ['deco_web_tile', 'deco_web_hang'];
 
 /** Детерминированный генератор: раскладка автодекора одинакова при каждом запуске. */
 function mulberry32(seed: number): () => number {
@@ -21,9 +20,9 @@ function mulberry32(seed: number): () => number {
 
 /**
  * Уровень-сетка из тайлов (data/levels/*.json): строит спрайты тайлов и отвечает на вопросы о твёрдости клеток.
- * Координаты клеток — в тайлах, ряд 0 — верхний.
+ * Координаты клеток — в тайлах, ряд 0 — верхний. Декор (куллер, транзисторы, паутина) — без коллизий.
  *
- * Слои (снизу вверх, добавляет владелец): backLayer (декор «за тайлами» и отростки паутины под ними) -> container (тайлы) ->
+ * Слои (снизу вверх, добавляет владелец): backLayer (декор «за тайлами» и лианы под ними) -> container (тайлы) ->
  * frontLayer (декор поверх тайлов: паутина, транзисторы).
  */
 export class Level {
@@ -34,13 +33,11 @@ export class Level {
   public readonly backLayer = new Container();
   public readonly frontLayer = new Container();
   public readonly def: LevelDef;
-  /** Неподвижные твёрдые коробки декора (транзисторы): герой встаёт на них так же, как на врагов. */
-  public readonly staticSolids: SolidBox[] = [];
 
   private solid: boolean[][] = [];
-  private readonly sprouts: Sprouts;
+  private readonly webs: Webs;
 
-  /** Id спрайтов, нужных уровню (тайлы, декор, зоны, отростки) — для предзагрузки. */
+  /** Id спрайтов, нужных уровню (тайлы, декор, зоны) — для предзагрузки. */
   public static spriteIds(def: LevelDef, tileset: TileSetDef): string[] {
     const used = new Set(Object.values(def.legend).filter((v): v is string => v !== null));
     const zones = def.zones ?? [];
@@ -48,8 +45,7 @@ export class Level {
       ...tileset.tiles.filter((t) => used.has(t.id)).map((t) => t.sprite_id),
       ...(def.decor ?? []).map((d) => d.sprite_id),
       ...(zones.some((z) => z.kind === 'transistors') ? SPRITE_TRANSISTORS : []),
-      ...(zones.some((z) => z.kind === 'webs') ? SPRITE_WEBS : []),
-      SPROUT_SPRITE
+      THREAD_SPRITE
     ];
   }
 
@@ -94,72 +90,45 @@ export class Level {
 
     // Декор, заданный вручную: точка привязки спрайта (origin из реестра) — в (x, y) тайлов
     for (const d of def.decor ?? []) {
-      for (const [cx, cy, w, h] of d.solid_cells ?? []) {
-        for (let y = cy; y < cy + h; y++) for (let x = cx; x < cx + w; x++) if (this.solid[y]?.[x] !== undefined) this.solid[y][x] = true;
-      }
-      this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer, !!d.solid);
+      this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer);
     }
-    // Зоны автодекора
-    (def.zones ?? []).forEach((zone, i) => this.fillZone(sprites, zone, i));
 
-    // Отростки паутины под тайлами (лежат в слое под тайлами: корни спрятаны)
-    this.sprouts = new Sprouts(sprites, this.tileSize, def.width, def.height, (cx, cy) => this.solid[cy][cx]);
-    this.backLayer.addChild(this.sprouts.container);
+    // Паутинный декор (нитка паучихи): нити, углы, лианы — по зонам; лианы лежат под тайлами, остальное поверх
+    this.webs = new Webs(sprites, this.tileSize, def.width, def.height, (cx, cy) => this.solid[cy][cx]);
+    this.backLayer.addChild(this.webs.back);
+    (def.zones ?? []).forEach((zone, i) => {
+      if (zone.kind === 'webs') this.webs.addZone(zone, i);
+      else this.fillTransistors(sprites, zone, i);
+    });
+    this.frontLayer.addChild(this.webs.front);
   }
 
-  /** Ставит спрайт декора; solid — на хитбокс спрайта (из sprites.json) можно встать. */
-  private placeDecor(sprites: SpriteLibrary, id: string, tx: number, ty: number, layer: Container, solid: boolean): void {
-    const ts = this.tileSize;
+  /** Ставит спрайт декора (без коллизии). */
+  private placeDecor(sprites: SpriteLibrary, id: string, tx: number, ty: number, layer: Container): void {
     const sprite = sprites.createSprite(id);
-    const x = Math.round(tx * ts);
-    const y = Math.round(ty * ts);
-    sprite.position.set(x, y);
+    sprite.position.set(Math.round(tx * this.tileSize), Math.round(ty * this.tileSize));
     layer.addChild(sprite);
-    const def = sprites.def(id);
-    if (solid && def.hitbox) {
-      const hb = def.hitbox;
-      this.staticSolids.push({
-        key: sprite,
-        x: x - def.frame_width * def.origin.x + hb.offset_x,
-        y: y - def.frame_height * def.origin.y + hb.offset_y,
-        w: hb.width,
-        h: hb.height
-      });
-    }
   }
 
-  /**
-   * Автодекор зоны. transistors: на верхней грани твёрдых клеток (стоят и твёрдые). webs: поверх твёрдых клеток с открытой гранью
-   * и в углах (пустая клетка над полом у стены). Выбор клеток случайный, но детерминированный, число — по density.
-   */
-  private fillZone(sprites: SpriteLibrary, zone: DecorZoneDef, index: number): void {
+  /** Зона транзисторов: на верхних гранях твёрдых клеток, случайно, но детерминированно (по density). */
+  private fillTransistors(sprites: SpriteLibrary, zone: DecorZoneDef, index: number): void {
     const rand = mulberry32(index * 9973 + 101);
     const density = zone.density ?? 0.5;
     const spawn = this.def.player_spawn;
-    const solid = (cx: number, cy: number) => cx >= 0 && cx < this.widthTiles && cy >= 0 && cy < this.heightTiles && this.solid[cy][cx];
-    const free = (cx: number, cy: number) => cx >= 0 && cx < this.widthTiles && cy >= 0 && cy < this.heightTiles && !this.solid[cy][cx];
     for (let cy = Math.max(0, zone.y0); cy <= Math.min(this.heightTiles - 1, zone.y1); cy++) {
       for (let cx = Math.max(0, zone.x0); cx <= Math.min(this.widthTiles - 1, zone.x1); cx++) {
         const roll = rand();
         const pick = rand();
-        if (zone.kind === 'transistors') {
-          if (!solid(cx, cy) || !free(cx, cy - 1) || roll >= density) continue;
-          if (Math.abs(cx - spawn.x) <= 1 && cy === spawn.y + 1) continue; // не на месте появления героя
-          const id = SPRITE_TRANSISTORS[pick < 0.5 ? 0 : 1];
-          this.placeDecor(sprites, id, cx + 0.5, cy, this.frontLayer, true);
-        } else if (solid(cx, cy)) {
-          const exposed = free(cx, cy - 1) || free(cx, cy + 1) || free(cx - 1, cy) || free(cx + 1, cy);
-          if (exposed && roll < density) this.placeDecor(sprites, SPRITE_WEBS[pick < 0.5 ? 0 : 1], cx, cy, this.frontLayer, false);
-        } else if (solid(cx, cy + 1) && (solid(cx - 1, cy) || solid(cx + 1, cy)) && roll < density * 0.7) {
-          this.placeDecor(sprites, SPRITE_WEBS[0], cx, cy, this.frontLayer, false); // паутина в углу
-        }
+        if (!this.solid[cy][cx] || (cy > 0 && this.solid[cy - 1][cx]) || roll >= density) continue;
+        if (Math.abs(cx - spawn.x) <= 1 && cy === spawn.y + 1) continue; // не на месте появления героя
+        this.placeDecor(sprites, SPRITE_TRANSISTORS[pick < 0.5 ? 0 : 1], cx + 0.5, cy, this.frontLayer);
       }
     }
   }
 
-  /** Анимация декора; camLeft..camRight — видимый диапазон по x (мир). */
-  public update(dt: number, camLeft: number, camRight: number): void {
-    this.sprouts.update(dt, camLeft, camRight);
+  /** Анимация декора; camLeft..camRight — видимый диапазон по x (мир), actors — кто задевает лианы. */
+  public update(dt: number, camLeft: number, camRight: number, actors: readonly Actor[]): void {
+    this.webs.update(dt, camLeft, camRight, actors);
   }
 
   public get pixelWidth(): number {
