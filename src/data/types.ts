@@ -46,6 +46,7 @@ export interface EnemySpawnDef {
   y: number;
   surface?: 'floor' | 'ceiling' | 'wall_left' | 'wall_right';
   length?: number; // длина червя в сегментах (по умолчанию случайная в пределах рига)
+  anchor_y?: number; // для висящих на нитке: ряд тайлов, где закреплён верх нитки (по умолчанию -2)
 }
 
 export interface LevelDef {
@@ -125,7 +126,14 @@ export interface WobblerLimbDef {
   bones?: number; // число костей (по умолчанию 6)
 }
 
+export interface ThreadDef {
+  sprite_id: string;
+  attach: { x: number; y: number }; // точка холста, к которой привязана нитка
+  width_center?: number;
+}
+
 export interface WobblerDef {
+  thread?: ThreadDef;
   sprite_id: string; // полный рисунок существа — текстура общей сетки
   mouth: { x: number; y: number };
   limbs: WobblerLimbDef[];

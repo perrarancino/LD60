@@ -4,6 +4,7 @@ import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './da
 import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { SpiderMother } from './entities/SpiderMother.ts';
+import { Particles } from './effects/Particles.ts';
 import { Worm } from './entities/Worm.ts';
 import { Player } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
@@ -55,6 +56,7 @@ class GameApp {
   private spiders: Spider[] = [];
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
+  private fx = new Particles(); // частицы: брызги, пыль, след
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -265,7 +267,8 @@ class GameApp {
         // Паучиха-матка: сидит на фоне (под тайлами), шатает лапками и выплёвывает паучков
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy));
+        const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
+          (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
         this.mothers.push(mother);
         this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
         continue;
@@ -287,6 +290,7 @@ class GameApp {
     this.player = new Player(playerData.sprite_id, rigDef, this.sprites);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
+    this.worldLayer.addChild(this.fx.container); // частицы поверх всего
     this.updateCamera();
   }
 
@@ -337,10 +341,9 @@ class GameApp {
     const rig = babyDef?.rig_id ? RIGS.find((r) => r.id === babyDef.rig_id) : undefined;
     if (!cfg || !babyDef || !rig) return null;
     const spawn = { enemy_id: babyDef.id, sprite_id: cfg.sprite_id ?? babyDef.sprite_variants[0], x: 0, y: 0 };
-    const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds });
+    const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds, fx: this.fx });
     baby.launch(x, y, vx, vy);
-    this.spiders.push(baby);
-    this.worldLayer.addChild(baby.container);
+    this.spiders.push(baby); // слой выбирает матка: сначала ниже себя, потом передний
     return baby;
   }
 
@@ -355,7 +358,7 @@ class GameApp {
         ...rig.parts.map((p) => p.sprite_id),
         ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? []),
         ...(rig.segmented ? [rig.segmented.head.sprite_id, rig.segmented.body.sprite_id, rig.segmented.tail.sprite_id] : []),
-        ...(rig.wobbler ? [rig.wobbler.sprite_id, ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
+        ...(rig.wobbler ? [rig.wobbler.sprite_id, ...(rig.wobbler.thread ? [rig.wobbler.thread.sprite_id] : []), ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
       );
     }
     if (def.spawns) ids.push(...this.enemySpriteIds(defs, def.spawns.enemy_id, def.spawns.sprite_id, depth + 1));
@@ -378,6 +381,7 @@ class GameApp {
     for (const spider of this.spiders) spider.update(dt);
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
+    this.fx.update(dt);
     // Выплюнутые паучки живут ограниченное время
     for (let i = this.spiders.length - 1; i >= 0; i--) {
       if (!this.spiders[i].expired) continue;

@@ -88,6 +88,8 @@ for rig in rigs.values():
             if sp:
                 check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                       f"риг {rig['id']}: {what}: слой {sid} другого размера, чем холст")
+        if wob.get("thread"):
+            check(wob["thread"]["sprite_id"] in sprites, f"риг {rig['id']}: нитка: нет спрайта {wob['thread']['sprite_id']}")
     seg = rig.get("segmented")
     if seg:
         for key in ("head", "body", "tail"):

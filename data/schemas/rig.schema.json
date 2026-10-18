@@ -52,6 +52,16 @@
       "required": ["sprite_id", "mouth", "limbs"],
       "properties": {
         "sprite_id": { "type": "string", "description": "Полный рисунок существа (холст целиком) — текстура общей сетки" },
+        "thread": {
+          "type": "object",
+          "required": ["sprite_id", "attach"],
+          "description": "Нитка, на которой существо висит маятником: тайлится по вертикали, верхний конец закреплён на высоте anchor_y из уровня",
+          "properties": {
+            "sprite_id": { "type": "string", "description": "Кусок нитки (тайлится вдоль длины)" },
+            "attach": { "type": "object", "required": ["x", "y"], "description": "Точка холста, к которой привязана нитка (макушка существа)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+            "width_center": { "type": "number", "description": "Центр нитки по x в куске (px), по умолчанию половина ширины" }
+          }
+        },
         "mouth": { "type": "object", "required": ["x", "y"], "description": "Откуда вылетают плевки (px на холсте)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
         "limbs": {
           "type": "array",

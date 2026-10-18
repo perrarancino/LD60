@@ -1,6 +1,7 @@
 import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
+import type { Particles } from '../effects/Particles.ts';
 import type { Level } from '../world/Level.ts';
 import { TwoBoneLeg } from './TwoBoneLeg.ts';
 
@@ -33,6 +34,7 @@ const FADE_TIME = 1.5; // с: плавное исчезновение перед
 export interface SpiderOptions {
   scale?: number; // размер относительно нарисованного (паучки меньше)
   lifetime?: number; // через сколько секунд исчезает (по умолчанию — не исчезает)
+  fx?: Particles; // частицы: след в полёте и пыль при посадке
 }
 
 interface Vec {
@@ -47,6 +49,7 @@ interface Foot {
   phase: number; // сдвиг фазы ноги в цикле (диагональные пары в противофазе)
 }
 
+const easeOutBack = (t: number) => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
 
@@ -95,6 +98,9 @@ export class Spider {
   private pos: Vec = { x: 0, y: 0 };
   private vel: Vec = { x: 0, y: 0 };
   private flightTime = 0;
+  private trailTimer = 0;
+  private squash = 0; // 0..1: сплющивание при посадке (затухает)
+  private readonly fx: Particles | null;
   public expired = false;
 
   constructor(
@@ -103,6 +109,7 @@ export class Spider {
   ) {
     this.scale = options.scale ?? 1;
     this.lifetime = options.lifetime ?? Infinity;
+    this.fx = options.fx ?? null;
     const crawler = rig.crawler;
     if (!crawler) throw new Error(`[Spider] в риге "${rig.id}" нет блока crawler`);
     const raise = crawler.body_raise;
@@ -219,11 +226,26 @@ export class Spider {
   private applyTransform(): void {
     this.container.position.set(this.visPos.x, this.visPos.y);
     this.container.rotation = this.visAngle;
-    const grow = this.flying ? 0.25 + 0.75 * Math.min(1, this.flightTime / FLY_GROW) : 1;
-    this.container.scale.set(this.mirror * this.scale * grow, this.scale * grow);
+    // «вылет из глубины»: быстро вырастает с лёгким перелётом (упругий выход), на посадке — сплющивается и пружинит обратно
+    const grow = this.flying ? 0.2 + 0.8 * easeOutBack(Math.min(1, this.flightTime / FLY_GROW)) : 1;
+    const sq = this.squash * this.squash;
+    this.container.scale.set(this.mirror * this.scale * grow * (1 + 0.3 * sq), this.scale * grow * (1 - 0.4 * sq));
   }
 
   // ---------- Обновление ----------
+
+  /** В полёте ли паучок и где он (мир) — чтобы матка вовремя перекладывала его на передний слой. */
+  public get airborne(): boolean {
+    return this.flying;
+  }
+
+  public get airTime(): number {
+    return this.flightTime;
+  }
+
+  public get airPos(): { x: number; y: number } {
+    return this.pos;
+  }
 
   /** Выплёвывает паучка: он летит из точки (x, y) со скоростью (vx, vy) и садится на первую же поверхность. */
   public launch(x: number, y: number, vx: number, vy: number): void {
@@ -241,6 +263,15 @@ export class Spider {
   /** Полёт по дуге; при касании тайла — посадка на поверхность (нормаль — ось грани, повёрнутая к летящему). */
   private fly(dt: number): void {
     this.flightTime += dt;
+    this.trailTimer -= dt;
+    if (this.fx && this.trailTimer <= 0) {
+      // след из капелек «сока»
+      this.trailTimer = 0.03;
+      this.fx.emit(
+        this.pos.x + (Math.random() - 0.5) * 3, this.pos.y + 4 + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 18, 8 + Math.random() * 14,
+        Math.random() < 0.6 ? 0x56f436 : 0x9667f2, 0.3 + Math.random() * 0.25, 1 + Math.random() * 1.5, { gy: 160, grow: 0.3 }
+      );
+    }
     this.vel.y += GRAVITY * dt;
     const total = Math.hypot(this.vel.x, this.vel.y) * dt;
     const steps = Math.max(1, Math.ceil(total / FLY_STEP));
@@ -286,7 +317,12 @@ export class Spider {
     this.s = { x: hit.x, y: hit.y };
     this.flying = false;
     this.cornerCooldown = 0.12;
+    this.squash = 1;
     this.snapToSurface();
+    this.fx?.burst(hit.x, hit.y, {
+      count: 9, colors: [0xb9ff97, 0x56f436, 0xc095fc], speed: [25, 85], angle: Math.atan2(this.n.y, this.n.x), spread: 1.1,
+      life: [0.2, 0.45], size: [1, 2], gravity: 220, drag: 2
+    });
     this.visPos = { ...this.s };
     this.visAngle = this.targetAngle();
     this.mirror = this.targetMirror();
@@ -307,6 +343,7 @@ export class Spider {
     }
     this.cornerCooldown -= dt;
     this.sprint -= dt;
+    this.squash = Math.max(0, this.squash - dt / 0.35);
 
     // Поведение: бежит рывками, замирает; иногда разворачивается
     this.stateTimer -= dt;

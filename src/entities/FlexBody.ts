@@ -213,6 +213,11 @@ export class FlexBody {
     }
   }
 
+  /** Угол оси лапки (корень -> кончик) в покое, рад, y вниз. */
+  public limbAxis(limb: number): number {
+    return this.limbs[limb].axis;
+  }
+
   /** Поза проще: поворот у корня и суммарный изгиб к кончику (растёт равномерно по длине). */
   public setPose(limb: number, rootAngle: number, bend: number): void {
     const n = this.limbs[limb].bones;

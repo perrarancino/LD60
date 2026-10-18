@@ -714,6 +714,19 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "enemy_spider_thread",
+      "category": "enemies",
+      "image": "enemies/spider_thread.png",
+      "frame_width": 8,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

@@ -34,6 +34,7 @@
           "x": { "type": "integer" },
           "y": { "type": "integer" },
           "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" },
+          "anchor_y": { "type": "integer", "description": "Только для висящих на нитке (паучиха): ряд тайлов, где закреплён верх нитки (может быть отрицательным — за верхом уровня); по умолчанию -2" },
           "length": { "type": "integer", "minimum": 3, "maximum": 5, "description": "Только для червей: длина в сегментах (по умолчанию случайная в пределах рига)" }
         }
       }
