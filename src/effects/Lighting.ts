@@ -32,17 +32,19 @@ void main(void) {
 }
 `;
 
-/** Яркие фиолетовые пиксели -> яркость свечения. */
+/** Пиксели заданных цветов (EMISSIVE_COLORS) -> яркость свечения: светятся только они, а не все яркие места. */
 const EXTRACT_FRAGMENT = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture;
+uniform vec3 uE0;
+uniform vec3 uE1;
+uniform vec3 uE2;
 void main(void) {
   vec4 c = texture(uTexture, vTextureCoord);
   vec3 rgb = c.a > 0.0 ? c.rgb / c.a : vec3(0.0);
-  float purple = step(rgb.g + 0.10, rgb.r) * step(rgb.g + 0.30, rgb.b); // фиолетовый: синий >> зелёный, красный > зелёного
-  float bright = smoothstep(0.70, 0.84, rgb.b);                          // светят только яркие детали, тёмный фиолетовый — нет
-  float e = purple * bright * c.a;
+  float m = 1.0 - step(0.04, min(distance(rgb, uE0), min(distance(rgb, uE1), distance(rgb, uE2))));
+  float e = m * c.a;
   finalColor = vec4(e, e, e, e);
 }
 `;
@@ -83,17 +85,25 @@ uniform float uRim;
 uniform float uAmbient;
 uniform float uLevels;
 uniform vec3 uEmit;         // добавка яркости светящимся деталям
+uniform vec3 uE0;
+uniform vec3 uE1;
+uniform vec3 uE2;
+uniform sampler2D uGround;  // только тайлы
 bool onCaster = false; // этот пиксель принадлежит существу/транзистору
 // Твёрдый ли сосед. Для пикселей поверхностей (тайлы) существа и транзисторы соседями не считаются: пол под ногами остаётся краем и освещён
 // так же, как вокруг, а не тёмной дырой в кромке (тень на нём ляжет отдельно)
+bool onTile = false; // этот пиксель — поверхность уровня (тайл)
 float solidAt(vec2 o) {
   vec2 uv = vTextureCoord + o * uScale * uInputSize.zw;
   float w = texture(uTexture, uv).a;
-  return onCaster ? w : w * (1.0 - step(0.5, texture(uCaster, uv).a));
+  // тайл — по геометрии самих тайлов (существа не в счёт: пол под ногами остаётся краем, стена за героем краем не становится);
+  // существо и прочие предметы (куллер, RAM) — по картинке мира целиком: рядом с другим предметом контровой подсветки нет
+  return (!onCaster && onTile) ? texture(uGround, uv).a : w;
 }
 void main(void) {
   float a = texture(uTexture, vTextureCoord).a;
   onCaster = texture(uCaster, vTextureCoord).a > 0.5;
+  onTile = texture(uGround, vTextureCoord).a > 0.5;
   vec2 frag = vTextureCoord * uInputSize.xy;
   vec3 glow = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb;
   if (a < 0.5) {
@@ -113,9 +123,9 @@ void main(void) {
   float edge = edge1 > 0.5 ? 1.0 : (edge2 > 0.5 ? 0.5 : 0.0); // 1-й пиксель от края — полностью, 2-й — вполсилы, глубже — ничего
   // Сами светящиеся детали (яркие фиолетовые пиксели): светятся ярче и сочнее, а вокруг них внутри спрайта лежит блум
   vec3 own = texture(uTexture, vTextureCoord).rgb / max(a, 0.001);
-  float emissive = step(own.g + 0.10, own.r) * step(own.g + 0.30, own.b) * smoothstep(0.70, 0.84, own.b);
+  float emissive = 1.0 - step(0.04, min(distance(own, uE0), min(distance(own, uE1), distance(own, uE2)))); // только пиксели заданных цветов
   float gl = max(glow.r, max(glow.g, glow.b));
-  float bloom = 0.3 * smoothstep(0.18, 0.5, gl);                // блум ложится на пиксели рядом с яркими деталями (вполсилы), а не на всё тело
+  float bloom = 0.2 * smoothstep(0.12, 0.5, gl);                // мягкий блум на пиксели рядом со светящимися деталями, а не на всё тело
   float lit = max(edge, bloom);
   if (lit == 0.0 && emissive == 0.0) { finalColor = vec4(0.0); return; }
   if (gl > 0.0) glow *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение — чёткими ступенями
@@ -213,6 +223,10 @@ const SMALL_MARK = 0.55; // прозрачность мелких предмет
 const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
 const SHADOW_COLOR = [0.0, 0.01, 0.04];
 
+// Светятся только пиксели этих цветов (RGB 0..255): самые светлые фиолетовые — глаза и яркие метки мобов (паук, паучиха). До трёх цветов.
+const EMISSIVE_COLORS: number[][] = [[0xc0, 0x95, 0xfc]];
+const emissiveUniform = (i: number) => new Float32Array((EMISSIVE_COLORS[i] ?? [-255, -255, -255]).map((v) => v / 255));
+
 const PURPLE_CORE = [0.85, 0.55, 1.0];
 const GREEN = [0.2, 1.0, 0.55];
 
@@ -279,11 +293,15 @@ export class Lighting {
     this.compSprite.blendMode = 'add';
 
     // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
-    const layers = [{ blur: 5, color: PURPLE_CORE, gain: 14 }];
+    const layers = [{ blur: 7, color: PURPLE_CORE, gain: 5 }];
     for (const l of layers) {
       const sprite = new Sprite();
       sprite.filters = [
-        makeFilter(EXTRACT_FRAGMENT, 'glow-extract', { uUnused: { value: 0, type: 'f32' } }),
+        makeFilter(EXTRACT_FRAGMENT, 'glow-extract', {
+          uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
+          uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
+          uE2: { value: emissiveUniform(2), type: 'vec3<f32>' }
+        }),
         new BlurFilter({ strength: l.blur, quality: 3 }),
         makeFilter(GLOW_FRAGMENT, 'glow-final', {
           uColor: { value: new Float32Array(l.color), type: 'vec3<f32>' },
@@ -330,11 +348,14 @@ export class Lighting {
       uScale: { value: scale, type: 'f32' },
       uOrigin: { value: new Float32Array(2), type: 'vec2<f32>' },
       uColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' },
-      uRim: { value: 0.7, type: 'f32' },
+      uRim: { value: 0.5, type: 'f32' },
       uAmbient: { value: 0.09, type: 'f32' },
       uLevels: { value: 5, type: 'f32' },
-      uEmit: { value: new Float32Array([0.14, 0.05, 0.24]), type: 'vec3<f32>' }
-    }, { uGlow: this.glowRT.source, uCaster: this.casterRT.source });
+      uEmit: { value: new Float32Array([0.1, 0.04, 0.18]), type: 'vec3<f32>' },
+      uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
+      uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
+      uE2: { value: emissiveUniform(2), type: 'vec3<f32>' }
+    }, { uGlow: this.glowRT.source, uCaster: this.casterRT.source, uGround: this.groundRT.source });
     this.compSprite.filters = [this.comp];
     this.shadowSprite.texture = this.groundRT;
     this.shadowSprite.scale.set(1 / scale);
