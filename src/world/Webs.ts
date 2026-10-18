@@ -20,6 +20,7 @@ const VINE_SUBSTEPS = 2;
 const ACTOR_PAD = 2; // px: герой задевает лиану чуть раньше края хитбокса
 const VIEW_MARGIN = 40; // px: за краем обзора декор не обновляется
 const VINE_TINTS = [0xffffff, 0xe3f1ff, 0xcfe6ff];
+const SKY_CLEARANCE = 8; // px: нитка с неба обрывается чуть выше первой платформы под ней, а не проходит сквозь неё
 
 // Длинные нитки с неба — как у паучихи: ThreadRope (упругая струна), верх закреплён над уровнем, низ свободно покачивается
 const SKY_ANCHOR_ROW = -2; // ряд тайлов, где закреплён верх (как у паучихи по умолчанию)
@@ -94,9 +95,20 @@ class Vine {
   private readonly py: Float32Array;
   private readonly pieces: Piece[] = [];
   private readonly bead: Sprite | null;
+  /** Есть ли рядом твёрдые клетки, в которые лиана может упереться: только такие лианы проверяют тайлы (остальные висят в пустоте). */
+  private readonly collide: boolean;
+  private readonly isSolid: (cx: number, cy: number) => boolean;
+  private readonly ts: number;
+  private readonly ceilY: number; // нижняя грань тайла, из которого растёт лиана: выше неё узлам делать нечего
 
   /** pieceCount звеньев; корень (rx, ry) закреплён. */
-  constructor(parent: Container, tex: Texture, private readonly rx: number, ry: number, pieceCount: number, tint: number, bead: boolean) {
+  constructor(
+    parent: Container, tex: Texture, private readonly rx: number, ry: number, pieceCount: number, tint: number, bead: boolean,
+    isSolid: (cx: number, cy: number) => boolean, ts: number
+  ) {
+    this.isSolid = isSolid;
+    this.ts = ts;
+    this.ceilY = ry + 2.5;
     this.n = pieceCount * 2;
     const size = this.n + 1;
     this.x = new Float32Array(size);
@@ -112,7 +124,36 @@ class Vine {
     const reach = this.n * VINE_NODE;
     this.minX = rx - reach;
     this.maxX = rx + reach;
+    // область, куда лиана может дотянуться (отклонение ограничено): есть ли в ней твёрдые клетки (кроме клетки, из которой она растёт)
+    const swing = reach * VINE_MAX_SWING + 2;
+    let near = false;
+    for (let cy = Math.floor((ry + VINE_NODE) / ts); cy <= Math.floor((ry + reach + 2) / ts) && !near; cy++) { // узлы начинаются ниже грани тайла
+      for (let cx = Math.floor((rx - swing) / ts); cx <= Math.floor((rx + swing) / ts); cx++) {
+        if (isSolid(cx, cy)) { near = true; break; }
+      }
+    }
+    this.collide = near;
     this.render();
+  }
+
+  /** Узел внутри твёрдой клетки: выталкиваем на ближайшую свободную сторону клетки и гасим скорость по этой оси. */
+  private pushOutOfTiles(i: number): void {
+    const ts = this.ts;
+    const x = this.x[i];
+    const y = this.y[i];
+    const cx = Math.floor(x / ts);
+    const cy = Math.floor(y / ts);
+    if (!this.isSolid(cx, cy)) return;
+    const dl = this.isSolid(cx - 1, cy) ? Infinity : x - cx * ts;
+    const dr = this.isSolid(cx + 1, cy) ? Infinity : (cx + 1) * ts - x;
+    const du = this.isSolid(cx, cy - 1) ? Infinity : y - cy * ts;
+    const dd = this.isSolid(cx, cy + 1) ? Infinity : (cy + 1) * ts - y;
+    const m = Math.min(dl, dr, du, dd);
+    if (m === Infinity) return;
+    if (m === dl) { this.x[i] = cx * ts - 0.5; this.px[i] = this.x[i]; }
+    else if (m === dr) { this.x[i] = (cx + 1) * ts + 0.5; this.px[i] = this.x[i]; }
+    else if (m === du) { this.y[i] = cy * ts - 0.5; this.py[i] = this.y[i]; }
+    else { this.y[i] = (cy + 1) * ts + 0.5; this.py[i] = this.y[i]; }
   }
 
   public update(dt: number, t: number, actors: readonly Actor[]): void {
@@ -162,11 +203,14 @@ class Vine {
       }
       // предел отклонения от вертикали: узел не может уйти далеко от корня (скорость при этом гасится)
       for (let i = 1; i <= n; i++) {
+        if (this.y[i] < this.ceilY) { this.y[i] = this.ceilY; this.py[i] = this.ceilY; } // не заходит в тайл, из которого растёт
         const lim = i * VINE_NODE * VINE_MAX_SWING;
         const d = this.x[i] - rx;
         if (d > lim) { this.x[i] = rx + lim; this.px[i] = Math.min(this.px[i], this.x[i]); }
         else if (d < -lim) { this.x[i] = rx - lim; this.px[i] = Math.max(this.px[i], this.x[i]); }
       }
+      // стены и платформы: лиана их не пересекает (проверка — только у лиан рядом с твёрдыми клетками)
+      if (this.collide) for (let i = 1; i <= n; i++) this.pushOutOfTiles(i);
     }
     this.render();
   }
@@ -261,9 +305,17 @@ export class Webs {
       if (rand() >= density * 0.55) continue;
       const x = cx * ts + 4 + rand() * (ts - 8);
       // конец — на случайной высоте в пределах зоны: нитка свисает и обрывается свободно (тайлы перекрывают её, она за ними)
-      const bottomY = (y0 + rand() * (y1 - y0 + 1)) * ts;
-      if (bottomY - topY < 4 * ts) continue;
       const swing = SKY_SWING[0] + rand() * (SKY_SWING[1] - SKY_SWING[0]);
+      let bottomY = (y0 + rand() * (y1 - y0 + 1)) * ts;
+      // нитка обрывается над первой твёрдой клеткой под ней (с учётом размаха качания), а не проходит сквозь платформу
+      const cl = Math.floor((x - swing - 4) / ts);
+      const cr = Math.floor((x + swing + 4) / ts);
+      for (let cy = 0; cy < this.height; cy++) {
+        let hit = false;
+        for (let c = cl; c <= cr; c++) if (this.solid(c, cy)) hit = true;
+        if (hit) { bottomY = Math.min(bottomY, cy * ts - SKY_CLEARANCE); break; }
+      }
+      if (bottomY - topY < 4 * ts) continue;
       const speed = SKY_SPEED[0] + rand() * (SKY_SPEED[1] - SKY_SPEED[0]);
       this.sky.push(new SkyThread(this.back, this.tex, x, topY, bottomY, swing, speed, rand() * Math.PI * 2, rand() < 0.5));
     }
@@ -281,7 +333,7 @@ export class Webs {
       const x = cx * ts + 4 + ((i + 0.3 + rand() * 0.4) * (ts - 8)) / count;
       const pieces = 1 + Math.floor(rand() * maxPieces);
       const tint = VINE_TINTS[Math.floor(rand() * VINE_TINTS.length)];
-      this.vines.push(new Vine(this.back, this.tex, x, (cy + 1) * ts - 2, pieces, tint, rand() < 0.45));
+      this.vines.push(new Vine(this.back, this.tex, x, (cy + 1) * ts - 2, pieces, tint, rand() < 0.45, this.isSolid, ts));
     }
   }
 
