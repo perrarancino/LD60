@@ -7,8 +7,6 @@ import { SpiderMother } from './entities/SpiderMother.ts';
 import { Particles } from './effects/Particles.ts';
 import { ColorGrade } from './effects/ColorGrade.ts';
 import { Lighting } from './effects/Lighting.ts';
-import { Shadows } from './effects/Shadows.ts';
-import type { ShadowSpec } from './effects/Shadows.ts';
 import { PUNCH_FX, SMOKE_FX, SpriteEffects } from './effects/SpriteEffects.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
@@ -70,7 +68,6 @@ class GameApp {
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
   private grade: ColorGrade | null = null; // цветокоррекция уровня
-  private shadows!: Shadows; // тени под героем и врагами
   private lighting: Lighting | null = null; // освещение: свечение фиолетовых деталей мобов и зелёный свет от фона
   private spriteFx!: SpriteEffects; // покадровые эффекты: удар по врагу, дым отскока от стены
   private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
@@ -276,8 +273,6 @@ class GameApp {
     this.worldLayer.addChild(this.level.backLayer); // декор за тайлами (куллер) и отростки паутины
     this.worldLayer.addChild(this.level.container);
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
-    this.shadows = new Shadows(this.level); // тени лежат на поверхностях, над декором и под существами
-    this.worldLayer.addChild(this.shadows.container);
 
     for (const spawn of levelDef.enemies) {
       const def = enemyDefs.get(spawn.enemy_id);
@@ -324,7 +319,10 @@ class GameApp {
     // Отскок от стены: клуб дыма у стены на уровне корпуса
     this.player.onWallKick = (x, y, wallDir) => this.wallKickSmoke(x, y, wallDir);
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
-    this.lighting = new Lighting(this.app.renderer, this.worldLayer);
+    // тени отбрасывают только существа: слои уровня (тайлы, декор) и эффекты в «тела» для теней не входят
+    this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
+      this.level.backLayer, this.level.container, this.level.frontLayer, this.fx.container, this.spriteFx.container
+    ]);
     this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
     this.sceneLayer.addChild(this.lighting.container);
     if (levelDef.grade) {
@@ -464,19 +462,6 @@ class GameApp {
     });
   }
 
-  /** Тени этого кадра: герой, пауки (ползущие и летящие), черви, паучиха. */
-  private updateShadows(): void {
-    const b = this.player.body;
-    const specs: ShadowSpec[] = [{ mode: 'drop', x: b.x, y: b.bottom, w: b.hitWidth * 1.25 }];
-    for (const s of this.spiders) specs.push(s.shadowSpec());
-    for (const w of this.worms) {
-      const spec = w.shadowSpec();
-      if (spec) specs.push(spec);
-    }
-    for (const m of this.mothers) specs.push(m.shadowSpec());
-    this.shadows.update(specs);
-  }
-
   /** Паучок, выплюнутый маткой: летит из точки (x, y), садится на поверхность и дальше ползает как обычный паук. */
   private spawnBaby(defs: Map<string, EnemyDef>, mother: EnemyDef, x: number, y: number, vx: number, vy: number): Spider | null {
     const cfg = mother.spawns;
@@ -540,7 +525,6 @@ class GameApp {
     const camLeft = -this.worldLayer.x;
     const b = this.player.body;
     this.level.update(dt, camLeft, camLeft + this.viewW, [{ left: b.left, right: b.right, top: b.top, bottom: b.bottom, vx: b.vx, vy: b.vy }]);
-    this.updateShadows();
     this.lighting?.update();
     if (this.grade) {
       const span = Math.max(1, this.level.pixelWidth - this.viewW);

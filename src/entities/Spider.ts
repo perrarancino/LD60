@@ -3,7 +3,6 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import type { Level } from '../world/Level.ts';
-import type { ShadowSpec } from '../effects/Shadows.ts';
 import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import { TwoBoneLeg } from './TwoBoneLeg.ts';
@@ -350,13 +349,6 @@ export class Spider implements Hittable {
       { x: c.x + this.t.x * sp, y: c.y + this.t.y * sp, r: HIT_RADIUS * k },
       { x: c.x - this.t.x * sp, y: c.y - this.t.y * sp, r: HIT_RADIUS * k }
     ];
-  }
-
-  /** Тень: ползущий паук — контактная тень на его поверхности (пол, стена, потолок), летящий — падающая. */
-  public shadowSpec(): ShadowSpec {
-    const w = 28 * this.scale;
-    if (this.flying) return { mode: 'drop', x: this.pos.x, y: this.pos.y + 6 * this.scale, w: w * 0.8, strength: 0.8 };
-    return { mode: 'surface', x: this.visPos.x, y: this.visPos.y, w, nx: this.n.x, ny: this.n.y };
   }
 
   /** Удар: белая вспышка и сплющивание (как при посадке). */

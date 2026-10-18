@@ -138,21 +138,6 @@ export class Level {
     return this.heightTiles * this.tileSize;
   }
 
-  /**
-   * Верх первой твёрдой клетки под точкой (x, y) в пределах maxDist вниз (мир, px) — поверхность, на которую ляжет тень; null — нет.
-   * Начало ищется на 2 px выше точки: существо, стоящее на поверхности, не «проваливается» сквозь неё.
-   */
-  public groundBelow(x: number, y: number, maxDist: number): number | null {
-    const ts = this.tileSize;
-    const cx = Math.floor(x / ts);
-    if (cx < 0 || cx >= this.widthTiles) return null;
-    const limit = y + maxDist;
-    for (let cy = Math.max(0, Math.floor((y - 2) / ts)); cy < this.heightTiles && cy * ts <= limit; cy++) {
-      if (this.solid[cy][cx] && cy * ts >= y - 2) return cy * ts;
-    }
-    return null;
-  }
-
   /** Клетка твёрдая? За левой/правой границей и над уровнем — стена, под уровнем — пустота. */
   public isSolid(cx: number, cy: number): boolean {
     if (cx < 0 || cx >= this.widthTiles) return true;

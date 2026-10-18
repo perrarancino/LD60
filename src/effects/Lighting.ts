@@ -113,6 +113,32 @@ void main(void) {
 }
 `;
 
+/**
+ * Тень существ — тот же «свет», только отрицательный: силуэт существа (по его прозрачности) сдвинут по направлению от источника света и
+ * ложится затемнением на всё, что сзади — фон, тайлы, декор, — вместе со светом (кромкой, свечением), который там лежит: в тени света нет.
+ * Затемняется вся площадь силуэта, а не только пиксели рядом с телом. Сам силуэт не затемняется (существо рисуется поверх).
+ * Сдвиг кратен пикселю арта, поэтому тень повторяет пиксели спрайта один в один.
+ */
+const SHADOW_FRAGMENT = `
+in vec2 vTextureCoord;
+out vec4 finalColor;
+uniform sampler2D uTexture; // только существа (физические пиксели)
+uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
+uniform vec2 uOffset;       // смещение тени, физ. px (вправо и вниз)
+uniform vec3 uColor;
+uniform float uStrength;
+void main(void) {
+  float own = texture(uTexture, vTextureCoord).a;
+  float shade = texture(uTexture, vTextureCoord - uOffset * uInputSize.zw).a; // есть ли существо там, откуда падает тень
+  float a = shade * (1.0 - own) * uStrength;
+  finalColor = vec4(uColor * a, a);
+}
+`;
+
+const SHADOW_OFFSET = [5, 3]; // px арта: куда падает тень (свет — сверху-слева)
+const SHADOW_STRENGTH = 0.6; // насколько тень гасит то, что под ней (включая свет)
+const SHADOW_COLOR = [0.01, 0.02, 0.06];
+
 const PURPLE_CORE = [0.8, 0.5, 1.0];
 const GREEN = [0.2, 1.0, 0.55];
 
@@ -155,18 +181,22 @@ export class Lighting {
   public readonly container = new Container();
 
   private worldRT: RenderTexture | null = null;
+  private casterRT: RenderTexture | null = null; // только существа — из них получается тень
   private glowRT: RenderTexture | null = null;
   private readonly glowRoot = new Container(); // источники для рендера свечения в низком разрешении
   private readonly glowSprites: Sprite[] = [];
   private readonly compSprite = new Sprite(); // итоговый свет: фильтр читает мир и свечение
   private comp: Filter | null = null;
+  private readonly shadowSprite = new Sprite();
+  private shadow: Filter | null = null;
   private readonly fog = new Sprite();
   private scale = 1;
   private viewW = 480;
   private viewH = 270;
   private readonly matrix = new Matrix();
 
-  constructor(private readonly renderer: Renderer, private readonly world: Container) {
+  /** noCasters — слои мира, которые не отбрасывают тень (тайлы, декор, эффекты): остаются только существа. */
+  constructor(private readonly renderer: Renderer, private readonly world: Container, private readonly noCasters: Container[] = []) {
     this.compSprite.blendMode = 'add';
 
     // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
@@ -193,7 +223,7 @@ export class Lighting {
     this.fog.blendMode = 'add';
     this.backContainer.addChild(this.fog);
 
-    this.container.addChild(this.compSprite);
+    this.container.addChild(this.compSprite, this.shadowSprite); // тень ложится поверх света
   }
 
   /** physW/physH — размер холста в физических пикселях, scale — физических пикселей на пиксель арта. */
@@ -202,8 +232,10 @@ export class Lighting {
     this.viewW = physW / scale;
     this.viewH = physH / scale;
     this.worldRT?.destroy(true);
+    this.casterRT?.destroy(true);
     this.glowRT?.destroy(true);
     this.worldRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
+    this.casterRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
     // свечение — в разрешении арта (+ запас на сдвиг сетки под дробное положение камеры), на экран растягивается плавно
     const gw = Math.ceil(this.viewW) + 2;
     const gh = Math.ceil(this.viewH) + 2;
@@ -222,6 +254,14 @@ export class Lighting {
       uLevels: { value: 5, type: 'f32' }
     }, { uGlow: this.glowRT.source });
     this.compSprite.filters = [this.comp];
+    this.shadowSprite.texture = this.casterRT;
+    this.shadowSprite.scale.set(1 / scale);
+    this.shadow = makeFilter(SHADOW_FRAGMENT, 'shadow', {
+      uOffset: { value: new Float32Array([SHADOW_OFFSET[0] * scale, SHADOW_OFFSET[1] * scale]), type: 'vec2<f32>' },
+      uColor: { value: new Float32Array(SHADOW_COLOR), type: 'vec3<f32>' },
+      uStrength: { value: SHADOW_STRENGTH, type: 'f32' }
+    });
+    this.shadowSprite.filters = [this.shadow];
     for (const s of this.glowSprites) {
       s.texture = this.worldRT;
       s.scale.set(1 / scale);
@@ -232,7 +272,7 @@ export class Lighting {
 
   /** Раз в кадр после обновления камеры (до отрисовки сцены). */
   public update(): void {
-    if (!this.worldRT || !this.glowRT) return;
+    if (!this.worldRT || !this.glowRT || !this.casterRT) return;
     const s = this.scale;
     const wx = this.world.x;
     const wy = this.world.y;
@@ -242,6 +282,14 @@ export class Lighting {
     this.renderer.render({
       container: this.world, target: this.worldRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
     });
+
+    // 1б. только существа -> текстура (скрываем всё, что тени не отбрасывает)
+    const hidden = this.noCasters.filter((c) => c.visible);
+    for (const c of hidden) c.visible = false;
+    this.renderer.render({
+      container: this.world, target: this.casterRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
+    });
+    for (const c of hidden) c.visible = true;
 
     // 2. свечение: сетка пикселей свечения совпадает с сеткой арта (дробная часть сдвига камеры)
     const fx = wx - Math.floor(wx);
