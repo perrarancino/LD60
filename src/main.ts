@@ -61,8 +61,6 @@ const BACKGROUNDS = Object.values(
 const FIST_RADIUS = 6; // px: «толщина» кулака при проверке попаданий
 const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
-const HIT_STOP = 0.045; // с: стоп-кадр при попадании (удар «вязнет» во враге)
-const CRIT_HIT_STOP = 0.07;
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
 const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухает
@@ -111,7 +109,6 @@ class GameApp {
   private punchHitId = 0;
   private readonly mobs = new Map<Hittable, Mob>(); // здоровье врагов
   private readonly numbers = new DamageNumbers(); // цифры урона (поверх цветокоррекции, под ним ничего нет)
-  private hitStop = 0; // с: оставшийся стоп-кадр
   private shake = 0; // px арта: текущая сила тряски камеры
   private shakePhase = 0;
   private readonly combat = (playerData as unknown as { combat?: { punch_damage: [number, number]; crit_chance?: number; crit_multiplier?: number } }).combat
@@ -570,7 +567,7 @@ class GameApp {
     });
   }
 
-  /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона, стоп-кадр и тряска; при нуле — смерть. */
+  /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона и тряска; при нуле — смерть. */
   private damage(target: Hittable, x: number, y: number, dirX: number, part?: number, customDmg?: number): void {
     const mob = this.mobs.get(target);
     const byParts = isPartDamageable(target);
@@ -581,7 +578,6 @@ class GameApp {
     let dmg = customDmg !== undefined ? customDmg : lo + Math.floor(Math.random() * (hi - lo + 1));
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
     this.numbers.spawn(x, y - 6, dmg, crit, dirX);
-    this.hitStop = Math.max(this.hitStop, crit ? CRIT_HIT_STOP : HIT_STOP);
     this.shake = Math.max(this.shake, crit ? CRIT_SHAKE : HIT_SHAKE);
     if (isPartDamageable(target)) {
       // существо из частей (червь, босс): урон идёт в ту часть, в которую попали; выбитая часть исчезает, гибель головы — гибель всего
@@ -778,15 +774,6 @@ class GameApp {
    */
   private update(dt: number): void {
     dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
-
-    // Стоп-кадр при попадании: мир замирает на мгновение, камера трясётся, цифры живут
-    if (this.hitStop > 0) {
-      this.hitStop -= dt;
-      this.numbers.update(dt);
-      this.updateCamera(dt);
-      this.lighting?.update();
-      return;
-    }
 
     // 1. Обновление таймера старения
     this.aging.update(dt);
