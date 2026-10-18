@@ -84,6 +84,24 @@
       "x": 15.5,
       "y": 15,
       "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 5,
+      "y": 12,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 11.5,
+      "y": 15,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 19,
+      "y": 15,
+      "layer": "back"
     }
   ],
   "zones": [

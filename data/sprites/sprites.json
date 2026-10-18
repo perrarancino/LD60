@@ -567,6 +567,19 @@
       "animations": {}
     },
     {
+      "id": "deco_ram",
+      "category": "decor",
+      "image": "decor/ram.png",
+      "frame_width": 64,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
       "id": "enemy_swire",
       "category": "enemies",
       "image": "enemies/swire.png",
