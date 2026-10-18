@@ -1,7 +1,10 @@
 """
-Генератор арта второй локации: тайлы (tilemap_loc2.png, 10 кадров 32x32: 0-4 — заливка, 5-9 — верхний край) и фон (bg_loc2.png + 8 слоёв
-по 512x128 для параллакса). Стиль: общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (рампа electric): бирюзовые дорожки платы
-в синем корпусе, бирюзовая «кромка» поверхностей, бирюзовое свечение у горизонта. Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
+Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2.png, 10 кадров 32x32: 0-4 — заливка, 5-9 — верхний
+край) и параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (рампа electric).
+Плотность пикселя — как у арта первой локации: кадр тайла 32x32 и слой фона 512x128, без шума и дизеринга, детали от 2 пикселей.
+Тайлы — клёпаные металлические панели корпуса: вентрешётка, перфорация, наклейка с предупреждением, разъём с проводами, вентилятор, радиатор;
+фон — вентиляционная стена, огромные вентиляторы, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы, пучки проводов.
+Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
 
 Запуск из корня проекта:  python tools/gen_loc2_art.py
 Результат: assets/sprites/tiles/tilemap_loc2.png, assets/sprites/backgrounds/bg_loc2.png и bg_loc2_layers/Layer_1..8.png.
@@ -9,6 +12,7 @@
 """
 import math
 import os
+import random
 import re
 import sys
 
@@ -43,8 +47,8 @@ class Canvas:
         self.a = np.zeros((h, w, 4), dtype=np.uint8)
 
     def put(self, x, y, c, alpha=255):
-        x = int(x)
-        y = int(y)
+        x = int(round(x))
+        y = int(round(y))
         if self.wrap:
             x %= self.w
         elif not 0 <= x < self.w:
@@ -52,21 +56,13 @@ class Canvas:
         if 0 <= y < self.h:
             self.a[y, x] = (c[0], c[1], c[2], alpha)
 
-    def get(self, x, y):
-        x = int(x)
-        if self.wrap:
-            x %= self.w
-        if 0 <= x < self.w and 0 <= y < self.h:
-            return tuple(int(v) for v in self.a[y, x])
-        return (0, 0, 0, 0)
-
     def rect(self, x, y, w, h, c, alpha=255):
         for yy in range(int(y), int(y + h)):
             for xx in range(int(x), int(x + w)):
                 self.put(xx, yy, c, alpha)
 
     def line(self, x0, y0, x1, y1, c, alpha=255):
-        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+        x0, y0, x1, y1 = int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1))
         dx, dy = abs(x1 - x0), -abs(y1 - y0)
         sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
         err = dx + dy
@@ -82,149 +78,162 @@ class Canvas:
                 err += dx
                 y0 += sy
 
+    def disc(self, cx, cy, r, c, alpha=255):
+        for yy in range(int(cy - r - 1), int(cy + r + 2)):
+            for xx in range(int(cx - r - 1), int(cx + r + 2)):
+                if (xx - cx) ** 2 + (yy - cy) ** 2 <= r * r:
+                    self.put(xx, yy, c, alpha)
+
+    def ring(self, cx, cy, r0, r1, c, alpha=255):
+        for yy in range(int(cy - r1 - 1), int(cy + r1 + 2)):
+            for xx in range(int(cx - r1 - 1), int(cx + r1 + 2)):
+                d = (xx - cx) ** 2 + (yy - cy) ** 2
+                if r0 * r0 <= d <= r1 * r1:
+                    self.put(xx, yy, c, alpha)
+
     def image(self):
         return Image.fromarray(self.a, 'RGBA')
-
-
-BAYER = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]) / 16.0
 
 
 # ----------------------------------------------------------------------------------------------------------------------------- Тайлы
 
 TS = 32
-TRACE_ROWS = (8, 21)  # горизонтальные дорожки, проходящие через стыки тайлов
-TRACE_COLS = (9, 23)  # вертикальные
 
 
-def route(cv, p0, p1, horizontal, rng, c_dim, c_hot):
-    """Дорожка от края до края: идёт по своей линии, на середине делает «ступеньку» по 45° в сторону и возвращается на линию (стыки тайлов совпадают)."""
-    n = TS
-    mid = rng.randint(2, 4)
-    a = rng.randint(4, 10)
-    b = a + mid + rng.randint(4, 9)
-    sign = rng.choice((-1, 1))
-    pts = []
-    for t in range(n):
-        if t < a:
-            off = 0
-        elif t < a + mid:
-            off = sign * (t - a + 1)
-        elif t < b:
-            off = sign * mid
-        elif t < b + mid:
-            off = sign * (mid - (t - b + 1))
-        else:
-            off = 0
-        pts.append((t, p0 + off) if horizontal else (p0 + off, t))
-    for i, (x, y) in enumerate(pts):
-        cv.put(x, y, c_dim)
-        if i:
-            cv.line(pts[i - 1][0], pts[i - 1][1], x, y, c_dim)
-    for _ in range(rng.randint(1, 2)):  # импульсы: короткие яркие участки на дорожке
-        i = rng.randint(2, n - 8)
-        for k in range(rng.randint(3, 6)):
-            cv.put(pts[i + k][0], pts[i + k][1], c_hot)
-    return pts
+def plate(cv):
+    """Клёпаная панель корпуса: грань cobalt-1, фаска (светлая сверху-слева, тёмная снизу-справа)."""
+    cv.rect(0, 0, TS, TS, C('cobalt', 1))
+    for i in range(TS):
+        cv.put(i, 0, C('cobalt', 3))
+        cv.put(0, i, C('cobalt', 3))
+        cv.put(i, TS - 1, C('cobalt', 0))
+        cv.put(TS - 1, i, C('cobalt', 0))
+    for i in range(1, TS - 1):
+        cv.put(i, 1, C('cobalt', 2))
+        cv.put(1, i, C('cobalt', 2))
+        cv.put(i, TS - 2, C('cobalt', 0))
+        cv.put(TS - 2, i, C('cobalt', 0))
 
 
-def chip(cv, x, y, w, h, rng):
-    cv.rect(x, y, w, h, C('cobalt', 0))
-    for xx in range(x, x + w):  # контур: верх и лево светлее
-        cv.put(xx, y, C('cobalt', 3))
-    for yy in range(y, y + h):
-        cv.put(x, yy, C('cobalt', 3))
-    for xx in range(x + 1, x + w):
-        cv.put(xx, y + h - 1, C('cobalt', 2))
-    for yy in range(y + 1, y + h):
-        cv.put(x + w - 1, yy, C('cobalt', 2))
-    for xx in range(x + 1, x + w - 1, 2):  # выводы
-        cv.put(xx, y - 1, C('electric', 4))
-        cv.put(xx, y + h, C('electric', 4))
-    for yy in range(y + 2, y + h - 2, 2):  # прорези корпуса
-        for xx in range(x + 3, x + w - 2):
-            cv.put(xx, yy, C('cobalt', 1) if (xx + yy) % 5 else C('cobalt', 2))  # прорези корпуса
-    cv.put(x + 1, y + 1, C('electric', 6))  # ключ-светодиод в углу
+def screw(cv, x, y):
+    cv.rect(x - 1, y - 1, 3, 3, C('cobalt', 3))
+    cv.put(x, y, C('cobalt', 0))
+    cv.put(x - 1, y - 1, C('cobalt', 5))
 
 
-def fill_frame(seed):
-    import random
+def slot(cv, x, y, w):
+    cv.rect(x, y, w, 2, C('cobalt', 0))
+    cv.rect(x + 1, y + 2, w - 1, 1, C('cobalt', 3))
+
+
+def v_vent(cv, rng, ox, oy):
+    for k in range(4):
+        slot(cv, 9 + ox, 9 + oy + k * 4, 14)
+
+
+def v_perf(cv, rng, ox, oy):
+    for gy in range(3):
+        for gx in range(4):
+            x, y = 8 + ox + gx * 5, 9 + oy + gy * 5
+            cv.rect(x, y, 3, 3, C('cobalt', 0))
+            cv.put(x + 2, y + 2, C('cobalt', 1))
+            cv.rect(x + 1, y + 3, 3, 1, C('cobalt', 2))
+
+
+def v_label(cv, rng, ox, oy):
+    x, y = 7 + ox, 9 + oy
+    cv.rect(x, y, 18, 13, C('cobalt', 6))
+    cv.rect(x + 1, y + 1, 16, 2, C('cobalt', 0))  # полоса предупреждения
+    for k in range(0, 16, 4):
+        cv.rect(x + 1 + k, y + 1, 2, 2, C('electric', 5))
+    for k in range(3):  # строки текста
+        cv.rect(x + 2, y + 5 + k * 3, 14 - (k == 2) * 5, 1, C('cobalt', 3))
+    cv.rect(x + 12, y + 10, 4, 2, C('electric', 4))
+    cv.rect(x, y + 13, 18, 1, C('cobalt', 0))
+
+
+def v_connector(cv, rng, ox, oy):
+    x, y = 6 + ox, 10 + oy
+    cv.rect(x, y, 10, 10, C('cobalt', 0))  # разъём
+    cv.rect(x + 1, y + 1, 8, 1, C('cobalt', 3))
+    for r in range(2):
+        for c in range(2):
+            cv.rect(x + 2 + c * 4, y + 3 + r * 4, 2, 2, C('electric', 4))
+    cols = ((C('electric', 5), C('electric', 7)), (C('cobalt', 5), C('cobalt', 7)), (C('electric', 3), C('electric', 5)))  # три провода: тело и блик
+    for k, (col, hi) in enumerate(cols):
+        wy = y + 1 + k * 3
+        cv.rect(x + 10, wy, 12, 2, col)
+        cv.rect(x + 10, wy, 12, 1, hi)
+    cv.rect(x + 20, y, 2, 10, C('cobalt', 0))  # хомут
+
+
+def v_fan(cv, rng, ox, oy):
+    cx, cy = 16 + ox, 16 + oy
+    cv.disc(cx, cy, 9, C('cobalt', 3))
+    cv.disc(cx, cy, 7, C('cobalt', 0))
+    for b in range(5):  # лопасти, загнутые по ходу
+        a0 = b * 2 * math.pi / 5
+        for r in range(2, 7):
+            for da in (0.0, 0.18, 0.36, 0.54):
+                a = a0 + da + r * 0.16
+                cv.put(cx + math.cos(a) * r, cy + math.sin(a) * r, C('cobalt', 2) if da < 0.5 else C('cobalt', 4))
+    cv.disc(cx, cy, 2, C('cobalt', 4))
+    cv.put(cx, cy, C('electric', 6))
+
+
+def v_heatsink(cv, rng, ox, oy):
+    for k in range(6):
+        x = 8 + ox + k * 3
+        cv.rect(x, 9 + oy, 2, 14, C('cobalt', 3))
+        cv.rect(x, 9 + oy, 1, 14, C('cobalt', 5))
+        cv.rect(x + 2, 9 + oy, 1, 14, C('cobalt', 0))
+    cv.rect(7 + ox, 22 + oy, 18, 2, C('electric', 3))  # бирюзовое свечение у основания рёбер
+
+
+VARIANTS = [v_vent, v_perf, v_label, v_connector, v_fan, v_heatsink]
+
+
+def fill_frame(variant, seed):
     rng = random.Random(seed)
     cv = Canvas(TS, TS)
-    cv.rect(0, 0, TS, TS, C('cobalt', 1))
-    # крупные тёмные панели (швы платы)
-    for _ in range(rng.randint(2, 3)):
-        w, h = rng.randint(7, 12), rng.randint(5, 9)
-        x, y = rng.randint(2, TS - w - 2), rng.randint(2, TS - h - 2)
-        cv.rect(x, y, w, h, C('cobalt', 0))
-        for xx in range(x, x + w):
-            cv.put(xx, y, C('cobalt', 2))
-    # зерно
-    for yy in range(TS):
-        for xx in range(TS):
-            r = rng.random()
-            if r < 0.04:
-                cv.put(xx, yy, C('cobalt', 2))
-            elif r < 0.07:
-                cv.put(xx, yy, C('cobalt', 0))
-    # дорожки: через стыки тайлов (горизонтальные и вертикальные)
-    for y0 in TRACE_ROWS:
-        route(cv, y0, y0, True, rng, C('electric', 3), C('electric', 5))
-    for x0 in TRACE_COLS:
-        route(cv, x0, x0, False, rng, C('electric', 3), C('electric', 5))
-    # микросхемы и переходные отверстия
-    for _ in range(rng.randint(1, 2)):
-        w, h = rng.randint(6, 10), rng.randint(4, 7)
-        chip(cv, rng.randint(3, TS - w - 3), rng.randint(3, TS - h - 4), w, h, rng)
-    for _ in range(rng.randint(2, 3)):
-        x, y = rng.randint(3, TS - 4), rng.randint(3, TS - 4)
-        cv.put(x, y, C('electric', 6))
-        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            cv.put(x + dx, y + dy, C('electric', 3))
+    plate(cv)
+    VARIANTS[variant](cv, rng, rng.randint(-1, 1), rng.randint(-1, 1))
+    for x, y in ((4, 4), (27, 4), (4, 27), (27, 27)):
+        screw(cv, x, y)
     return cv
 
 
-def top_frame(seed):
-    import random
-    rng = random.Random(seed * 7919 + 1)
-    cv = fill_frame(seed + 100)
-    # нижняя кромка «шапки» зубцами: плавный случайный ход длины 4..10 пикселей
-    length = rng.randint(5, 8)
-    lens = []
-    for x in range(TS):
-        length = max(4, min(10, length + rng.choice((-1, -1, 0, 1, 1))))
-        lens.append(length)
-    for x in range(TS):  # тёмная подводка под зубцами — шапка читается на заливке
-        cv.put(x, lens[x], C('cobalt', 0))
-        if x and lens[x - 1] > lens[x]:
-            for y in range(lens[x], lens[x - 1]):
-                cv.put(x, y, C('cobalt', 0))
-    for x in range(TS):
-        n = lens[x]
-        for y in range(n):
-            col = C('cobalt', 6) if y == 0 else C('cobalt', 5) if y == 1 else C('cobalt', 4) if y < 4 else C('cobalt', 3)
-            cv.put(x, y, col)
-        if x and lens[x - 1] < n:  # светлый левый край зубца — бирюзовый акцент
-            for y in range(lens[x - 1], n):
-                cv.put(x, y, C('electric', 5))
-    for x in range(TS):  # верхняя бирюзовая линия света (с редкими разрывами)
-        if rng.random() > 0.1:
-            cv.put(x, 0, C('electric', 7) if rng.random() < 0.3 else C('electric', 6))
-        cv.put(x, 1, C('electric', 5) if rng.random() < 0.65 else C('cobalt', 6))
-    # прожилки бирюзового света, уходящие вглубь из шапки
-    for _ in range(rng.randint(2, 3)):
-        x = rng.randint(1, TS - 2)
-        end = lens[x] + rng.randint(3, 8)
-        for y in range(lens[x], end):
-            cv.put(x, y, C('electric', 4))
-        cv.put(x, end - 1, C('electric', 7))
+def top_frame(variant, seed):
+    """Верхний край: фланец корпуса — светлая бирюзовая кромка, фаска, индикаторы и прорези; ниже панель с рисунком."""
+    rng = random.Random(seed)
+    cv = Canvas(TS, TS)
+    plate(cv)
+    VARIANTS[variant](cv, rng, rng.randint(-1, 1), 2 + rng.randint(0, 1))
+    for x, y in ((4, 28), (27, 28)):
+        screw(cv, x, y)
+    cv.rect(0, 0, TS, 6, C('cobalt', 4))
+    cv.rect(0, 0, TS, 1, C('electric', 6))
+    cv.rect(0, 1, TS, 1, C('cobalt', 6))
+    cv.rect(0, 2, TS, 1, C('cobalt', 5))
+    cv.rect(0, 5, TS, 1, C('cobalt', 0))
+    for _ in range(rng.randint(2, 3)):  # прорези фланца
+        cv.rect(rng.randint(2, 26), 3, 3, 2, C('cobalt', 0))
+    for _ in range(rng.randint(1, 2)):  # индикаторы
+        x = rng.randint(2, 28)
+        cv.rect(x, 3, 2, 2, C('electric', 5))
+        cv.put(x, 3, C('electric', 7))
+    cv.rect(0, 6, TS, 1, C('cobalt', 0))  # тень под фланцем
     return cv
 
 
 def make_tiles():
     sheet = Image.new('RGBA', (TS * 10, TS), (0, 0, 0, 0))
-    for i in range(5):
-        sheet.paste(fill_frame(i * 31 + 5).image(), (i * TS, 0))
-        sheet.paste(top_frame(i * 17 + 3).image(), ((5 + i) * TS, 0))
+    fill_order = [0, 1, 2, 3, 4]
+    top_order = [5, 0, 4, 3, 1]
+    for i, v in enumerate(fill_order):
+        sheet.paste(fill_frame(v, 100 + i).image(), (i * TS, 0))
+    for i, v in enumerate(top_order):
+        sheet.paste(top_frame(v, 200 + i).image(), ((5 + i) * TS, 0))
     return sheet
 
 
@@ -238,86 +247,63 @@ def lerp_color(a, b, t):
 
 
 def make_sky():
-    import random
-    rng = random.Random(11)
+    """Небо: ступенчатый градиент без дизеринга (полосы по 8 строк): тёмно-синий сверху -> синий -> бирюзовый у горизонта."""
     cv = Canvas(BW, BH)
-    stops = [(0.0, C('cobalt', 0)), (0.45, C('cobalt', 1)), (0.78, C('cobalt', 2)), (1.0, C('electric', 2))]
-    # палитровый градиент с упорядоченным дизерингом между ближайшими цветами рампы стопов
+    stops = [(0.0, C('cobalt', 0)), (0.5, C('cobalt', 1)), (0.8, C('cobalt', 2)), (1.0, C('electric', 2))]
     for y in range(BH):
-        t = y / (BH - 1)
+        t = min(1.0, (y // 8 * 8 + 4) / (BH - 1))
         for i in range(len(stops) - 1):
             if stops[i][0] <= t <= stops[i + 1][0]:
                 k = (t - stops[i][0]) / (stops[i + 1][0] - stops[i][0])
-                for x in range(BW):
-                    cv.put(x, y, stops[i + 1][1] if k > BAYER[y % 4, x % 4] else stops[i][1])
+                cv.rect(0, y, BW, 1, lerp_color(stops[i][1], stops[i + 1][1], k))
                 break
-    for _ in range(46):  # редкие «искры данных» вверху
-        x, y = rng.randrange(BW), rng.randrange(0, 60)
-        cv.put(x, y, C('electric', 4) if rng.random() < 0.7 else C('electric', 6))
     return cv
 
 
-def trace_walk(cv, rng, color, node_color, n_traces, length_range):
-    for _ in range(n_traces):
-        x, y = rng.randrange(BW), rng.randrange(8, BH - 8)
-        dx = rng.choice((-1, 1))
-        for _ in range(rng.randint(*length_range)):
-            run = rng.randint(6, 24)
-            for _ in range(run):
-                cv.put(x, y, color)
-                x += dx
-            turn = rng.choice((-1, 1))
-            for _ in range(rng.randint(3, 9)):  # 45°
-                cv.put(x, y, color)
-                x += dx
-                y += turn
-                if not 3 < y < BH - 3:
-                    turn = -turn
-        for ox in (-1, 0, 1):  # площадка на конце
-            for oy in (-1, 0, 1):
-                if (ox or oy) and abs(ox) + abs(oy) < 3:
-                    cv.put(x + ox, y + oy, node_color)
-
-
-def make_circuits():
-    import random
-    rng = random.Random(23)
+def make_vent_wall():
+    """Далёкая вентиляционная стена: перфорация квадратными отверстиями (сверху тёмные, ниже — подсвечены бирюзой изнутри); шаг делит 512."""
     cv = Canvas(BW, BH, wrap=True)
-    trace_walk(cv, rng, C('cobalt', 2), C('electric', 3), 16, (2, 4))
-    trace_walk(cv, rng, C('electric', 2), C('electric', 4), 5, (2, 3))
+    pitch = 8
+    for row, y in enumerate(range(6, 92, pitch)):
+        t = (y - 6) / 86
+        col = lerp_color(C('cobalt', 1), C('electric', 2), t * t)
+        edge = lerp_color(C('cobalt', 2), C('electric', 3), t * t)
+        for x in range(0, BW, pitch):
+            xx = x + (pitch // 2 if row % 2 else 0)
+            cv.rect(xx, y, 4, 4, col)
+            cv.rect(xx + 1, y + 4, 3, 1, edge)
     return cv
 
 
-def make_blobs():
-    import random
+def fan(cv, cx, cy, r, ring_col, blade_col, hub_col, led_col):
+    """Вентилятор: обод, семь сплошных загнутых лопастей (сектор шириной ~55% шага, закрученный с радиусом), втулка со светодиодом."""
+    cv.ring(cx, cy, r - 2, r, ring_col)
+    step = 2 * math.pi / 7
+    for yy in range(cy - r, cy + r + 1):
+        for xx in range(cx - r, cx + r + 1):
+            d = math.hypot(xx - cx, yy - cy)
+            if 4 <= d < r - 2:
+                th = (math.atan2(yy - cy, xx - cx) - d * 0.045) % step
+                if th < step * 0.55:
+                    cv.put(xx, yy, blade_col)
+    cv.disc(cx, cy, 4, hub_col)
+    cv.rect(cx - 1, cy - 1, 2, 2, led_col)
+
+
+def make_fans():
     rng = random.Random(37)
     cv = Canvas(BW, BH, wrap=True)
-    for _ in range(11):  # далёкие плавающие блоки-«чипы»
-        w, h = rng.randint(22, 62), rng.randint(14, 48)
-        x, y = rng.randrange(BW), rng.randint(14, 74)
-        cv.rect(x, y, w, h, C('cobalt', 1))
-        for xx in range(x, x + w):
-            cv.put(xx, y, C('cobalt', 2))
-        for yy in range(y, y + h):
-            cv.put(x, yy, C('cobalt', 2))
-        for k in range(rng.randint(2, 4)):  # ряды огоньков
-            yy = y + 4 + k * 5
-            if yy < y + h - 2:
-                for xx in range(x + 4, x + w - 4, 3):
-                    if rng.random() < 0.45:
-                        cv.put(xx, yy, C('electric', 3) if rng.random() < 0.8 else C('electric', 5))
+    for cx, r in ((70, 38), (240, 30), (420, 42)):
+        cy = rng.randint(34, 52)
+        fan(cv, cx, cy, r, C('cobalt', 2), C('cobalt', 1), C('cobalt', 2), C('electric', 5))
     return cv
 
 
-def gradient_layer(color, y0, y1, a0, a1, mirror_noise=False, step=1):
+def gradient_layer(color, y0, y1, a0, a1):
     cv = Canvas(BW, BH)
-    for y in range(BH):
-        if y < y0 or y > y1:
-            continue
+    for y in range(y0, y1 + 1):
         t = (y - y0) / max(1, (y1 - y0))
-        alpha = int(round(a0 + (a1 - a0) * t))
-        for x in range(BW):
-            cv.put(x, y, color, alpha)
+        cv.rect(0, y, BW, 1, color, int(round(a0 + (a1 - a0) * t)))
     return cv
 
 
@@ -325,159 +311,141 @@ def glow_layer(color, ymid, spread, peak):
     cv = Canvas(BW, BH)
     for y in range(BH):
         k = math.exp(-((y - ymid) / spread) ** 2)
-        for x in range(BW):
-            cv.put(x, y, color, int(round(peak * k)))
+        cv.rect(0, y, BW, 1, color, int(round(peak * k)))
     return cv
 
 
-# --- силуэты
-def silhouette_colors(dark):
-    return dark, C('cobalt', 1), C('cobalt', 2)
+# --- силуэты предметов блока питания
+def led(cv, x, y, bright=False):
+    cv.rect(x, y, 2, 2, C('electric', 6) if bright else C('electric', 5))
 
 
 def capacitor(cv, x, base, w, h, body, edge, light, rng):
+    """Электролитический конденсатор: цилиндр с выпуклой крышкой, светлой полосой по высоте и обжимными кольцами."""
     top = base - h
-    r = max(2, w // 3)
-    for yy in range(top, base):
-        inset = 0
-        if yy - top < r:
-            inset = r - int(math.sqrt(max(0, r * r - (r - (yy - top)) ** 2)))
-        cv.rect(x + inset, yy, w - inset * 2, 1, body)
-    for xx in range(x + r, x + w - r):
-        cv.put(xx, top, light)
-    for yy in range(top + r, base):
-        cv.put(x, yy, edge)
-    for band in range(top + 6, base - 4, 7):
-        for xx in range(x, x + w):
-            cv.put(xx, band, edge)
-    for _ in range(2):  # огоньки
-        cv.put(x + rng.randint(2, w - 3), top + rng.randint(4, h - 6), C('electric', 5))
-    leg = rng.randint(1, 2)
-    cv.rect(x + 2, base, leg, 1, body)
+    cv.rect(x, top + 3, w, h - 3, body)
+    cv.rect(x + 1, top + 1, w - 2, 2, body)
+    cv.rect(x + 2, top, w - 4, 1, body)
+    cv.rect(x + 2, top + 1, w - 4, 1, light)
+    cv.rect(x + 2, top + 3, 2, h - 6, edge)
+    for yy in (top + 6, base - 7):
+        cv.rect(x, yy, w, 1, edge)
+    cv.rect(x + w - 4, top + 8, 2, 4, C('electric', 4))
+    cv.rect(x - 2, base - 3, w + 4, 3, body)
+    cv.rect(x - 2, base - 3, w + 4, 1, light)
 
 
-def rack(cv, x, base, w, h, body, edge, light, rng):
+def toroid(cv, x, base, r, body, edge, light, rng):
+    """Тороидальная катушка на ножках: толстое кольцо с обмоткой (радиальные полосы по всему кольцу)."""
+    cy = base - r - 6
+    cv.ring(x, cy, r * 0.38, r, body)
+    n = 16
+    for k in range(n):
+        a = k * 2 * math.pi / n
+        for rr in range(int(r * 0.45), int(r * 0.9)):
+            cv.put(x + math.cos(a) * rr, cy + math.sin(a) * rr, edge)
+            cv.put(x + math.cos(a + 0.12) * rr, cy + math.sin(a + 0.12) * rr, edge)
+    cv.ring(x, cy, r - 1.5, r, light)
+    cv.rect(x - r + 2, base - 6, 3, 6, body)
+    cv.rect(x + r - 4, base - 6, 3, 6, body)
+
+
+def transformer(cv, x, base, w, h, body, edge, light, rng):
+    """Трансформатор: сердечник-«кирпич» с обмоткой полосами и бирюзовой щелью."""
     top = base - h
     cv.rect(x, top, w, h, body)
-    for xx in range(x, x + w):
-        cv.put(xx, top, light)
-    for yy in range(top, base):
-        cv.put(x, yy, edge)
-    for yy in range(top + 4, base - 3, 5):  # окна: редкие огоньки
-        for xx in range(x + 3, x + w - 3, 4):
-            if rng.random() < 0.34:
-                col = C('electric', 5) if rng.random() < 0.8 else C('electric', 7)
-                cv.rect(xx, yy, 2, 1, col)
-            elif rng.random() < 0.3:
-                cv.rect(xx, yy, 2, 1, C('cobalt', 1))
-    if rng.random() < 0.7:  # антенна
-        ax = x + rng.randint(2, w - 3)
-        for yy in range(top - rng.randint(6, 16), top):
-            cv.put(ax, yy, body)
-        cv.put(ax, top - 12, C('electric', 6))
+    cv.rect(x, top, w, 2, light)
+    cv.rect(x, top, 2, h, edge)
+    for yy in range(top + 6, base - 4, 4):
+        cv.rect(x + 4, yy, w - 8, 2, edge)
+    cv.rect(x + w // 2 - 1, top + 4, 2, h - 8, body)
+    cv.rect(x + 3, base - 4, w - 6, 2, C('electric', 3))
+    led(cv, x + w - 6, top + 4, True)
 
 
-def pylon(cv, x, base, h, spread, body, rng):
-    top = base - h
-    for yy in range(top, base):
-        t = (yy - top) / h
-        half = int(round(1 + (spread - 1) * t * t))
-        cv.put(x - half, yy, body)
-        cv.put(x + half, yy, body)
-        if (yy - top) % 8 == 0:  # перекладины
-            cv.line(x - half, yy, x + half, yy + 4 if (yy - top) % 16 else yy - 4 if yy - 4 > top else yy, body)
-    for yy in range(top - 10, top):
-        cv.put(x, yy, body)
-    for k in (-1, 1):  # траверсы с изоляторами
-        cv.line(x, top + 6, x + k * 12, top + 6, body)
-        cv.put(x + k * 12, top + 8, C('electric', 4))
-    cv.put(x, top - 10, C('electric', 6))
+def heatsink(cv, x, base, w, h, body, edge, light, rng):
+    """Радиатор: основание и гребёнка рёбер; между рёбрами внизу светится бирюза."""
+    cv.rect(x, base - 6, w, 6, body)
+    cv.rect(x, base - 6, w, 1, light)
+    for k, xx in enumerate(range(x + 1, x + w - 2, 5)):
+        fh = h - (k % 2) * 4
+        cv.rect(xx, base - 6 - fh, 3, fh, body)
+        cv.rect(xx, base - 6 - fh, 1, fh, edge)
+        cv.rect(xx + 3, base - 12, 2, 6, C('electric', 2))
 
 
-def dish(cv, x, base, r, body, edge, rng):
-    top = base - r * 3
-    for yy in range(top, base):
-        cv.put(x, yy, body)
-    for ang in range(20, 160):
-        a = math.radians(ang)
-        cv.put(x + math.cos(a) * r, top + 1 - math.sin(a) * r * 0.55, body)
-    cv.put(x + r, top - 2, C('electric', 6))
-
-
-def dome(cv, x, base, r, body, edge, light, rng):
-    for yy in range(base - r, base):
-        half = int(math.sqrt(max(0, r * r - (base - yy) ** 2)))
-        cv.rect(x - half, yy, half * 2, 1, body)
-    for ang in range(100, 170):
-        a = math.radians(ang)
-        cv.put(x + math.cos(a) * r, base - math.sin(a) * r, light)
-    cv.put(x + 2, base - r + 5, C('electric', 5))
-
-
-def cable(cv, x0, y0, x1, y1, sag, color):
+def cable(cv, x0, y0, x1, y1, sag, body, light):
     n = max(2, abs(x1 - x0))
     for i in range(n + 1):
         t = i / n
-        cv.put(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + sag * 4 * t * (1 - t), color)
+        x = x0 + (x1 - x0) * t
+        y = y0 + (y1 - y0) * t + sag * 4 * t * (1 - t)
+        cv.put(x, y, light)
+        cv.put(x, y + 1, body)
+        cv.put(x, y + 2, body)
 
 
-def make_machines(seed, count, size_scale, dark, wrap, parallel_edge=True):
-    import random
+def make_machines(seed, count, size_scale, dark, edge_c, light_c, wrap):
     rng = random.Random(seed)
     cv = Canvas(BW, BH, wrap=wrap)
-    body, edge, light = silhouette_colors(dark)
     base = BH - 1
-    xs = []
-    pos = rng.randint(4, 30)
-    while pos < BW - 20 and len(xs) < count:
-        xs.append(pos)
-        pos += rng.randint(28, 62)
-    objs = []
-    for x in xs:
-        kind = rng.choice(('cap', 'cap', 'rack', 'rack', 'pylon', 'dish', 'dome'))
-        objs.append((x, kind))
+    pos = rng.randint(4, 24)
     tops = []
-    for x, kind in objs:
+    kinds = ['cap', 'toroid', 'trans', 'heat', 'cap', 'trans', 'toroid', 'heat', 'cap']
+    k = 0
+    while pos < BW - 40 and k < count:
+        kind = kinds[k % len(kinds)]
+        k += 1
         s = size_scale
         if kind == 'cap':
-            w, h = int(rng.randint(14, 22) * s), int(rng.randint(40, 80) * s)
-            capacitor(cv, x, base, w, h, body, edge, light, rng)
-            tops.append((x + w // 2, base - h))
-        elif kind == 'rack':
-            w, h = int(rng.randint(26, 46) * s), int(rng.randint(26, 56) * s)
-            rack(cv, x, base, w, h, body, edge, light, rng)
-            tops.append((x + w // 2, base - h))
-        elif kind == 'pylon':
-            h = int(rng.randint(52, 96) * s)
-            pylon(cv, x, base, h, int(rng.randint(8, 13) * s), body, rng)
-            tops.append((x, base - h + 6))
-        elif kind == 'dish':
-            r = int(rng.randint(8, 12) * s)
-            dish(cv, x, base, r, body, edge, rng)
+            w, h = int(rng.randint(14, 20) * s), int(rng.randint(40, 78) * s)
+            capacitor(cv, pos, base, w, h, dark, edge_c, light_c, rng)
+            tops.append((pos + w // 2, base - h))
+            pos += w + rng.randint(26, 46)
+        elif kind == 'toroid':
+            r = int(rng.randint(16, 24) * s)
+            toroid(cv, pos + r, base, r, dark, edge_c, light_c, rng)
+            tops.append((pos + r, base - 2 * r - 6))
+            pos += 2 * r + rng.randint(26, 46)
+        elif kind == 'trans':
+            w, h = int(rng.randint(30, 42) * s), int(rng.randint(30, 52) * s)
+            transformer(cv, pos, base, w, h, dark, edge_c, light_c, rng)
+            tops.append((pos + w // 2, base - h))
+            pos += w + rng.randint(24, 44)
         else:
-            r = int(rng.randint(14, 24) * s)
-            dome(cv, x, base, r, body, edge, light, rng)
-    # провода между верхушками соседних объектов (провисают)
-    for (xa, ya), (xb, yb) in zip(tops, tops[1:]):
-        if xb - xa < 90 and rng.random() < 0.8:
-            cable(cv, xa, ya + 6, xb, yb + 6, rng.randint(5, 12), body)
+            w, h = int(rng.randint(26, 40) * s), int(rng.randint(24, 44) * s)
+            heatsink(cv, pos, base, w, h, dark, edge_c, light_c, rng)
+            tops.append((pos + w // 2, base - h - 6))
+            pos += w + rng.randint(24, 44)
+    for (xa, ya), (xb, yb) in zip(tops, tops[1:]):  # пучки проводов между верхушками
+        if xb - xa < 110 and rng.random() < 0.85:
+            cable(cv, xa, ya + 4, xb, yb + 4, rng.randint(8, 16), dark, edge_c)
     return cv
 
 
 def make_skyline():
-    cv = make_machines(71, 14, 0.9, C('cobalt', 0), wrap=True)
-    # земляная полоса: сплошная, с кромкой и огоньками
-    for y in range(BH - 12, BH):
-        for x in range(BW):
-            cv.put(x, y, C('cobalt', 0))
-    for x in range(BW):
-        cv.put(x, BH - 12, C('cobalt', 2))
-    import random
-    rng = random.Random(5)
-    for x in range(2, BW, 6):
-        if rng.random() < 0.55:
-            cv.put(x, BH - 8, C('electric', 4) if rng.random() < 0.75 else C('electric', 6))
+    cv = make_machines(71, 11, 0.85, C('cobalt', 0), C('cobalt', 1), C('cobalt', 2), wrap=True)
+    for y in range(BH - 12, BH):  # пол корпуса: сплошная плита с фаской и заклёпками
+        cv.rect(0, y, BW, 1, C('cobalt', 0))
+    cv.rect(0, BH - 12, BW, 1, C('cobalt', 2))
+    cv.rect(0, BH - 11, BW, 1, C('cobalt', 1))
+    for x in range(6, BW, 16):
+        cv.rect(x, BH - 7, 2, 2, C('cobalt', 1))
+    for x in range(14, BW, 64):
+        led(cv, x, BH - 7, True)
     return cv
+
+
+def make_background():
+    sky = make_sky()
+    wall = make_vent_wall()
+    fans = make_fans()
+    haze_dark = gradient_layer(C('cobalt', 0), 36, BH - 1, 0, 150)
+    haze_light = glow_layer(C('electric', 4), 108, 24, 100)
+    machines = make_machines(53, 9, 1.0, C('cobalt', 0), C('cobalt', 1), C('cobalt', 2), wrap=False)
+    fog = glow_layer(C('electric', 3), 124, 14, 110)
+    skyline = make_skyline()
+    return [sky, wall, fans, haze_dark, haze_light, machines, fog, skyline]
 
 
 def composite(layers):
@@ -485,19 +453,6 @@ def composite(layers):
     for im in layers:
         out.alpha_composite(im)
     return out
-
-
-def make_background():
-    sky = make_sky()
-    circuits = make_circuits()
-    blobs = make_blobs()
-    haze_dark = gradient_layer(C('cobalt', 0), 30, BH - 1, 0, 150)
-    haze_light = glow_layer(C('electric', 4), 108, 24, 110)
-    machines = make_machines(53, 9, 1.0, C('cobalt', 0), wrap=False)
-    fog = glow_layer(C('electric', 3), 124, 14, 120)
-    skyline = make_skyline()
-    layers = [sky, circuits, blobs, haze_dark, haze_light, machines, fog, skyline]
-    return layers
 
 
 def main():
