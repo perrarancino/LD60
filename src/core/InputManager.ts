@@ -1,4 +1,5 @@
 const MOUSE_ATTACK = 'Mouse0';
+const MOUSE_SPECIAL = 'Mouse2';
 
 export interface InputState {
   horizontal: number; // Горизонтальная ось: -1 (влево), 0 (покой), 1 (вправо)
@@ -7,11 +8,14 @@ export interface InputState {
   jumpHeld: boolean;
   attackPressed: boolean;
   attackHeld: boolean;
+  specialAttackPressed: boolean;
+  specialAttackHeld: boolean;
   interactPressed: boolean;
+  hubMenuPressed: boolean;
 }
 
 /**
- * Менеджер ввода: объединяет опрос клавиатуры (WASD, Стрелки, Пробел), левой кнопки мыши (атака) и геймпадов
+ * Менеджер ввода: объединяет опрос клавиатуры (WASD, Стрелки, Пробел), левой/правой кнопок мыши и геймпадов
  */
 export class InputManager {
   private static instance: InputManager;
@@ -21,14 +25,19 @@ export class InputManager {
   private constructor() {
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
-    // Левая кнопка мыши — атака (как J/Z/X)
+    // Блокируем контекстное меню браузера на ПКМ
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Левая и правая кнопки мыши
     window.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      if (!this.keysDown.has(MOUSE_ATTACK)) this.keysJustPressed.add(MOUSE_ATTACK);
-      this.keysDown.add(MOUSE_ATTACK);
+      const code = e.button === 0 ? MOUSE_ATTACK : e.button === 2 ? MOUSE_SPECIAL : null;
+      if (!code) return;
+      if (!this.keysDown.has(code)) this.keysJustPressed.add(code);
+      this.keysDown.add(code);
     });
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.keysDown.delete(MOUSE_ATTACK);
+      const code = e.button === 0 ? MOUSE_ATTACK : e.button === 2 ? MOUSE_SPECIAL : null;
+      if (code) this.keysDown.delete(code);
     });
   }
 
@@ -71,7 +80,11 @@ export class InputManager {
       this.keysJustPressed.has(MOUSE_ATTACK);
     const attackHeld = this.keysDown.has('KeyJ') || this.keysDown.has('KeyZ') || this.keysDown.has('KeyX') || this.keysDown.has(MOUSE_ATTACK);
 
+    const specialAttackPressed = this.keysJustPressed.has('KeyK') || this.keysJustPressed.has(MOUSE_SPECIAL);
+    const specialAttackHeld = this.keysDown.has('KeyK') || this.keysDown.has(MOUSE_SPECIAL);
+
     const interactPressed = this.keysJustPressed.has('KeyE') || this.keysJustPressed.has('KeyF') || this.keysJustPressed.has('Enter');
+    const hubMenuPressed = this.keysJustPressed.has('KeyC') || this.keysJustPressed.has('KeyH') || this.keysJustPressed.has('Tab');
 
     // Опрос геймпада при наличии активного подключения
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -91,7 +104,10 @@ export class InputManager {
       jumpHeld,
       attackPressed,
       attackHeld,
-      interactPressed
+      specialAttackPressed,
+      specialAttackHeld,
+      interactPressed,
+      hubMenuPressed
     };
   }
 }

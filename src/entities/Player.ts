@@ -8,6 +8,7 @@ import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
 import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
 import { Ragdoll } from './Ragdoll.ts';
+import { CraftingSystem } from '../systems/CraftingSystem.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
@@ -140,7 +141,18 @@ export class Player {
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
     // пока герой лежит и встаёт — управления нет
     const ctl: InputState = this.downed
-      ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false }
+      ? {
+          ...input,
+          horizontal: 0,
+          vertical: 0,
+          jumpPressed: false,
+          jumpHeld: false,
+          attackPressed: false,
+          attackHeld: false,
+          specialAttackPressed: false,
+          specialAttackHeld: false,
+          hubMenuPressed: false
+        }
       : input;
 
     if (this.climb) {
@@ -282,7 +294,9 @@ export class Player {
     this.wallJumpCd -= dt;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
+    const legs = CraftingSystem.get().activeParts.legs;
+    const speedMult = legs.type === 'standard' ? 1 + legs.level * 0.12 : 1;
+    const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED * speedMult;
     if (this.downed) {
       b.vx = 0; // лежит: хитбокс двигает регдолл (updateDowned)
     } else if (this.airSteer && !b.grounded) {

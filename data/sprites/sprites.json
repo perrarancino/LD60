@@ -1311,6 +1311,58 @@
         "y": 0.5
       },
       "animations": {}
+    },
+    {
+      "id": "bullet1",
+      "category": "items",
+      "image": "items/bullet1.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "mat_scrap",
+      "category": "items",
+      "image": "items/mat_scrap.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "mat_wire",
+      "category": "items",
+      "image": "items/mat_wire.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "mat_disc",
+      "category": "items",
+      "image": "items/mat_disc.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
     }
   ]
 }

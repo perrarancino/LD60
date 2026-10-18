@@ -20,6 +20,11 @@ import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
+import { EventBus } from './core/EventBus.ts';
+import { CraftingSystem } from './systems/CraftingSystem.ts';
+import { LootSystem } from './systems/LootSystem.ts';
+import { ProjectileSystem } from './entities/ProjectileSystem.ts';
+import { RebirthUI } from './systems/RebirthUI.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -107,6 +112,10 @@ class GameApp {
   private readonly combat = (playerData as unknown as { combat?: { punch_damage: [number, number]; crit_chance?: number; crit_multiplier?: number } }).combat
     ?? { punch_damage: [5, 8] as [number, number] };
 
+  private loot!: LootSystem;
+  private projectiles!: ProjectileSystem;
+  private rebirthUI!: RebirthUI;
+
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
@@ -127,6 +136,37 @@ class GameApp {
       playerData.aging_system.critical_threshold_seconds
     );
     this.gameContainer = document.getElementById('game-container')!;
+    this.rebirthUI = new RebirthUI();
+
+    // Обработка перерождения робота в новую копию
+    EventBus.get().on('crafting:rebuild_completed', () => {
+      this.aging.reset();
+      if (this.player) {
+        this.fx.burst(this.player.body.x, this.player.body.y - 28, {
+          count: 28,
+          colors: [0x38bdf8, 0x34d399, 0xffffff],
+          speed: [70, 220],
+          spread: Math.PI * 2,
+          life: [0.3, 0.6],
+          size: [2, 3]
+        });
+        const spawn = activeLevelDef.player_spawn;
+        this.player.spawnAt(spawn.x, spawn.y, this.level.tileSize);
+      }
+    });
+
+    // Обработка истечения 5-минутного энергоядра
+    EventBus.get().on('aging:expired', () => {
+      const crafting = CraftingSystem.get();
+      if (crafting.canRebuild()) {
+        crafting.performRebuild();
+      } else {
+        this.rebirthUI.showRebirthAlert('⚠️ ЭНЕРГОЯДРО ИСТОЩЕНО! Копия не была собрана. Аварийная перезагрузка...');
+        setTimeout(() => {
+          this.aging.reset(180);
+        }, 3000);
+      }
+    });
   }
 
   public async start(): Promise<void> {
@@ -287,6 +327,10 @@ class GameApp {
     await this.sprites.load([
       PUNCH_FX.sprite,
       SMOKE_FX.sprite,
+      'bullet1',
+      'mat_scrap',
+      'mat_wire',
+      'mat_disc',
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       playerData.sprite_id,
       ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
@@ -396,6 +440,17 @@ class GameApp {
     this.player = new Player(playerData.sprite_id, rigDef, this.sprites);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
+
+    this.loot = new LootSystem(this.sprites, this.fx, this.numbers);
+    this.worldLayer.addChild(this.loot.container);
+
+    this.projectiles = new ProjectileSystem(
+      this.sprites,
+      this.fx,
+      (t, x, y, dx, p, dmg) => this.damage(t, x, y, dx, p, dmg)
+    );
+    this.worldLayer.addChild(this.projectiles.container);
+
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
     this.spriteFx = new SpriteEffects(this.sprites);
     this.worldLayer.addChild(this.spriteFx.container);
@@ -408,7 +463,7 @@ class GameApp {
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
-      this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container
+      this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
@@ -469,13 +524,15 @@ class GameApp {
   }
 
   /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона, стоп-кадр и тряска; при нуле — смерть. */
-  private damage(target: Hittable, x: number, y: number, dirX: number, part?: number): void {
+  private damage(target: Hittable, x: number, y: number, dirX: number, part?: number, customDmg?: number): void {
     const mob = this.mobs.get(target);
     const byParts = isPartDamageable(target);
     if (!mob && !byParts) return;
     const [lo, hi] = this.combat.punch_damage;
-    const crit = Math.random() < (this.combat.crit_chance ?? 0);
-    let dmg = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const head = CraftingSystem.get().activeParts.head;
+    const extraCrit = head.type === 'standard' ? head.level * 0.1 : 0;
+    const crit = Math.random() < ((this.combat.crit_chance ?? 0) + extraCrit);
+    let dmg = customDmg !== undefined ? customDmg : lo + Math.floor(Math.random() * (hi - lo + 1));
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
     this.numbers.spawn(x, y - 6, dmg, crit, dirX);
     this.hitStop = Math.max(this.hitStop, crit ? CRIT_HIT_STOP : HIT_STOP);
@@ -496,6 +553,8 @@ class GameApp {
       if (i >= 0) list.splice(i, 1);
     };
     const view = (target as unknown as { container: Container }).container;
+    const isBoss = target instanceof WormBoss;
+    this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
     drop(this.worms, target);
     drop(this.bosses, target);
     view.destroy({ children: true });
@@ -503,6 +562,13 @@ class GameApp {
 
   /** Смерть врага: он выходит из игры и исчезает (эффекты смерти — позже). */
   private kill(target: Hittable, mob: Mob): void {
+    let enemyType = 'enemy';
+    if (target instanceof Spider) enemyType = 'spider';
+    else if (target instanceof SpiderMother) enemyType = 'mother';
+    else if (target instanceof Worm) enemyType = 'worm';
+    else if (target instanceof WormBoss) enemyType = 'boss';
+    this.loot.spawnFromEnemy(mob.view.x, mob.view.y, enemyType);
+
     this.mobs.delete(target);
     mob.remove();
     mob.view.destroy({ children: true });
@@ -642,11 +708,32 @@ class GameApp {
       return;
     }
 
-    // 1. Обновление таймера старения
-    this.aging.update(dt);
+    // 1. Обновление таймера старения с учетом модификации корпуса (проводной торс замедляет распад)
+    const torso = CraftingSystem.get().activeParts.torso;
+    const agingRate = torso.type === 'wire' ? Math.max(0.4, 1 - torso.level * 0.18) : 1;
+    this.aging.update(dt * agingRate);
 
     // 2. Игрок: ввод + физика на тайлах
-    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
+    const input = this.input.poll();
+    const aim = this.aimInWorld();
+    this.player.update(dt, input, this.level, aim);
+
+    // Спец-атака на правую кнопку мыши (ПКМ)
+    if (input.specialAttackPressed && aim) {
+      this.projectiles.triggerSpecialAttack(
+        this.player.body.x,
+        this.player.body.y - 28,
+        aim.x,
+        aim.y,
+        this.hittables(),
+        this.level
+      );
+    }
+
+    // Быстрый доступ к верстаку сборки копии в хабе
+    if (input.hubMenuPressed) {
+      this.rebirthUI.toggleModal();
+    }
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -655,6 +742,8 @@ class GameApp {
     for (const mother of this.mothers) mother.update(dt);
     for (const boss of this.bosses) boss.update(dt);
     this.resolveStrike();
+    this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });
+    this.loot.update(dt, this.level, this.player);
     this.fx.update(dt);
     this.spriteFx.update(dt);
     this.numbers.update(dt);
