@@ -92,7 +92,7 @@ void main(void) {
  * Свет жуков в разрешении арта: сумма точечных источников. Спад — мягкий «обратный квадрат» с ядром uCore, гаснущий к радиусу.
  * Тайлы заслоняют свет: от пикселя к источнику идёт луч, по пути считается, сколько пикселей арта он прошёл внутри тайлов;
  * первые uPen пикселей свет ещё проходит (освещённая грань тайла светится на глубину нескольких пикселей и плавно гаснет),
- * дальше — тень (за платформой, под полом). Результат хранится вполовину (текстура 8 бит, яркость до 2).
+ * дальше — тень (за платформой, под полом). Яркость мягко насыщается к 1 без смены оттенка (у самого источника фиолетовый не выгорает в белый).
  */
 const LIGHT_FRAGMENT = `
 in vec2 vTextureCoord;
@@ -130,17 +130,22 @@ void main(void) {
     float occ = clamp(1.0 - inside / uPen, 0.0, 1.0);
     sum += uColors[i].rgb * att * occ * occ;
   }
-  sum *= 0.5;
-  sum /= max(1.0, max(sum.r, max(sum.g, sum.b))); // пересвет: цвет уменьшается целиком, без ухода в белый
+  float m = max(sum.r, max(sum.g, sum.b));
+  sum *= m > 0.0 ? (1.0 - exp(-1.3 * m)) / m : 1.0; // мягкое насыщение: цвет уменьшается целиком, без ухода в белый
   finalColor = vec4(sum, 1.0);
 }
 `;
 
 /**
  * Свет жуков поверх кадра (после цветокоррекции, на экранном разрешении). Неоновые пиксели (заданные цвета) заменяют собой
- * откорректированный кадр — непрозрачны, ярче нарисованного, пульсируют. Остальное прибавляется (выход с нулевой прозрачностью
- * при премультиплицированном смешивании = чистое сложение): освещение жуков на предметах (цвет предмета × свет + немного чистого света;
- * на самих существах слабее, чтобы жук не заливался своим же светом), лёгкий свет на фоне и в воздухе и небольшой блум вокруг источников.
+ * откорректированный кадр — непрозрачны, ярче нарисованного (тот же оттенок), пульсируют. Остальное прибавляется (выход с нулевой
+ * прозрачностью при премультиплицированном смешивании = чистое сложение):
+ *  - заливка: цвет предмета × свет + немного чистого цвета света;
+ *  - контровая кромка, как у зелёного света от фона: края предметов и персонажей (1-й пиксель арта от края — полностью, 2-й — вполсилы),
+ *    повёрнутые к источнику, загораются его цветом. Сторона края — по тому, где рядом пусто; направление на свет — средневзвешенное по источникам;
+ *  - лёгкий свет на фоне и в воздухе и небольшой блум вокруг источников.
+ * Сами светящиеся мобы (отметки EMITTER_MARK/SPIDER_MARK в текстуре существ) светом освещаются слабее (uOnCaster) —
+ * не заливаются и не обводятся своим же светом целиком.
  */
 const GLOW_FRAGMENT = `
 in vec2 vTextureCoord;
@@ -148,23 +153,33 @@ out vec4 finalColor;
 uniform sampler2D uTexture; // мир (физические пиксели)
 uniform sampler2D uLight;   // свет жуков (разрешение арта)
 uniform sampler2D uCaster;  // существа и транзисторы
+uniform sampler2D uGround;  // только тайлы
 uniform highp vec4 uInputSize;
 uniform float uScale;
 uniform vec2 uLightSize;    // размер текстуры света, пиксели арта
 uniform vec4 uLights[16];
 uniform vec4 uColors[16];
 uniform float uCount;
+uniform float uCore;
 uniform float uTime;
-uniform vec3 uNeon;
+uniform float uBoost;       // во сколько раз неоновые пиксели ярче нарисованных
 uniform vec3 uE0;
 uniform vec3 uE1;
 uniform vec3 uE2;
 uniform float uDiffuse;     // доля «цвет предмета × свет»
 uniform float uFlat;        // доля чистого цвета света (окрашивание)
-uniform float uOnCaster;    // множитель света на существах
+uniform float uRim;         // сила кромки
+uniform float uOnCaster;    // множитель света на самих светящихся мобах
 uniform float uAir;         // свет на фоне и в воздухе
 uniform float uBloom;       // сила блума
 uniform float uBloomR;      // радиус блума, пиксели арта
+bool onCaster = false;
+bool onTile = false;
+float solidAt(vec2 o) {
+  vec2 uv = vTextureCoord + o * uScale * uInputSize.zw;
+  // как у зелёной кромки: тайл — по геометрии тайлов, существо и предметы — по картинке мира
+  return (!onCaster && onTile) ? texture(uGround, uv).a : texture(uTexture, uv).a;
+}
 void main(void) {
   vec4 w = texture(uTexture, vTextureCoord);
   float a = w.a;
@@ -173,8 +188,8 @@ void main(void) {
   if (a > 0.5) {
     float emissive = 1.0 - step(0.04, min(distance(own, uE0), min(distance(own, uE1), distance(own, uE2))));
     if (emissive > 0.5) {
-      // неоновый пиксель: непрозрачен поверх кадра (цветокоррекция его не трогает), ярче нарисованного
-      finalColor = vec4(min(max(own, uNeon * pulse), vec3(1.0)), 1.0);
+      // неоновый пиксель: непрозрачен поверх кадра (цветокоррекция его не трогает), ярче нарисованного, того же оттенка
+      finalColor = vec4(min((own * uBoost + 0.04) * pulse, vec3(1.0)), 1.0);
       return;
     }
   }
@@ -182,11 +197,48 @@ void main(void) {
   vec3 c;
   if (a > 0.5) {
     // на предметах свет ровный в пределах пикселя арта (берётся в его центре) — освещение по пикселям, как у арта
-    vec3 L = texture(uLight, (floor(art) + 0.5) / uLightSize).rgb * 2.0;
-    float k = texture(uCaster, vTextureCoord).a > 0.5 ? uOnCaster : 1.0;
+    vec2 cell = floor(art) + 0.5;
+    vec3 L = texture(uLight, cell / uLightSize).rgb;
+    float mark = texture(uCaster, vTextureCoord).a;
+    onCaster = mark > 0.5;
+    onTile = texture(uGround, vTextureCoord).a > 0.5;
+    float k = (mark > 0.6 && mark < 0.99) ? uOnCaster : 1.0; // светящиеся мобы — слабее
     c = L * (own * uDiffuse + uFlat) * k;
+    // кромка: край (1–2 пикселя), повёрнутый к свету
+    if (max(L.r, max(L.g, L.b)) > 0.01) {
+      float up1 = 1.0 - solidAt(vec2(0.0, -1.0));
+      float dn1 = 1.0 - solidAt(vec2(0.0, 1.0));
+      float lf1 = 1.0 - solidAt(vec2(-1.0, 0.0));
+      float rt1 = 1.0 - solidAt(vec2(1.0, 0.0));
+      float up2 = 1.0 - solidAt(vec2(0.0, -2.0));
+      float dn2 = 1.0 - solidAt(vec2(0.0, 2.0));
+      float lf2 = 1.0 - solidAt(vec2(-2.0, 0.0));
+      float rt2 = 1.0 - solidAt(vec2(2.0, 0.0));
+      float edge1 = max(max(up1, dn1), max(lf1, rt1));
+      float edge2 = max(max(up2, dn2), max(lf2, rt2));
+      float edge = edge1 > 0.5 ? 1.0 : (edge2 > 0.5 ? 0.5 : 0.0);
+      if (edge > 0.0) {
+        // наружу от края — туда, где пусто (по ближним соседям, а если их нет — по дальним)
+        vec2 n = edge1 > 0.5 ? vec2(rt1 - lf1, dn1 - up1) : vec2(rt2 - lf2, dn2 - up2);
+        // направление на свет — средневзвешенное по источникам (ближний и сильный весит больше)
+        vec2 dir = vec2(0.0);
+        for (int i = 0; i < 16; i++) {
+          if (float(i) >= uCount) break;
+          vec4 S = uLights[i];
+          vec2 d = S.xy - cell;
+          float dist = length(d);
+          if (dist >= S.z || dist < 0.001) continue;
+          float f = 1.0 - (dist * dist) / (S.z * S.z);
+          dir += d / dist * S.w * f * f / (1.0 + (dist * dist) / (uCore * uCore));
+        }
+        // тонкое (пусто с обеих сторон) — край светится целиком
+        float facing = 1.0;
+        if (length(n) > 0.1 && length(dir) > 0.001) facing = smoothstep(-0.15, 0.6, dot(normalize(n), normalize(dir)));
+        c += L * (0.7 + 0.5 * own) * uRim * facing * edge * k;
+      }
+    }
   } else {
-    vec3 L = texture(uLight, art / uLightSize).rgb * 2.0; // в воздухе — плавно
+    vec3 L = texture(uLight, art / uLightSize).rgb; // в воздухе — плавно
     c = L * uAir;
   }
   // небольшой блум: мягкое гало вокруг каждого источника (без заслонения — это свечение в «объективе»)
@@ -227,7 +279,7 @@ float casterAt(vec2 o) {
   return texture(uCaster, vTextureCoord + o * uScale * uInputSize.zw).a;
 }
 // Вид отбрасывающего тень задаёт прозрачность в текстуре существ: ≈0.55 — мелкий предмет (транзистор), ≈0.75 — паук (может отбрасывать
-// тень на стены), 1 — остальные (только на пол); на потолок не отбрасывает никто
+// тень на стены), ≈0.85 — светящийся моб и 1 — остальные (только на пол); на потолок не отбрасывает никто
 float hitMark = 1.0;
 // Высота (в пикселях арта) ближайшей части существа над этой точкой поверхности, 0 — нет: ищется шагом 2 px наружу от поверхности.
 // onlySpiders — на стены тень дают только пауки
@@ -235,7 +287,7 @@ float firstHit(vec2 dir, vec2 side, float lateral, bool onlySpiders) {
   for (int i = 1; i <= 24; i++) {
     float k = float(i) * 2.0 - 1.0;
     float a = casterAt(dir * k + side * lateral);
-    if (a > 0.5 && (!onlySpiders || (a > 0.65 && a < 0.9))) { hitMark = a; return k; }
+    if (a > 0.5 && (!onlySpiders || (a > 0.65 && a < 0.8))) { hitMark = a; return k; }
   }
   return 0.0;
 }
@@ -288,13 +340,13 @@ const SMALL_MARK = 0.55; // прозрачность мелких предмет
 const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
 const SHADOW_COLOR = [0.0, 0.01, 0.04];
 
-// Светятся только пиксели этих цветов (RGB 0..255): самые светлые фиолетовые — глаза и яркие метки мобов (паук, паучиха). До трёх цветов.
+// Светятся только пиксели этих цветов (RGB 0..255): самые светлые фиолетовые — глаза и яркие метки мобов (паук, паучиха, червяк). До трёх цветов.
 // Спрайт, в рисунке которого они есть, сам становится источником света.
-const EMISSIVE_COLORS: number[][] = [[0xc0, 0x95, 0xfc]];
+const EMISSIVE_COLORS: number[][] = [[0xc0, 0x95, 0xfc], [0x96, 0x67, 0xf2]]; // глаза паука и метки паучихи; кристаллы червяка
 const emissiveUniform = (i: number) => new Float32Array((EMISSIVE_COLORS[i] ?? [-255, -255, -255]).map((v) => v / 255));
 
 const GREEN = [0.2, 1.0, 0.55];
-const NEON = [0.96, 0.66, 1.0]; // цвет неоновых пикселей (до пульсации): они светятся не темнее его и не темнее нарисованного
+const NEON_BOOST = 1.3; // во сколько раз неоновые пиксели ярче нарисованных (оттенок тот же)
 
 // ---- Свет жуков
 const MAX_LIGHTS = 16; // столько источников обрабатывает шейдер (ближние к экрану и самые сильные)
@@ -303,14 +355,17 @@ const LIGHT_RADIUS = 84; // px арта: дальше свет не достаё
 const LIGHT_BASE = 0.55; // сила света группы светящихся пикселей...
 const LIGHT_PER_PIXEL = 0.09; // ...плюс за каждый её пиксель
 const LIGHT_MAX = 1.5;
-const SPRITE_MAX = 1.7; // общая сила всех групп одного спрайта (у паучихи их много — делят её между собой, а не засвечивают всё вокруг)
+const ROOT_MAX = 2.4; // общая сила всех источников одного моба (у паучихи и червяка их много — делят её между собой, а не засвечивают всё вокруг)
+const MERGE_DIST = 10; // px арта: источники ближе этого сливаются в один (меньше источников — дешевле, и они не «перескакивают»)
 const LIGHT_CORE = 17; // px арта: ядро спада (ближе — почти ровно ярко, дальше — как обратный квадрат)
 const LIGHT_PEN = 5; // px арта: на сколько свет заходит в тайл с освещённой стороны
 const CLUSTER_DIST = 5; // px рисунка: светящиеся пиксели ближе этого — одна группа (один источник)
 const CLUSTERS_PER_SPRITE = 6;
-const DIFFUSE = 1.5; // свет на предмете: цвет предмета × свет...
-const FLAT = 0.55; // ...плюс немного чистого цвета света (окрашивание)
-const ON_CASTER = 0.3; // на существах свет слабее (жук не заливается своим же светом)
+const DIFFUSE = 0.5; // заливка предмета (слабая, главное — кромка): цвет предмета × свет...
+const FLAT = 0.12; // ...плюс немного чистого цвета света (окрашивание)
+const ON_CASTER = 0.3; // на самих светящихся мобах свет слабее (жук не заливается и не обводится своим же светом)
+const RIM = 1.5; // контровая кромка от света жуков на краях, повёрнутых к нему
+const EMITTER_MARK = 0.85; // прозрачность светящихся мобов (кроме пауков) в текстуре существ: отметка «свет на нём слабее»
 const AIR = 0.2; // свет на фоне и в воздухе
 const BLOOM = 0.3; // небольшой блум вокруг светящихся пикселей
 const BLOOM_RADIUS = 4.5; // px арта
@@ -558,7 +613,9 @@ export class Lighting {
       uColors: { value: this.colorData, type: 'vec4<f32>', size: MAX_LIGHTS },
       uCount: { value: 0, type: 'f32' },
       uTime: { value: 0, type: 'f32' },
-      uNeon: { value: new Float32Array(NEON), type: 'vec3<f32>' },
+      uBoost: { value: NEON_BOOST, type: 'f32' },
+      uCore: { value: LIGHT_CORE, type: 'f32' },
+      uRim: { value: RIM, type: 'f32' },
       uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
       uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
       uE2: { value: emissiveUniform(2), type: 'vec3<f32>' },
@@ -568,7 +625,7 @@ export class Lighting {
       uAir: { value: AIR, type: 'f32' },
       uBloom: { value: BLOOM, type: 'f32' },
       uBloomR: { value: BLOOM_RADIUS, type: 'f32' }
-    }, { uLight: this.lightRT.source, uCaster: this.casterRT.source });
+    }, { uLight: this.lightRT.source, uCaster: this.casterRT.source, uGround: this.groundRT.source });
     this.glowSprite.filters = [this.glow];
 
     this.fog.width = this.viewW;
@@ -581,8 +638,6 @@ export class Lighting {
     const s = this.scale;
     // точка (lx, ly) в системе объекта с n светящимися пикселями -> источник на экране
     const power = (n: number) => Math.min(LIGHT_MAX, LIGHT_BASE + LIGHT_PER_PIXEL * n);
-    // доля силы каждой группы спрайта: вместе — не больше SPRITE_MAX
-    const shareOf = (ns: number[]) => Math.min(1, SPRITE_MAX / ns.reduce((a, n) => a + power(n), 0));
     const add = (m: Matrix, alpha: number, lx: number, ly: number, n: number) => {
       const size = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) / s; // масштаб объекта (паучки меньше)
       const x = (m.a * lx + m.c * ly + m.tx) / s;
@@ -599,7 +654,7 @@ export class Lighting {
         const clusters = emissiveClusters(c.texture);
         if (clusters.length) {
           const m = c.getGlobalTransform(this.tmp, false); // в физических пикселях холста
-          const alpha = c.getGlobalAlpha(false) * shareOf(clusters.map((k) => k.n));
+          const alpha = c.getGlobalAlpha(false);
           const ax = c.anchor.x * c.texture.orig.width;
           const ay = c.anchor.y * c.texture.orig.height;
           for (const k of clusters) add(m, alpha, k.x - ax, k.y - ay, k.n);
@@ -608,7 +663,7 @@ export class Lighting {
         const pts = meshPoints(c);
         if (pts.length) {
           const m = c.getGlobalTransform(this.tmp, false);
-          const alpha = c.getGlobalAlpha(false) * shareOf(pts.map((q) => q.n));
+          const alpha = c.getGlobalAlpha(false);
           const p = c.geometry.positions; // сетка деформируется — точка едет вместе с ней
           for (const q of pts) {
             const lx = p[q.i0 * 2] * q.w0 + p[q.i1 * 2] * q.w1 + p[q.i2 * 2] * q.w2;
@@ -619,9 +674,29 @@ export class Lighting {
       }
       for (const ch of c.children) visit(ch as Container);
     };
-    for (const e of this.emitters()) visit(e);
-    if (lights.length > MAX_LIGHTS) lights.sort((a, b) => b.i - a.i).length = MAX_LIGHTS;
-    return lights;
+    const all: Light[] = [];
+    for (const e of this.emitters()) {
+      lights.length = 0;
+      visit(e);
+      // все источники одного моба вместе — не сильнее ROOT_MAX
+      const total = lights.reduce((sum, l) => sum + l.i, 0);
+      const k = total > ROOT_MAX ? ROOT_MAX / total : 1;
+      for (const l of lights) all.push({ ...l, i: l.i * k });
+    }
+    // близкие источники сливаются в один (центр — средневзвешенный, сила — сумма)
+    all.sort((a, b) => b.i - a.i);
+    const merged: Light[] = [];
+    for (const l of all) {
+      const m = merged.find((q) => Math.hypot(q.x - l.x, q.y - l.y) < MERGE_DIST);
+      if (!m) { merged.push({ ...l }); continue; }
+      const sum = m.i + l.i;
+      m.x = (m.x * m.i + l.x * l.i) / sum;
+      m.y = (m.y * m.i + l.y * l.i) / sum;
+      m.i = Math.min(LIGHT_MAX, sum);
+      m.r = Math.max(m.r, l.r);
+    }
+    if (merged.length > MAX_LIGHTS) merged.length = MAX_LIGHTS; // самые сильные
+    return merged;
   }
 
   /** Раз в кадр после обновления камеры (до отрисовки сцены). */
@@ -644,12 +719,17 @@ export class Lighting {
     const spiders = this.spiders();
     const saved = spiders.map((c) => c.alpha);
     for (const c of spiders) c.alpha = SPIDER_MARK;
+    const spiderSet = new Set(spiders);
+    const glowing = this.emitters().filter((c) => !spiderSet.has(c));
+    const savedGlow = glowing.map((c) => c.alpha);
+    for (const c of glowing) c.alpha *= EMITTER_MARK;
     const savedSmall = this.small.map((c) => c.alpha);
     for (const c of this.small) c.alpha = SMALL_MARK;
     this.renderer.render({
       container: this.world, target: this.casterRT, clear: true, clearColor: [0, 0, 0, 0], transform: this.matrix
     });
     spiders.forEach((c, i) => { c.alpha = saved[i]; });
+    glowing.forEach((c, i) => { c.alpha = savedGlow[i]; });
     this.small.forEach((c, i) => { c.alpha = savedSmall[i]; });
     for (const c of hidden) c.visible = true;
     // 1в. только тайлы -> текстура (поверхности, на которые падает тень и которые заслоняют свет жуков)
