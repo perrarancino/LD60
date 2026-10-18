@@ -48,10 +48,10 @@
     },
     "wobbler": {
       "type": "object",
-      "description": "Существо на фоне: тело и лапки из частей-слоёв; лапки шатаются в шарнирах, из пасти выплёвываются другие враги",
-      "required": ["body_sprite_id", "mouth", "limbs"],
+      "description": "Существо на фоне: тело и лапки — одна сетка со скиннингом; лапки ведёт цепочка костей, из пасти выплёвываются другие враги",
+      "required": ["sprite_id", "mouth", "limbs"],
       "properties": {
-        "body_sprite_id": { "type": "string" },
+        "sprite_id": { "type": "string", "description": "Полный рисунок существа (холст целиком) — текстура общей сетки" },
         "mouth": { "type": "object", "required": ["x", "y"], "description": "Откуда вылетают плевки (px на холсте)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
         "limbs": {
           "type": "array",
@@ -62,7 +62,7 @@
             "description": "Лапка: целый слой + корень; в игре режется на сегменты вдоль оси корень -> кончик и ведётся цепочкой костей",
             "properties": {
               "name": { "type": "string" },
-              "sprite_id": { "type": "string", "description": "Полнохолстный слой лапки" },
+              "sprite_id": { "type": "string", "description": "Полнохолстная маска лапки (какие пиксели рисунка — её)" },
               "root": { "type": "object", "required": ["x", "y"], "description": "Корень лапки (px на холсте): точка крепления к телу и начало первой кости", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
               "bones": { "type": "integer", "minimum": 2, "maximum": 16, "description": "Число костей (сегментов), по умолчанию 6" }
             }

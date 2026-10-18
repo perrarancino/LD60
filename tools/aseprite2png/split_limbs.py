@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Режет одиночный слой существа на тело и конечности (лапки) — для процедурной анимации без перерисовки.
+"""Режет одиночный слой существа на конечности (лапки) — для процедурной анимации без перерисовки.
 
 Лапки находятся по цветам (пиксели заданных цветов, 8-связные компоненты). Каждая лапка сохраняется целиком отдельным
-полнохолстным PNG (как слои из aseprite2png); рядом пишется JSON с точками: корень лапки и кончик. Сгибается лапка в игре:
+полнохолстным PNG-маской (в игре тело и лапки — одна общая сетка, маски нужны, чтобы знать, какие пиксели чьи) (как слои из aseprite2png); рядом пишется JSON с точками: корень лапки и кончик. Сгибается лапка в игре:
 FlexLimb режет её на сегменты вдоль оси корень -> кончик и ведёт цепочкой костей.
 
 Использование:
     python split_limbs.py слой.png -o ПАПКА --colors "#56f436,#b9ff97,#22d04c" [--static-box x0,y0,x1,y1 ...]
-        [--prefix имя] [--min-limb 12] [--stub 3]
+        [--prefix имя] [--min-limb 12]
 
 --static-box   прямоугольник (включительно): пиксели лапкового цвета внутри остаются в теле (гребень, рога)
 --min-limb     компоненты меньше этого размера считаются осколками и приклеиваются к ближайшей лапке
---stub         сколько px от корня лапки остаётся и в теле (закрывает стык при повороте лапки)
 """
 from __future__ import annotations
 
@@ -36,7 +35,6 @@ def main() -> None:
     ap.add_argument("--static-box", action="append", default=[])
     ap.add_argument("--prefix", default="limb")
     ap.add_argument("--min-limb", type=int, default=12)
-    ap.add_argument("--stub", type=float, default=3.0)
     args = ap.parse_args()
 
     im = Image.open(args.layer).convert("RGBA")
@@ -96,10 +94,6 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    body = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    bpx = body.load()
-    for p in body_pts:
-        bpx[p] = px[p]
 
     meta = {"canvas": {"width": w, "height": h}, "center": {"x": round(cx, 2), "y": round(cy, 2)}, "limbs": []}
     for k, c in enumerate(big, start=1):
@@ -108,10 +102,6 @@ def main() -> None:
         dist = {p: math.hypot(p[0] + 0.5 - rx, p[1] + 0.5 - ry) for p in c}
         tip = max(c, key=lambda p: dist[p])
         maxd = dist[tip]
-        # корневой «пенёк» остаётся и в теле: закрывает стык при повороте
-        for p in c:
-            if dist[p] <= args.stub:
-                bpx[p] = px[p]
         limb_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         lpx = limb_img.load()
         for p in c:
@@ -125,9 +115,8 @@ def main() -> None:
             "pixels": len(c)
         })
 
-    body.save(out / "body.png")
     (out / "parts.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"{args.layer} -> {out}  (тело + {len(big)} лапок)")
+    print(f"{args.layer} -> {out}  ({len(big)} лапок)")
 
 
 if __name__ == "__main__":

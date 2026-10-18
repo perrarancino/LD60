@@ -580,19 +580,6 @@
       "frame_height": 64,
       "frames": 1,
       "origin": {
-        "x": 0.5,
-        "y": 0.5
-      },
-      "animations": {}
-    },
-    {
-      "id": "enemy_spider_mother_body",
-      "category": "enemies",
-      "image": "enemies/spider_mother_parts/body.png",
-      "frame_width": 64,
-      "frame_height": 64,
-      "frames": 1,
-      "origin": {
         "x": 0.0,
         "y": 0.0
       },

@@ -120,13 +120,13 @@ export interface SegmentedDef {
 
 export interface WobblerLimbDef {
   name: string;
-  sprite_id: string; // целый слой лапки
+  sprite_id: string; // полнохолстная маска лапки (какие пиксели рисунка — её)
   root: { x: number; y: number }; // корень лапки на холсте
   bones?: number; // число костей (по умолчанию 6)
 }
 
 export interface WobblerDef {
-  body_sprite_id: string;
+  sprite_id: string; // полный рисунок существа — текстура общей сетки
   mouth: { x: number; y: number };
   limbs: WobblerLimbDef[];
 }

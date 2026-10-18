@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/rig.schema.json",
   "id": "spider_mother_rig",
-  "description": "Паучиха-матка из одного слоя pauk_mother.aseprite (64x64, вид спереди): tools/aseprite2png/split_limbs.py режет её на тело и 10 лапок. Каждая лапка в игре режется на сегменты вдоль оси корень -> кончик и ведётся цепочкой костей (FlexLimb): гибкое плавное сгибание без разрывов. Лапки шатаются, тело дышит, из пасти выплёвываются паучки.",
+  "description": "Паучиха-матка из одного слоя pauk_mother.aseprite (64x64, вид спереди). Тело и лапки — ОДНА сетка со скиннингом (FlexBody): tools/aseprite2png/split_limbs.py даёт маски 10 лапок, вершины лапок ведёт цепочка костей, у корня вес ослаблен до нуля — лапки не отрываются от тела. Лапки шатаются, тело дышит, из пасти выплёвываются паучки.",
   "canvas": {
     "width": 64,
     "height": 64
@@ -11,7 +11,7 @@
     "y": 32
   },
   "wobbler": {
-    "body_sprite_id": "enemy_spider_mother_body",
+    "sprite_id": "enemy_spider_mother",
     "mouth": {
       "x": 29,
       "y": 33

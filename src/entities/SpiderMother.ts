@@ -1,7 +1,7 @@
-import { Container, Sprite } from 'pixi.js';
+import { Container } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
-import { FlexLimb } from './FlexLimb.ts';
+import { FlexBody } from './FlexBody.ts';
 import type { Spider } from './Spider.ts';
 
 // ---- Лапки шатаются: цепочка костей (FlexLimb), поворот у корня + плавный изгиб к кончику; по две несоизмеримые синусоиды
@@ -28,7 +28,7 @@ interface Vec {
 }
 
 interface Limb {
-  bones: FlexLimb;
+  index: number; // номер лапки в сетке FlexBody
   phase: number;
   freq: number;
   rootSwing: number;
@@ -48,6 +48,7 @@ export class SpiderMother {
   public readonly container = new Container();
 
   private readonly bodyHolder = new Container();
+  private readonly flex: FlexBody;
   private readonly limbs: Limb[] = [];
   private readonly mouth: Vec; // точка плевка относительно центра
   private readonly spawns: SpawnsDef;
@@ -70,13 +71,17 @@ export class SpiderMother {
     this.mouth = { x: wob.mouth.x - rig.anchor.x, y: wob.mouth.y - rig.anchor.y };
     this.nextSpit = rand(this.spawns.interval_seconds[0], this.spawns.interval_seconds[1]) * 0.5;
 
-    // Лапки — под телом; каждая — цепочка костей, режется из целого слоя
-    for (const l of wob.limbs) {
-      const bones = new FlexLimb(sprites.imageData(l.sprite_id), sprites.texture(l.sprite_id), l.root, l.bones ?? 6);
-      bones.container.position.set(l.root.x - rig.anchor.x, l.root.y - rig.anchor.y);
-      this.container.addChild(bones.container);
+    // Тело и лапки — одна сетка со скиннингом: лапки ведёт цепочка костей, основание приклеено к телу
+    this.flex = new FlexBody(
+      sprites.imageData(wob.sprite_id), sprites.texture(wob.sprite_id),
+      wob.limbs.map((l) => ({ mask: sprites.imageData(l.sprite_id), root: l.root, bones: l.bones ?? 6 })),
+      rig.anchor
+    );
+    this.bodyHolder.addChild(this.flex.container);
+    this.container.addChild(this.bodyHolder);
+    wob.limbs.forEach((_, i) => {
       this.limbs.push({
-        bones,
+        index: i,
         phase: Math.random() * Math.PI * 2,
         freq: rand(WOBBLE_FREQ[0], WOBBLE_FREQ[1]),
         rootSwing: ROOT_SWING * rand(0.7, 1.2),
@@ -84,12 +89,7 @@ export class SpiderMother {
         twitch: 0,
         twitchTarget: 0
       });
-    }
-
-    const body: Sprite = sprites.createSprite(wob.body_sprite_id);
-    body.pivot.set(rig.anchor.x, rig.anchor.y);
-    this.bodyHolder.addChild(body);
-    this.container.addChild(this.bodyHolder);
+    });
 
     // Занимает блок тайлов размера холста (64x64 — 2x2 тайла): (x, y) — левый верхний тайл, центр — посередине
     this.container.position.set(
@@ -163,8 +163,9 @@ export class SpiderMother {
       l.twitch += (l.twitchTarget - l.twitch) * (1 - Math.exp(-TWITCH_FOLLOW * dt)); // плавно, без рывков
       const a = Math.sin(l.phase) * 0.7 + Math.sin(l.phase * 1.7 + 1.3) * 0.3;
       const b = Math.sin(l.phase * 1.3 + 0.9) * 0.7 + Math.sin(l.phase * 2.3) * 0.3;
-      l.bones.setPose((a * l.rootSwing + l.twitch * 0.4) * swingUp, (b * l.bendSwing + l.twitch) * swingUp);
+      this.flex.setPose(l.index, (a * l.rootSwing + l.twitch * 0.4) * swingUp, (b * l.bendSwing + l.twitch) * swingUp);
     }
+    this.flex.commit();
 
     // Тело: дышит шагом в целый пиксель; перед плевком раздувается, после — сжимается. Масштаб кратен 1/64 (целые
     // пиксели размера 64x64) — иначе края спрайта мерцают.
