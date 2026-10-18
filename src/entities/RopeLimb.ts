@@ -268,10 +268,11 @@ export class RopeLimb {
    * @param stiffness множитель силы возврата к позе (1 — обычная, больше — «собранная» рука)
    * @param pin мировая точка, к которой жёстко прикреплена кисть (хват за уступ); null — рука свободна.
    *   Если точка дальше длины руки, кисть тянется к ней в пределах досягаемости.
+   * @param solid мировая точка твёрдая (тайл): точки руки в неё не заходят — остаются там, где были (регдолл, рука не проходит сквозь пол)
    */
   public update(
     dt: number, rootX: number, rootY: number, restAngle: number, stiffness: number, frame: LimbFrame,
-    pin: { x: number; y: number } | null = null
+    pin: { x: number; y: number } | null = null, solid: ((x: number, y: number) => boolean) | null = null
   ): void {
     const f = frame.facing;
     this.syncFacing(frame);
@@ -373,6 +374,15 @@ export class RopeLimb {
           this.y[i] += (dy * diff * wa) / sum;
           this.x[i + 1] -= (dx * diff * wb) / sum;
           this.y[i + 1] -= (dy * diff * wb) / sum;
+        }
+      }
+      if (solid) {
+        // точка вошла в тайл — возвращаем по той оси, по которой она вошла (скользит вдоль поверхности, а не застревает)
+        for (let i = 1; i <= this.n; i++) {
+          if (!solid(this.x[i], this.y[i])) continue;
+          if (!solid(this.px[i], this.y[i])) this.x[i] = this.px[i];
+          else if (!solid(this.x[i], this.py[i])) this.y[i] = this.py[i];
+          else { this.x[i] = this.px[i]; this.y[i] = this.py[i]; }
         }
       }
     }

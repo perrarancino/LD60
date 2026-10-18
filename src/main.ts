@@ -41,13 +41,9 @@ const FORE_ARM_START = 0.4; // с какой доли длины руки от �
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
 const HIT_STOP = 0.045; // с: стоп-кадр при попадании (удар «вязнет» во враге)
 const CRIT_HIT_STOP = 0.07;
-const KILL_HIT_STOP = 0.1;
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
-const KILL_SHAKE = 3.5;
 const SHAKE_DECAY = 18; // 1/с: как быстро тряска затухает
-const DEATH_SWELL = 0.12; // с: убитый враг белеет и раздувается, потом лопается
-const DEATH_COLORS = [0xc095fc, 0x9667f2, 0x56f436, 0xb9ff97, 0xffffff]; // брызги при смерти жука
 const LAND_DUST = [0x9fb4c8, 0x6f8296, 0xdbe9f7]; // пыль при тяжёлом приземлении героя
 
 /** Здоровье врага: сколько осталось, из скольких; view — что рисуется (убирается при смерти); remove — вычеркнуть из списков игры. */
@@ -56,16 +52,6 @@ interface Mob {
   max: number;
   view: Container;
   remove: () => void;
-}
-
-/** Убитый враг: белый силуэт раздувается DEATH_SWELL секунд и лопается брызгами. */
-interface Dying {
-  view: Container;
-  t: number;
-  sx: number; // исходный масштаб
-  sy: number;
-  x: number; // центр (мир) — оттуда брызги
-  y: number;
 }
 
 // Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
@@ -99,7 +85,6 @@ class GameApp {
   private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
   private punchHitId = 0;
   private readonly mobs = new Map<Hittable, Mob>(); // здоровье врагов
-  private readonly dying: Dying[] = [];
   private readonly numbers = new DamageNumbers(); // цифры урона (поверх цветокоррекции, под ним ничего нет)
   private hitStop = 0; // с: оставшийся стоп-кадр
   private shake = 0; // px арта: текущая сила тряски камеры
@@ -437,41 +422,11 @@ class GameApp {
     if (mob.hp <= 0) this.kill(target, mob);
   }
 
-  /** Смерть врага: он сразу выходит из игры (не двигается, не бьётся), белый силуэт раздувается и лопается брызгами. */
+  /** Смерть врага: он выходит из игры и исчезает (эффекты смерти — позже). */
   private kill(target: Hittable, mob: Mob): void {
     this.mobs.delete(target);
     mob.remove();
-    const circles = target.hitCircles();
-    const cx = circles.reduce((a, c) => a + c.x, 0) / Math.max(1, circles.length);
-    const cy = circles.reduce((a, c) => a + c.y, 0) / Math.max(1, circles.length);
-    this.dying.push({ view: mob.view, t: 0, sx: mob.view.scale.x, sy: mob.view.scale.y, x: cx, y: cy });
-    this.hitStop = Math.max(this.hitStop, KILL_HIT_STOP);
-    this.shake = Math.max(this.shake, KILL_SHAKE);
-  }
-
-  /** Убитые враги: раздуваются, затем лопаются — брызги, клубы дыма, вспышка удара. */
-  private updateDying(dt: number): void {
-    for (let i = this.dying.length - 1; i >= 0; i--) {
-      const d = this.dying[i];
-      d.t += dt;
-      const k = Math.min(1, d.t / DEATH_SWELL);
-      const swell = 1 + 0.3 * k * k;
-      d.view.scale.set(d.sx * swell, d.sy * swell);
-      if (d.t < DEATH_SWELL) continue;
-      this.fx.burst(d.x, d.y, {
-        count: 26, colors: DEATH_COLORS, speed: [70, 230], life: [0.3, 0.7], size: [1, 3], gravity: 320, drag: 1.5
-      });
-      for (let j = 0; j < 3; j++) {
-        const a = Math.random() * Math.PI * 2;
-        this.spriteFx.spawn(SMOKE_FX, d.x, d.y, {
-          angle: Math.random() * Math.PI * 2, scale: 0.6 + Math.random() * 0.5,
-          vx: Math.cos(a) * 60, vy: Math.sin(a) * 60 - 20, speed: 0.9 + Math.random() * 0.3
-        });
-      }
-      this.spriteFx.spawn(PUNCH_FX, d.x, d.y, { angle: Math.random() * Math.PI * 2, scale: 1.4 });
-      d.view.destroy({ children: true });
-      this.dying.splice(i, 1);
-    }
+    mob.view.destroy({ children: true });
   }
 
   /** Тяжёлое приземление героя: пыль разлетается по земле в обе стороны, камеру трясёт по силе удара. */
@@ -607,7 +562,6 @@ class GameApp {
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
     this.resolveStrike();
-    this.updateDying(dt);
     this.fx.update(dt);
     this.spriteFx.update(dt);
     this.numbers.update(dt);

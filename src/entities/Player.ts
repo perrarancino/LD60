@@ -6,7 +6,8 @@ import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
 import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
-import type { ClimbPhase, ClimbPose, PunchPose, StumblePose } from './PlayerRig.ts';
+import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
+import { Ragdoll } from './Ragdoll.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
@@ -30,11 +31,14 @@ const WALL_KICK_FX_HEIGHT = 26; // на какой высоте над нога�
 const PUNCH_COOLDOWN = 0.26; // с: пауза между ударами (от начала предыдущего)
 const PUNCH_BUFFER = 0.12; // с: нажатие чуть раньше конца паузы не теряется
 const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: от них считается направление удара
-// Падение с большой высоты: герой теряет равновесие — падает (вперёд, если бежал, иначе назад) и встаёт; управление на это время отключено
-const STUMBLE_HEIGHT = 150; // px (≈ 4.5 тайла): с такой высоты и выше
-const STUMBLE_FULL = 360; // px: с такой — самое сильное падение (дольше лежит)
-const STUMBLE_TIME: [number, number] = [0.95, 1.45]; // с: от слабого до сильного
-const STUMBLE_SLIDE = 7; // 1/с: торможение проскальзывания по земле при падении
+// Падение с большой высоты: тело становится регдоллом — падает по физике (вперёд по инерции бега, иначе ноги подкашиваются
+// и он валится назад), сталкивается с тайлами, улёгшись — встаёт; управление на это время отключено
+const FALL_HEIGHT = 150; // px (≈ 4.5 тайла): с такой высоты и выше
+const FALL_FULL = 360; // px: с такой — самый сильный удар
+const FALL_TOPPLE: [number, number] = [70, 130]; // px/с: толчок груди назад, если герой не бежал (от слабого до сильного удара)
+const GETUP_MIN = 0.55; // с: подъём не короче
+const GETUP_MAX = 1.1; // с: и не дольше
+const GETUP_DONE = 3.5; // px: тело почти в стойке — подъём закончен
 
 /** Удар в мире: от плеча к кулаку; id растёт с каждым ударом (чтобы один удар засчитывался врагу один раз). */
 export interface Strike {
@@ -105,7 +109,8 @@ export class Player {
   private kickAlong = false; // текущий отскок — вдоль стены (вверх по ней), а не от неё
   private peakY = 0; // самая высокая точка с момента отрыва от земли (y ног)
   private wasGrounded = true;
-  private stumble: { t: number; dur: number; dir: 1 | -1; power: number } | null = null;
+  private doll: Ragdoll | null = null; // регдолл (создаётся при первом падении)
+  private downed = false; // лежит регдоллом или встаёт
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
@@ -127,11 +132,7 @@ export class Player {
     this.climbCooldown -= dt;
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
     // пока герой лежит и встаёт — управления нет
-    if (this.stumble) {
-      this.stumble.t += dt;
-      if (this.stumble.t >= this.stumble.dur) this.stumble = null;
-    }
-    const ctl: InputState = this.stumble
+    const ctl: InputState = this.downed
       ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false }
       : input;
 
@@ -139,9 +140,11 @@ export class Player {
       this.updateClimb(dt);
     } else {
       const vxBefore = b.vx;
+      const vyBefore = b.vy;
       this.updateMovement(dt, ctl, level);
-      this.checkHardLanding(vxBefore);
-      if (!this.climb && !this.stumble && this.climbCooldown <= 0 && ctl.horizontal !== 0 && b.blockedX === ctl.horizontal) {
+      if (this.downed) this.updateDowned(dt, level);
+      else this.checkHardLanding(vxBefore, vyBefore, level);
+      if (!this.climb && !this.downed && this.climbCooldown <= 0 && ctl.horizontal !== 0 && b.blockedX === ctl.horizontal) {
         const plan = this.planClimb(ctl.horizontal, level);
         if (plan) this.beginClimb(plan);
       }
@@ -169,7 +172,7 @@ export class Player {
       wall: this.sliding,
       wallX: this.wallX,
       punch: this.punchT >= 0 ? this.punchPose() : null,
-      stumble: this.stumblePose()
+      ragdoll: this.downed && this.doll ? { body: this.doll, solid: (x, y) => y >= 0 && level.isSolid(Math.floor(x / level.tileSize), Math.floor(y / level.tileSize)) } : null
     });
     this.sprite.position.set(b.x, b.y);
   }
@@ -184,26 +187,41 @@ export class Player {
     return { id: this.punchId, x1: f.x1, y1: f.y1, x2: f.x2, y2: f.y2, dirX: this.punchDir.x, dirY: this.punchDir.y };
   }
 
-  private stumblePose(): StumblePose | null {
-    const s = this.stumble;
-    return s ? { t: Math.min(1, s.t / s.dur), dir: s.dir, power: s.power } : null;
-  }
-
-  /** Приземление после падения с большой высоты: герой теряет равновесие (вперёд — если бежал по взгляду, иначе назад). */
-  private checkHardLanding(vxBefore: number): void {
+  /** Приземление после падения с большой высоты: тело становится регдоллом (по инерции бега — вперёд, стоя — валится назад). */
+  private checkHardLanding(vxBefore: number, vyBefore: number, level: Level): void {
     const b = this.body;
-    if (this.wasGrounded || !b.grounded || this.stumble) return;
+    if (this.wasGrounded || !b.grounded || this.downed) return;
     const fall = b.y - this.peakY;
-    if (fall < STUMBLE_HEIGHT) return;
-    const power = Math.min(1, (fall - STUMBLE_HEIGHT) / (STUMBLE_FULL - STUMBLE_HEIGHT));
-    const forward = Math.abs(vxBefore) > 30 && Math.sign(vxBefore) === this.facing;
-    this.stumble = {
-      t: 0, dur: STUMBLE_TIME[0] + (STUMBLE_TIME[1] - STUMBLE_TIME[0]) * power, dir: forward ? 1 : -1, power
-    };
-    b.vx = vxBefore * 0.6; // по инерции немного проскальзывает
+    if (fall < FALL_HEIGHT) return;
+    const power = Math.min(1, (fall - FALL_HEIGHT) / (FALL_FULL - FALL_HEIGHT));
+    const running = Math.abs(vxBefore) > 30;
+    const topple = running ? 0 : -this.facing * (FALL_TOPPLE[0] + (FALL_TOPPLE[1] - FALL_TOPPLE[0]) * power);
+    this.doll ??= new Ragdoll(this.rig.ragdollGeometry());
+    this.doll.start(level, b.x, b.y, this.facing, vxBefore, Math.max(vyBefore, 0), topple);
+    this.downed = true;
     this.punchT = -1;
     this.kickT = 0;
     this.onHardLanding?.(b.x, b.bottom, power);
+  }
+
+  /**
+   * Лежит регдоллом: хитбокс тела едет за тазом (сквозь стены не проходит — двигается по физике тела), улёгшись —
+   * встаёт: мышцы тянут регдолл к стойке на месте хитбокса; почти встал (или вышло время) — снова обычная анимация.
+   */
+  private updateDowned(dt: number, level: Level): void {
+    const b = this.body;
+    const doll = this.doll!;
+    if (doll.gettingUp < 0) {
+      const g = this.rig.ragdollGeometry();
+      const target = doll.points[0].x - (g.waist.x - g.anchor.x) * this.facing; // где был бы хитбокс при таком тазе
+      b.vx = Math.max(-300, Math.min(300, (target - b.x) / Math.max(dt, 1e-3)));
+      b.move(dt, level);
+      b.vx = 0;
+      if (doll.settled) doll.getUp();
+    }
+    doll.update(dt, { bodyX: b.x, bodyY: b.y, facing: this.facing });
+    const t = doll.gettingUp;
+    if (t >= GETUP_MAX || (t >= GETUP_MIN && doll.offStand(b.x, b.y, this.facing) < GETUP_DONE)) this.downed = false;
   }
 
   private punchPose(): PunchPose {
@@ -255,8 +273,8 @@ export class Player {
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
-    if (this.stumble) {
-      b.vx *= Math.exp(-STUMBLE_SLIDE * dt); // упал — проскальзывает и останавливается
+    if (this.downed) {
+      b.vx = 0; // лежит: хитбокс двигает регдолл (updateDowned)
     } else if (this.airSteer && !b.grounded) {
       // Скорость плавно подстраивается под ввод: после прыжка от стены героя можно вести в любую сторону
       const accel = (input.horizontal !== 0 ? AIR_ACCEL : AIR_DRAG) * dt;

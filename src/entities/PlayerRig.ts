@@ -3,6 +3,7 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import { GAME_CONFIG } from '../core/Constants.ts';
 import type { RigDef, RigPartDef } from '../data/types.ts';
 import { splitFace } from './FaceSplit.ts';
+import type { Ragdoll, RagdollGeometry } from './Ragdoll.ts';
 import { RopeLimb } from './RopeLimb.ts';
 
 /** Фаза залезания на уступ. */
@@ -44,13 +45,6 @@ export interface Fist {
   y2: number;
 }
 
-/** Потеря равновесия после падения с высоты: t — прогресс 0..1 (удар -> падение -> лежит -> встаёт), dir — вперёд (+1) или назад (-1). */
-export interface StumblePose {
-  t: number;
-  dir: 1 | -1;
-  power: number; // 0..1: сила падения
-}
-
 /** Состояние героя, из которого рисуется поза. Все координаты — мировые. */
 export interface RigPose {
   bodyX: number;
@@ -67,7 +61,7 @@ export interface RigPose {
   wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
   wallX: number; // x поверхности стены (мир)
   punch?: PunchPose | null; // идёт удар: ближайшая к цели рука резко выбрасывается вперёд
-  stumble?: StumblePose | null; // упал с высоты: теряет равновесие и встаёт
+  ragdoll?: { body: Ragdoll; solid: (x: number, y: number) => boolean } | null; // упал с высоты: тело — регдолл (solid — тайлы для рук)
 }
 
 interface Part {
@@ -101,8 +95,7 @@ const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от �
 const STEP_AHEAD = 0.55; // стопа приземляется впереди таза на эту долю досягаемости
 const STEP_LIFT = 3.5; // высота подъёма стопы в махе, px
 const LAND_DIP = 7; // px: на сколько проседает таз при жёстком приземлении (без потери равновесия)
-const STUMBLE_TILT = 1.25; // рад: наклон всего тела, когда герой упал
-const STUMBLE_LOWER = 17; // px: на сколько опускается тело (лежит на земле)
+const RAGDOLL_ARM_STIFF = 0.12; // руки регдолла почти не держат позу — болтаются и падают под весом
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const approach = (cur: number, target: number, rate: number, dt: number) =>
@@ -125,7 +118,6 @@ export class PlayerRig {
   /** Внутренний контейнер: наклоняется всем телом (вокруг центра тела) при отталкивании от стены. */
   private readonly tilt = new Container();
   private tiltRot = 0;
-  private tiltDown = 0; // px: опускание всего тела (упал)
   private landDip = 0; // px: просадка таза после приземления, затухает
   private airVy = 0; // скорость падения в последнем кадре в воздухе
   private wasGrounded = true;
@@ -220,6 +212,10 @@ export class PlayerRig {
     const speedL = s.vx * f; // скорость вдоль направления взгляда
 
     this.container.scale.x = f;
+    if (s.ragdoll) {
+      this.poseRagdoll(dt, s, s.ragdoll.body, s.ragdoll.solid);
+      return;
+    }
 
     // ---- Курсор в локальных координатах от центра головы (вперёд = +x)
     const hc = this.headCenter;
@@ -232,20 +228,14 @@ export class PlayerRig {
     const nx = (dx / dist) * gain;
 
     // ---- Приземление: таз проседает по силе удара о землю и пружинит обратно
-    if (s.grounded && !this.wasGrounded && !climb && !s.stumble) this.landDip = LAND_DIP * clamp((this.airVy - 150) / 450, 0, 1);
+    if (s.grounded && !this.wasGrounded && !climb) this.landDip = LAND_DIP * clamp((this.airVy - 150) / 450, 0, 1);
     if (!s.grounded) this.airVy = s.vy;
     this.wasGrounded = s.grounded;
     this.landDip = approach(this.landDip, 0, 9, dt);
 
-    // ---- Потеря равновесия: удар (присед) -> падение (всё тело наклоняется и опускается) -> лежит -> встаёт
-    const st = !climb && s.stumble ? s.stumble : null;
-    const fallAmt = st ? smoothstep(0.1, 0.32, st.t) * (1 - smoothstep(0.6, 0.97, st.t)) : 0;
-    const impact = st && st.t < 0.14 ? (5 + 3 * st.power) * Math.sin((Math.PI * st.t) / 0.14) : 0;
-    const bounce = st ? 2 * Math.sin(Math.PI * clamp((st.t - 0.3) / 0.12, 0, 1)) : 0; // отскок тела при ударе о землю
-
     // ---- Ноги: шаговый контроллер -> просадка таза
-    const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s, fallAmt);
-    this.pelvisDrop = approach(this.pelvisDrop, drop + this.landDip + impact, 40, dt);
+    const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s);
+    this.pelvisDrop = approach(this.pelvisDrop, drop + this.landDip, 40, dt);
 
     // ---- Торс и голова
     let torsoTarget = this.prevTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
@@ -262,13 +252,7 @@ export class PlayerRig {
     }
     const kick = s.kick;
     let tiltTarget = 0;
-    if (st) {
-      // упал: всё тело заваливается вперёд или назад, голова — к земле; встаёт с лёгким перевесом в другую сторону
-      const recover = Math.sin(Math.PI * clamp((st.t - 0.75) / 0.25, 0, 1));
-      tiltTarget = st.dir * (STUMBLE_TILT + 0.2 * st.power) * fallAmt - st.dir * 0.12 * recover;
-      torsoTarget = st.dir * 0.25 * fallAmt;
-      headTarget = -st.dir * 0.35 * fallAmt;
-    } else if (kick !== null && !climb && s.kickAlong) {
+    if (kick !== null && !climb && s.kickAlong) {
       // рывок вверх вдоль стены: тело чуть к стене, грудь вверх, голова смотрит вверх
       const arc = Math.sin(Math.PI * Math.min(1, kick));
       tiltTarget = 0.12 * arc;
@@ -287,10 +271,8 @@ export class PlayerRig {
       const arc = Math.sin(Math.PI * clamp(punch.time / PUNCH_DURATION, 0, 1));
       torsoTarget += PUNCH_LEAN * clamp(punch.dirX * f, -1, 1) * arc;
     }
-    this.tiltRot = approach(this.tiltRot, tiltTarget, st ? 16 : 20, dt);
+    this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
     this.tilt.rotation = this.tiltRot;
-    this.tiltDown = approach(this.tiltDown, st ? STUMBLE_LOWER * fallAmt - bounce : 0, 18, dt);
-    this.tilt.position.y = -28 + this.tiltDown;
     this.torsoRot = approach(this.torsoRot, torsoTarget, 14, dt);
 
     const breathe = Math.sin(this.time * 2.4) * 0.4;
@@ -455,10 +437,7 @@ export class PlayerRig {
 
 
       let rest = Math.sin(this.time * 1.3 + side) * 0.03; // лёгкое покачивание в покое
-      if (st) {
-        // падение: руки взлетают и машут, потом выставляются вперёд по ходу падения — упереться в землю
-        rest += -st.dir * 1.3 * fallAmt + side * 0.6 * Math.sin(this.time * 13 + side) * (1 - fallAmt) * (st.t < 0.35 ? 1 : 0);
-      } else if (s.grounded) {
+      if (s.grounded) {
         rest += -stepSin * side * 0.3 * speed; // руки качаются против ног
       } else {
         rest += side * 0.5 * clamp(s.vy / 400, -0.3, 1); // в падении руки уходят вверх-в стороны
@@ -467,6 +446,82 @@ export class PlayerRig {
     }
 
     this.wasClimbing = !!climb;
+  }
+
+  /** Геометрия тела для регдолла: таз, шея, центр головы, бёдра и длины ног — в координатах холста. */
+  public ragdollGeometry(): RagdollGeometry {
+    return {
+      anchor: this.def.anchor, waist: this.torso.def.pivot, neck: this.head.def.pivot, head: this.headCenter,
+      hips: this.feet.map((foot) => ({ at: foot.part.def.pivot, length: foot.length }))
+    };
+  }
+
+  /**
+   * Поза из регдолла: торс — от таза к шее, голова — от шеи к центру головы, ноги — от бёдер (едут вместе с торсом) к стопам;
+   * руки — канаты, почти без силы позы (болтаются и падают под весом) и с упором в тайлы. Все части — в той же системе
+   * зеркалируемого контейнера, что и обычная поза: после подъёма анимация продолжается без скачка.
+   */
+  private poseRagdoll(dt: number, s: RigPose, rd: Ragdoll, solid: (x: number, y: number) => boolean): void {
+    const f = s.facing;
+    const a = this.def.anchor;
+    const toCanvas = (p: { x: number; y: number }) => ({ x: (p.x - s.bodyX) * f + a.x, y: p.y - s.bodyY + a.y });
+    const [pw, nw, hw, ...feetW] = rd.points;
+    const P = toCanvas(pw);
+    const Nk = toCanvas(nw);
+    const Hd = toCanvas(hw);
+    const waist = this.torso.def.pivot;
+    const neck = this.head.def.pivot;
+    const hc = this.headCenter;
+    const torsoRot = Math.atan2(Nk.y - P.y, Nk.x - P.x) - Math.atan2(neck.y - waist.y, neck.x - waist.x);
+    const headAbs = Math.atan2(Hd.y - Nk.y, Hd.x - Nk.x) - Math.atan2(hc.y - neck.y, hc.x - neck.x);
+    const c = Math.cos(torsoRot);
+    const sn = Math.sin(torsoRot);
+    const onTorso = (p: { x: number; y: number }) => {
+      const rx = p.x - waist.x;
+      const ry = p.y - waist.y;
+      return { x: P.x + rx * c - ry * sn, y: P.y + rx * sn + ry * c };
+    };
+    const place = (part: Part, x: number, y: number, rot: number) => {
+      part.sprite!.position.set(x - a.x, y - a.y);
+      part.sprite!.rotation = rot;
+    };
+
+    this.tiltRot = 0;
+    this.tilt.rotation = 0;
+    this.torsoRot = torsoRot;
+    this.headRot = headAbs - torsoRot;
+    this.pelvisDrop = 0;
+    this.landDip = 0;
+    this.prevTilt = 0;
+    place(this.torso, P.x, P.y, torsoRot);
+    const headPos = onTorso(neck);
+    place(this.head, headPos.x, headPos.y, headAbs);
+    if (this.faceSprite) {
+      this.faceShift.x = this.faceShift.y = 0;
+      this.faceSprite.position.set(headPos.x - a.x, headPos.y - a.y);
+      this.faceSprite.rotation = headAbs;
+    }
+    this.feet.forEach((foot, i) => {
+      const hip = onTorso(foot.part.def.pivot);
+      const ft = feetW[i] ? toCanvas(feetW[i]) : { x: hip.x, y: hip.y + foot.length };
+      const rot = Math.atan2(ft.y - hip.y, ft.x - hip.x) - Math.PI / 2;
+      foot.angle = rot;
+      foot.lift = 0;
+      foot.air = true; // после подъёма стопы заново встанут под таз
+      foot.swing = false;
+      place(foot.part, hip.x, hip.y, rot);
+    });
+
+    const frame = { bodyX: s.bodyX, bodyY: s.bodyY, facing: f };
+    this.fist.active = false;
+    for (const arm of this.arms) {
+      const sh = onTorso(arm.def.pivot);
+      const rootX = s.bodyX + (sh.x - a.x) * f;
+      const rootY = s.bodyY + (sh.y - a.y);
+      arm.limb!.update(dt, rootX, rootY, arm.limb!.drawnAngle + torsoRot, RAGDOLL_ARM_STIFF, frame, null, solid);
+    }
+    this.wasClimbing = false;
+    this.wasGrounded = true;
   }
 
   /**
@@ -497,7 +552,7 @@ export class PlayerRig {
   /**
    * Физичные ноги. Возвращает, насколько надо опустить таз (px), чтобы стоящая нога доставала до земли.
    */
-  private updateLegs(dt: number, s: RigPose, fallAmt = 0): number {
+  private updateLegs(dt: number, s: RigPose): number {
     const f = s.facing;
     const speedL = s.vx * f;
     const moving = Math.abs(speedL) > 8;
@@ -507,16 +562,6 @@ export class PlayerRig {
       const L = foot.length;
       const reach = L * Math.sin(LEG_MAX_ANGLE);
       const hipX = this.hipWorldX(foot, s);
-
-      if (s.stumble) {
-        // упал: ноги разъезжаются и подгибаются (тело наклонено целиком); когда встанет — стопы заново встанут под таз
-        foot.air = true;
-        foot.swing = false;
-        const st = s.stumble;
-        foot.angle = approach(foot.angle, foot.side * (0.15 + 0.35 * fallAmt) - st.dir * 0.45 * fallAmt, 16, dt);
-        foot.lift = approach(foot.lift, 2 * fallAmt, 16, dt);
-        continue;
-      }
 
       if (!s.grounded && s.kick !== null && s.kickAlong) {
         // Рывок вверх по стене: стопы сначала упираются в стену ниже, отталкиваются вниз и подтягиваются
