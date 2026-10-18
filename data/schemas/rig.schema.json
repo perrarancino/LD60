@@ -58,11 +58,13 @@
           "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["name", "upper", "lower"],
+            "required": ["name", "sprite_id", "root"],
+            "description": "Лапка: целый слой + корень; в игре режется на сегменты вдоль оси корень -> кончик и ведётся цепочкой костей",
             "properties": {
               "name": { "type": "string" },
-              "upper": { "$ref": "#/$defs/joint_part" },
-              "lower": { "$ref": "#/$defs/joint_part" }
+              "sprite_id": { "type": "string", "description": "Полнохолстный слой лапки" },
+              "root": { "type": "object", "required": ["x", "y"], "description": "Корень лапки (px на холсте): точка крепления к телу и начало первой кости", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+              "bones": { "type": "integer", "minimum": 2, "maximum": 16, "description": "Число костей (сегментов), по умолчанию 6" }
             }
           }
         }
@@ -137,15 +139,6 @@
     }
   },
   "$defs": {
-    "joint_part": {
-      "type": "object",
-      "required": ["sprite_id", "pivot"],
-      "description": "Часть конечности: полнохолстный спрайт и точка вращения (корень или колено) на холсте",
-      "properties": {
-        "sprite_id": { "type": "string" },
-        "pivot": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
-      }
-    },
     "segment": {
       "type": "object",
       "required": ["sprite_id", "center"],

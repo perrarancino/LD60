@@ -1,19 +1,19 @@
 import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
+import { FlexLimb } from './FlexLimb.ts';
 import type { Spider } from './Spider.ts';
 
-// ---- Лапки шатаются: два шарнира (корень и колено), по две несоизмеримые синусоиды — движение не повторяется в лоб
-const ROOT_SWING = 0.085; // рад: размах поворота у корня лапки
-const KNEE_SWING = 0.15; // рад: дополнительный размах в колене
-const WOBBLE_FREQ: [number, number] = [1.3, 2.3]; // Гц: диапазон частот лапок
-const TWITCH_CHANCE = 0.35; // 1/с: как часто какая-нибудь лапка резко дёргается
-const TWITCH_SIZE = 0.22; // рад: рывок
+// ---- Лапки шатаются: цепочка костей (FlexLimb), поворот у корня + плавный изгиб к кончику; по две несоизмеримые синусоиды
+const ROOT_SWING = 0.06; // рад: размах поворота у корня лапки
+const BEND_SWING = 0.22; // рад: размах изгиба, накопленного к кончику
+const WOBBLE_FREQ: [number, number] = [0.8, 1.5]; // Гц: диапазон частот лапок (медленно — пиксели не «рябят»)
+const TWITCH_CHANCE = 0.25; // 1/с: как часто какая-нибудь лапка вздрагивает
+const TWITCH_SIZE = 0.22; // рад: вздрагивание (плавное, не рывок)
+const TWITCH_FOLLOW = 7; // 1/с: как быстро лапка приходит к вздрагиванию и возвращается
 
-// ---- Дыхание тела
-const BREATH_RATE = 0.9; // Гц
-const BREATH_SCALE = 0.012;
-const BREATH_BOB = 0.5; // px
+// ---- Дыхание тела: шаг в целый пиксель (без дробных сдвигов спрайта — пиксели не мерцают)
+const BREATH_RATE = 0.5; // Гц
 
 // ---- Плевок: набирает воздух (раздувается, лапки напрягаются) -> выстрел (сжатие) -> отдышка
 const WINDUP_TIME = 0.9;
@@ -28,13 +28,13 @@ interface Vec {
 }
 
 interface Limb {
-  upper: Container; // вращается у корня
-  lower: Container; // вращается в колене (дочерний)
+  bones: FlexLimb;
   phase: number;
   freq: number;
   rootSwing: number;
-  kneeSwing: number;
-  twitch: number; // затухающий рывок, рад
+  bendSwing: number;
+  twitch: number; // текущее вздрагивание, рад (плавно следует за целью)
+  twitchTarget: number; // цель вздрагивания, рад (после события сама стремится к нулю)
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -70,29 +70,19 @@ export class SpiderMother {
     this.mouth = { x: wob.mouth.x - rig.anchor.x, y: wob.mouth.y - rig.anchor.y };
     this.nextSpit = rand(this.spawns.interval_seconds[0], this.spawns.interval_seconds[1]) * 0.5;
 
-    // Лапки — под телом
+    // Лапки — под телом; каждая — цепочка костей, режется из целого слоя
     for (const l of wob.limbs) {
-      const upper = new Container();
-      upper.position.set(l.upper.pivot.x - rig.anchor.x, l.upper.pivot.y - rig.anchor.y);
-      const upperSprite = sprites.createSprite(l.upper.sprite_id);
-      upperSprite.pivot.set(l.upper.pivot.x, l.upper.pivot.y);
-      upper.addChild(upperSprite);
-
-      const lower = new Container();
-      lower.position.set(l.lower.pivot.x - l.upper.pivot.x, l.lower.pivot.y - l.upper.pivot.y);
-      const lowerSprite = sprites.createSprite(l.lower.sprite_id);
-      lowerSprite.pivot.set(l.lower.pivot.x, l.lower.pivot.y);
-      lower.addChild(lowerSprite);
-      upper.addChild(lower);
-
-      this.container.addChild(upper);
+      const bones = new FlexLimb(sprites.imageData(l.sprite_id), l.root, l.bones ?? 6);
+      bones.container.position.set(l.root.x - rig.anchor.x, l.root.y - rig.anchor.y);
+      this.container.addChild(bones.container);
       this.limbs.push({
-        upper, lower,
+        bones,
         phase: Math.random() * Math.PI * 2,
         freq: rand(WOBBLE_FREQ[0], WOBBLE_FREQ[1]),
         rootSwing: ROOT_SWING * rand(0.7, 1.2),
-        kneeSwing: KNEE_SWING * rand(0.7, 1.2),
-        twitch: 0
+        bendSwing: BEND_SWING * rand(0.7, 1.2),
+        twitch: 0,
+        twitchTarget: 0
       });
     }
 
@@ -157,31 +147,31 @@ export class SpiderMother {
     this.state = 'recoil';
     this.stateTime = 0;
     this.squash = 1;
-    for (const l of this.limbs) l.twitch = (Math.random() < 0.5 ? -1 : 1) * TWITCH_SIZE; // лапки вздрагивают от выстрела
+    for (const l of this.limbs) l.twitchTarget = (Math.random() < 0.5 ? -1 : 1) * TWITCH_SIZE; // лапки вздрагивают от выстрела
   }
 
   private animate(dt: number): void {
     // напряжение перед плевком: лапки качаются чаще и сильнее
     const tension = this.state === 'windup' ? Math.min(1, this.stateTime / WINDUP_TIME) : 0;
-    const speedUp = 1 + 1.6 * tension;
+    const speedUp = 1 + 1.2 * tension;
     const swingUp = 1 + 0.6 * tension;
 
     for (const l of this.limbs) {
       l.phase += Math.PI * 2 * l.freq * speedUp * dt;
-      if (Math.random() < TWITCH_CHANCE * dt) l.twitch = (Math.random() < 0.5 ? -1 : 1) * TWITCH_SIZE * rand(0.5, 1);
-      l.twitch *= Math.exp(-9 * dt);
+      if (Math.random() < TWITCH_CHANCE * dt) l.twitchTarget = (Math.random() < 0.5 ? -1 : 1) * TWITCH_SIZE * rand(0.5, 1);
+      l.twitchTarget *= Math.exp(-2.5 * dt); // вздрагивание само затухает
+      l.twitch += (l.twitchTarget - l.twitch) * (1 - Math.exp(-TWITCH_FOLLOW * dt)); // плавно, без рывков
       const a = Math.sin(l.phase) * 0.7 + Math.sin(l.phase * 1.7 + 1.3) * 0.3;
       const b = Math.sin(l.phase * 1.3 + 0.9) * 0.7 + Math.sin(l.phase * 2.3) * 0.3;
-      l.upper.rotation = (a * l.rootSwing + l.twitch * 0.5) * swingUp;
-      l.lower.rotation = (b * l.kneeSwing + l.twitch) * swingUp;
+      l.bones.setPose((a * l.rootSwing + l.twitch * 0.4) * swingUp, (b * l.bendSwing + l.twitch) * swingUp);
     }
 
-    // Тело: дышит; перед плевком раздувается, после — сжимается
-    const breath = Math.sin(this.time * Math.PI * 2 * BREATH_RATE);
+    // Тело: дышит шагом в целый пиксель; перед плевком раздувается, после — сжимается. Масштаб кратен 1/64 (целые
+    // пиксели размера 64x64) — иначе края спрайта мерцают.
+    const breath = Math.round(0.8 * Math.sin(this.time * Math.PI * 2 * BREATH_RATE));
     const inflate = tension * 0.08;
-    const sx = 1 + BREATH_SCALE * breath + inflate - 0.09 * this.squash;
-    const sy = 1 + BREATH_SCALE * breath + inflate * 0.6 + 0.05 * this.squash;
-    this.bodyHolder.scale.set(sx, sy);
-    this.bodyHolder.position.set(Math.sin(this.time * 31) * 0.5 * tension, BREATH_BOB * breath - 1.2 * tension);
+    const q = (v: number) => Math.round(v * 64) / 64;
+    this.bodyHolder.scale.set(q(1 + inflate - 0.09 * this.squash), q(1 + inflate * 0.6 + 0.05 * this.squash));
+    this.bodyHolder.position.set(0, breath);
   }
 }

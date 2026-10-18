@@ -81,7 +81,7 @@ for rig in rigs.values():
                       f"риг {rig['id']}: нога {leg['name']}: слой {leg[key]} другого размера, чем холст")
     wob = rig.get("wobbler")
     if wob:
-        ids = [("тело", wob["body_sprite_id"])] + [(l["name"], l[k]["sprite_id"]) for l in wob["limbs"] for k in ("upper", "lower")]
+        ids = [("тело", wob["body_sprite_id"])] + [(l["name"], l["sprite_id"]) for l in wob["limbs"]]
         for what, sid in ids:
             sp = sprites.get(sid)
             check(sp is not None, f"риг {rig['id']}: {what}: нет спрайта {sid}")

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Режет одиночный слой существа на тело и конечности (лапки) — для процедурной анимации без перерисовки.
 
-Лапки находятся по цветам (пиксели заданных цветов, 8-связные компоненты). Каждая лапка делится пополам на две части
-(внутреннюю и внешнюю), чтобы она сгибалась в «колене». Все части сохраняются полнохолстными PNG (как слои из aseprite2png),
-рядом пишется JSON с точками: корень лапки, колено (середина), кончик.
+Лапки находятся по цветам (пиксели заданных цветов, 8-связные компоненты). Каждая лапка сохраняется целиком отдельным
+полнохолстным PNG (как слои из aseprite2png); рядом пишется JSON с точками: корень лапки и кончик. Сгибается лапка в игре:
+FlexLimb режет её на сегменты вдоль оси корень -> кончик и ведёт цепочкой костей.
 
 Использование:
     python split_limbs.py слой.png -o ПАПКА --colors "#56f436,#b9ff97,#22d04c" [--static-box x0,y0,x1,y1 ...]
@@ -112,28 +112,15 @@ def main() -> None:
         for p in c:
             if dist[p] <= args.stub:
                 bpx[p] = px[p]
-        # колено — на середине длины лапки (по расстоянию от корня)
-        mid_d = maxd * 0.5
-        band = [p for p in c if abs(dist[p] - mid_d) <= 1.0]
-        mx = sum(p[0] for p in band) / len(band) + 0.5 if band else rx
-        my = sum(p[1] for p in band) / len(band) + 0.5 if band else ry
-        inner = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        outer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        ipx, opx = inner.load(), outer.load()
+        limb_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        lpx = limb_img.load()
         for p in c:
-            if dist[p] < mid_d:
-                ipx[p] = px[p]
-            else:
-                opx[p] = px[p]
-            if mid_d - 2 <= dist[p] < mid_d:  # нахлёст внешней части на внутреннюю: шов не раскрывается при изгибе
-                opx[p] = px[p]
+            lpx[p] = px[p]
         name = f"{args.prefix}{k}"
-        inner.save(out / f"{name}_a.png")
-        outer.save(out / f"{name}_b.png")
+        limb_img.save(out / f"{name}.png")
         meta["limbs"].append({
             "name": name,
             "root": {"x": rx, "y": ry},
-            "knee": {"x": round(mx, 2), "y": round(my, 2)},
             "tip": {"x": tip[0] + 0.5, "y": tip[1] + 0.5},
             "pixels": len(c)
         })

@@ -355,7 +355,7 @@ class GameApp {
         ...rig.parts.map((p) => p.sprite_id),
         ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? []),
         ...(rig.segmented ? [rig.segmented.head.sprite_id, rig.segmented.body.sprite_id, rig.segmented.tail.sprite_id] : []),
-        ...(rig.wobbler ? [rig.wobbler.body_sprite_id, ...rig.wobbler.limbs.flatMap((l) => [l.upper.sprite_id, l.lower.sprite_id])] : [])
+        ...(rig.wobbler ? [rig.wobbler.body_sprite_id, ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
       );
     }
     if (def.spawns) ids.push(...this.enemySpriteIds(defs, def.spawns.enemy_id, def.spawns.sprite_id, depth + 1));

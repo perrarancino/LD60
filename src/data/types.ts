@@ -118,15 +118,11 @@ export interface SegmentedDef {
   body_to_tail: number;
 }
 
-export interface JointPartDef {
-  sprite_id: string;
-  pivot: { x: number; y: number }; // точка вращения на холсте (корень или колено)
-}
-
 export interface WobblerLimbDef {
   name: string;
-  upper: JointPartDef;
-  lower: JointPartDef;
+  sprite_id: string; // целый слой лапки
+  root: { x: number; y: number }; // корень лапки на холсте
+  bones?: number; // число костей (по умолчанию 6)
 }
 
 export interface WobblerDef {

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/rig.schema.json",
   "id": "spider_mother_rig",
-  "description": "Паучиха-матка из одного слоя pauk_mother.aseprite (64x64, вид спереди): tools/aseprite2png/split_limbs.py режет её на тело и 10 лапок по две части (корень и колено — точки pivot). Лапки шатаются, тело дышит, из пасти выплёвываются паучки.",
+  "description": "Паучиха-матка из одного слоя pauk_mother.aseprite (64x64, вид спереди): tools/aseprite2png/split_limbs.py режет её на тело и 10 лапок. Каждая лапка в игре режется на сегменты вдоль оси корень -> кончик и ведётся цепочкой костей (FlexLimb): гибкое плавное сгибание без разрывов. Лапки шатаются, тело дышит, из пасти выплёвываются паучки.",
   "canvas": {
     "width": 64,
     "height": 64
@@ -19,173 +19,93 @@
     "limbs": [
       {
         "name": "leg1",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg1_a",
-          "pivot": {
-            "x": 12.5,
-            "y": 38.5
-          }
+        "sprite_id": "enemy_spider_mother_leg1",
+        "root": {
+          "x": 12.5,
+          "y": 38.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg1_b",
-          "pivot": {
-            "x": 8.37,
-            "y": 42.9
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg2",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg2_a",
-          "pivot": {
-            "x": 14.5,
-            "y": 27.5
-          }
+        "sprite_id": "enemy_spider_mother_leg2",
+        "root": {
+          "x": 14.5,
+          "y": 27.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg2_b",
-          "pivot": {
-            "x": 8.62,
-            "y": 25.12
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg3",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg3_a",
-          "pivot": {
-            "x": 15.5,
-            "y": 17.5
-          }
+        "sprite_id": "enemy_spider_mother_leg3",
+        "root": {
+          "x": 15.5,
+          "y": 17.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg3_b",
-          "pivot": {
-            "x": 11.07,
-            "y": 10.79
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg4",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg4_a",
-          "pivot": {
-            "x": 45.5,
-            "y": 15.5
-          }
+        "sprite_id": "enemy_spider_mother_leg4",
+        "root": {
+          "x": 45.5,
+          "y": 15.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg4_b",
-          "pivot": {
-            "x": 50.03,
-            "y": 12.92
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg5",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg5_a",
-          "pivot": {
-            "x": 42.5,
-            "y": 27.5
-          }
+        "sprite_id": "enemy_spider_mother_leg5",
+        "root": {
+          "x": 42.5,
+          "y": 27.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg5_b",
-          "pivot": {
-            "x": 49.94,
-            "y": 26.28
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg6",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg6_a",
-          "pivot": {
-            "x": 45.5,
-            "y": 34.5
-          }
+        "sprite_id": "enemy_spider_mother_leg6",
+        "root": {
+          "x": 45.5,
+          "y": 34.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg6_b",
-          "pivot": {
-            "x": 53.29,
-            "y": 37.64
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg7",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg7_a",
-          "pivot": {
-            "x": 41.5,
-            "y": 43.5
-          }
+        "sprite_id": "enemy_spider_mother_leg7",
+        "root": {
+          "x": 41.5,
+          "y": 43.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg7_b",
-          "pivot": {
-            "x": 47.5,
-            "y": 51.67
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg8",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg8_a",
-          "pivot": {
-            "x": 34.5,
-            "y": 49.5
-          }
+        "sprite_id": "enemy_spider_mother_leg8",
+        "root": {
+          "x": 34.5,
+          "y": 49.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg8_b",
-          "pivot": {
-            "x": 34.5,
-            "y": 52.0
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg9",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg9_a",
-          "pivot": {
-            "x": 26.5,
-            "y": 49.5
-          }
+        "sprite_id": "enemy_spider_mother_leg9",
+        "root": {
+          "x": 26.5,
+          "y": 49.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg9_b",
-          "pivot": {
-            "x": 27.17,
-            "y": 51.83
-          }
-        }
+        "bones": 6
       },
       {
         "name": "leg10",
-        "upper": {
-          "sprite_id": "enemy_spider_mother_leg10_a",
-          "pivot": {
-            "x": 18.5,
-            "y": 44.5
-          }
+        "sprite_id": "enemy_spider_mother_leg10",
+        "root": {
+          "x": 18.5,
+          "y": 44.5
         },
-        "lower": {
-          "sprite_id": "enemy_spider_mother_leg10_b",
-          "pivot": {
-            "x": 15.14,
-            "y": 52.5
-          }
-        }
+        "bones": 6
       }
     ]
   },
