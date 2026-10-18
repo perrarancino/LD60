@@ -467,33 +467,5 @@
       "scrap_parts_max": 2,
       "drop_chance_percent": 60.0
     }
-  },
-  {
-    "id": "loc2_char",
-    "display_name": "Молниеносный чубрик",
-    "location_id": "loc_2",
-    "lore": "Синий человечек с антеннами: бегает быстро и рывками, как молния.",
-    "sprite_variants": [
-      "enemy_loc2_char"
-    ],
-    "rig_id": "loc2_char_rig",
-    "stats": {
-      "max_health": 60,
-      "contact_damage": 8,
-      "movement_speed": 80.0
-    },
-    "behavior_type": "humanoid",
-    "attack": {
-      "name": "Молния",
-      "damage": 8,
-      "cooldown_seconds": 2.5,
-      "range": 80.0,
-      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
-    },
-    "drops": {
-      "scrap_parts_min": 1,
-      "scrap_parts_max": 2,
-      "drop_chance_percent": 60.0
-    }
   }
 ]

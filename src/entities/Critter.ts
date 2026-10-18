@@ -16,6 +16,11 @@ const HOP_RUN: [number, number] = [50, 95]; // px/с: прыжок вперёд
 const FLY_TURN = 2.6; // рад/с: как круто разворачивается птичка
 const FLY_RADIUS = 110; // px: на сколько птичка разлетается от точки появления
 const SEE_HEIGHT = 80; // px: на такой разнице высот герой считается «рядом»
+const PART_SMOOTH = 16; // 1/с: насколько быстро детали догоняют целевую позу — убирает рывки анимации
+const FLIP_RATE = 15; // 1/с: плавный разворот (рисунок сжимается через ноль и раскрывается в другую сторону)
+const AIR_RATE = 10; // 1/с: плавный переход «на земле» ↔ «в воздухе» (взмахи крыла не включаются щелчком)
+const SQUASH_K = 190; // 1/с²: пружина сжатия/растяжения тела на прыжке и приземлении
+const SQUASH_D = 17; // 1/с: её затухание
 
 interface Vec {
   x: number;
@@ -26,6 +31,7 @@ interface Part {
   sprite: Sprite;
   pivot: Vec;
   anims: CritterAnimDef[];
+  cur: { dx: number; dy: number; rot: number; sy: number }; // сглаженное состояние детали (пружина к целевому)
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -56,6 +62,11 @@ export class Critter implements Hittable {
   private dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1; // куда идёт (мир)
   private facing: 1 | -1 = this.dir;
   private t = Math.random() * 10;
+  private flip = 1; // сглаженное зеркало по X: 1 — как нарисовано, −1 — отражено
+  private sq = 0; // сжатие (<0) и растяжение (>0) тела по высоте, доля
+  private sqV = 0;
+  private wasGrounded = true;
+  private airT = 0; // сглаженное «в воздухе»: 0..1
   private stepPhase = 0;
   private move = 0; // 0..1: насколько сейчас в движении (для анимации)
   private air = false;
@@ -81,7 +92,7 @@ export class Critter implements Hittable {
       sprite.pivot.set(d.pivot.x, d.pivot.y);
       sprite.position.set(d.pivot.x, d.pivot.y);
       this.node.addChild(sprite);
-      this.parts.push({ sprite, pivot: d.pivot, anims: d.anims ?? [] });
+      this.parts.push({ sprite, pivot: d.pivot, anims: d.anims ?? [], cur: { dx: 0, dy: 0, rot: 0, sy: 1 } });
     }
     this.node.pivot.set(this.anchor.x, this.anchor.y);
     this.container.addChild(this.node);
@@ -100,7 +111,8 @@ export class Critter implements Hittable {
       }
     }
     this.home = { ...this.pos };
-    this.applyTransform();
+    this.flip = this.mirrored() ? -1 : 1;
+    this.applyTransform(0);
     this.animate(0);
   }
 
@@ -153,8 +165,23 @@ export class Critter implements Hittable {
       case 'flyer': this.updateFlyer(dt); break;
       default: this.updateWatcher(dt);
     }
-    this.applyTransform();
+    this.updateSquash(dt);
+    this.applyTransform(dt);
     this.animate(dt);
+  }
+
+  /** Пружина тела: на взлёте тянется вверх по скорости, на приземлении сплющивается и пружинит назад. */
+  private updateSquash(dt: number): void {
+    const grounded = this.cfg.kind === 'hopper' || this.cfg.kind === 'walker' ? this.body.grounded : true;
+    if (grounded && !this.wasGrounded && this.cfg.kind === 'hopper') {
+      this.sq = -0.2; // приземлился — сплющило
+      this.sqV = 0;
+    }
+    this.wasGrounded = grounded;
+    // в воздухе цель — растяжение по скорости, на земле — покой
+    const target = this.cfg.kind === 'hopper' && !grounded ? clamp(-this.body.vy / 1500, -0.07, 0.13) : 0;
+    this.sqV += (SQUASH_K * (target - this.sq) - SQUASH_D * this.sqV) * dt;
+    this.sq += this.sqV * dt;
   }
 
   private setFacing(dir: 1 | -1): void {
@@ -253,18 +280,23 @@ export class Critter implements Hittable {
 
   // ---------- Рисование ----------
 
-  private applyTransform(): void {
+  private applyTransform(dt: number): void {
     const p = this.position;
     this.container.position.set(p.x, p.y);
-    this.node.scale.x = this.mirrored() ? -1 : 1;
+    // плавный разворот; сжатие по высоте раздувает тело вширь и наоборот (объём сохраняется)
+    this.flip += ((this.mirrored() ? -1 : 1) - this.flip) * (dt > 0 ? 1 - Math.exp(-FLIP_RATE * dt) : 1);
+    if (Math.abs(this.flip) < 0.06) this.flip = this.flip < 0 ? -0.06 : 0.06; // не схлопывается в нитку
+    this.node.scale.set(this.flip * (1 - this.sq * 0.7), 1 + this.sq);
     // птичка кренится по курсу: нос вверх при подъёме
     this.node.rotation = this.cfg.kind === 'flyer' ? Math.sin(this.heading) * 0.4 * (this.mirrored() ? -1 : 1) * -1 : 0;
   }
 
   /** Анимации деталей: шаг (translate), качание/клёв/взмах (rotate вокруг pivot), парение, сжатие. */
-  private animate(_dt: number): void {
+  private animate(dt: number): void {
     const m = this.move;
-    const air = this.air;
+    this.airT += ((this.air ? 1 : 0) - this.airT) * (dt > 0 ? 1 - Math.exp(-AIR_RATE * dt) : 1);
+    const airT = this.airT;
+    const k = dt > 0 ? 1 - Math.exp(-PART_SMOOTH * dt) : 1;
     for (const part of this.parts) {
       let dx = 0;
       let dy = 0;
@@ -280,11 +312,11 @@ export class Critter implements Hittable {
             dy -= Math.max(0, Math.cos(w)) * (a.lift ?? 0) * m;
             break;
           }
-          case 'bounce': dy -= Math.abs(Math.sin(this.stepPhase * 1.0)) * a.amp * m; break;
+          case 'bounce': dy -= (0.5 - 0.5 * Math.cos(this.stepPhase * 2)) * a.amp * m; break; // плавная «горка» без острых впадин
           case 'swing': rot += Math.sin(this.stepPhase + ph) * a.amp * (a.always ? 1 : m) + (a.always ? Math.sin(this.t * rate + ph + this.seed) * a.amp : 0); break;
           case 'wag': rot += Math.sin(this.t * rate + ph + this.seed) * a.amp * (0.4 + 0.6 * m); break;
           case 'bob': dy += Math.sin(this.t * rate + ph + this.seed) * a.amp; break;
-          case 'flap': rot += Math.sin(this.t * rate + ph) * a.amp * (air ? 1 : 0.1) - (air ? 0 : 0); break;
+          case 'flap': rot += Math.sin(this.t * rate + ph) * a.amp * (0.08 + 0.92 * airT); break;
           case 'squash': {
             const s = Math.sin(this.t * rate + ph + this.seed);
             sy *= 1 + s * a.amp;
@@ -292,12 +324,18 @@ export class Critter implements Hittable {
             break;
           }
           case 'track': rot += this.lookX * a.amp; break;
-          case 'peck': rot += Math.pow(Math.max(0, Math.sin(this.t * rate + ph + this.seed)), 3) * a.amp * (air ? 0 : 1); break;
+          case 'peck': rot += Math.pow(Math.max(0, Math.sin(this.t * rate + ph + this.seed)), 3) * a.amp * (1 - airT); break;
         }
       }
-      part.sprite.position.set(part.pivot.x + dx, part.pivot.y + dy);
-      part.sprite.rotation = rot;
-      part.sprite.scale.set(1, sy);
+      // деталь плавно догоняет цель (пружина первого порядка): мелкие рывки анимации сглаживаются
+      const c = part.cur;
+      c.dx += (dx - c.dx) * k;
+      c.dy += (dy - c.dy) * k;
+      c.rot += (rot - c.rot) * k;
+      c.sy += (sy - c.sy) * k;
+      part.sprite.position.set(part.pivot.x + c.dx, part.pivot.y + c.dy);
+      part.sprite.rotation = c.rot;
+      part.sprite.scale.set(1, c.sy);
     }
   }
 }

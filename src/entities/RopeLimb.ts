@@ -119,6 +119,11 @@ export class RopeLimb {
     this.lastFacing = frame.facing;
   }
 
+  /** Кисть (кончик руки) в мире — после последнего update/setKinematic. */
+  public get tip(): { x: number; y: number } {
+    return { x: this.x[this.n], y: this.y[this.n] };
+  }
+
   /** Полная длина руки (плечо -> кисть), px. */
   public get length(): number {
     return this.segLen * this.n;

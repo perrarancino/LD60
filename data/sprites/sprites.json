@@ -1578,9 +1578,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char",
-      "category": "enemies",
-      "image": "enemies/loc2_char.png",
+      "id": "player3",
+      "category": "player",
+      "image": "player/loc2_char.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1597,9 +1597,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_lleg",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/LLeg.png",
+      "id": "player3_part_lleg",
+      "category": "player",
+      "image": "player/loc2_char_layers/LLeg.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1610,9 +1610,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_lhand",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/LHand.png",
+      "id": "player3_part_lhand",
+      "category": "player",
+      "image": "player/loc2_char_layers/LHand.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1623,9 +1623,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_torso",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/Torso.png",
+      "id": "player3_part_torso",
+      "category": "player",
+      "image": "player/loc2_char_layers/Torso.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1636,9 +1636,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_head",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/Head.png",
+      "id": "player3_part_head",
+      "category": "player",
+      "image": "player/loc2_char_layers/Head.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1649,9 +1649,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_eyes",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/Eyes.png",
+      "id": "player3_part_eyes",
+      "category": "player",
+      "image": "player/loc2_char_layers/Eyes.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1662,9 +1662,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_rleg",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/RLeg.png",
+      "id": "player3_part_rleg",
+      "category": "player",
+      "image": "player/loc2_char_layers/RLeg.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,
@@ -1675,9 +1675,9 @@
       "animations": {}
     },
     {
-      "id": "enemy_loc2_char_rhand",
-      "category": "enemies",
-      "image": "enemies/loc2_char_layers/RHand.png",
+      "id": "player3_part_rhand",
+      "category": "player",
+      "image": "player/loc2_char_layers/RHand.png",
       "frame_width": 64,
       "frame_height": 64,
       "frames": 1,

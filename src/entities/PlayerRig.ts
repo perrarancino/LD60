@@ -36,6 +36,26 @@ export interface PunchPose {
   arm: 1 | -1;
 }
 
+/**
+ * Бросок: замах (рука уходит назад и вверх за голову, в ней шестерёнка), рывок вперёд по дуге над головой, в конце рывка — отпускание
+ * (RELEASE), затем рука доводится вперёд и возвращается. Тайминг, с.
+ */
+export const THROW_WINDUP = 0.16;
+export const THROW_SWING = 0.075;
+export const THROW_HOLD = 0.11;
+export const THROW_RELEASE = THROW_WINDUP + THROW_SWING * 0.92; // шестерёнка покидает руку
+export const THROW_DURATION = THROW_WINDUP + THROW_SWING + THROW_HOLD;
+const THROW_BLEND = 26; // 1/с: переход руки из физической позы в бросковую
+const THROW_LEAN = 0.16; // рад: корпус откидывается назад на замахе и подаётся вперёд в броске
+
+export interface ThrowPose {
+  time: number;
+  dirX: number;
+  dirY: number;
+  arm: 1 | -1;
+  gear: boolean; // в руке шестерёнка (иначе просто жест)
+}
+
 /** Бьющая часть руки в мире: от плеча к кулаку. active — кулак выброшен и может попасть. */
 export interface Fist {
   active: boolean;
@@ -61,6 +81,7 @@ export interface RigPose {
   wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
   wallX: number; // x поверхности стены (мир)
   punch?: PunchPose | null; // идёт удар: ближайшая к цели рука резко выбрасывается вперёд
+  throwing?: ThrowPose | null; // идёт бросок: замах, рывок и отпускание шестерёнки
   ragdoll?: { body: Ragdoll; solid: (x: number, y: number) => boolean } | null; // упал с высоты: тело — регдолл (solid — тайлы для рук)
 }
 
@@ -146,11 +167,21 @@ export class PlayerRig {
   private faceShift = { x: 0, y: 0 };
   /** Кулак бьющей руки в мире (обновляется в update): по нему игра проверяет попадания. */
   public readonly fist: Fist = { active: false, x1: 0, y1: 0, x2: 0, y2: 0 };
+  /** Кисть бросающей руки в мире (обновляется, пока идёт бросок): отсюда вылетает шестерёнка. */
+  public readonly hand = { x: 0, y: 0, active: false };
+  private readonly gear: Sprite | null; // шестерёнка в руке (видна на замахе, пока не отпущена)
   private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
 
   constructor(private readonly def: RigDef, sprites: SpriteLibrary) {
+    try {
+      this.gear = sprites.createSprite('bullet1');
+      this.gear.pivot.set(this.gear.width / 2, this.gear.height / 2);
+      this.gear.visible = false;
+    } catch {
+      this.gear = null; // спрайта шестерёнки нет — бросок без неё
+    }
     this.tilt.position.set(0, -28); // центр вращения — середина тела
     this.tilt.pivot.set(0, -28);
     this.container.addChild(this.tilt);
@@ -199,6 +230,7 @@ export class PlayerRig {
     this.torso = torso;
     this.head = head;
     this.headCenter = this.opaqueCenter(sprites.imageData(head.def.sprite_id));
+    if (this.gear) this.tilt.addChild(this.gear); // шестерёнка в руке — поверх рук
     this.update(0, {
       bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, kick: null, wall: 0, wallX: 0
     });
@@ -274,6 +306,14 @@ export class PlayerRig {
       tiltTarget = 0.38 * arc;
       torsoTarget = 0.25 * arc;
       headTarget = 0.1 * arc;
+    }
+    const thr = s.throwing && !climb && !s.punch ? s.throwing : null;
+    if (thr) {
+      // Бросок: корпус откидывается на замахе, подаётся вперёд в рывке
+      const wind = clamp(thr.time / THROW_WINDUP, 0, 1);
+      const swing = clamp((thr.time - THROW_WINDUP) / THROW_SWING, 0, 1);
+      const lean = (-wind * (1 - swing) + swing * (1 - clamp((thr.time - THROW_WINDUP - THROW_SWING) / THROW_HOLD, 0, 1))) * THROW_LEAN;
+      torsoTarget += lean * clamp(thr.dirX * f, -1, 1);
     }
     const punch = s.punch && !climb ? s.punch : null;
     if (punch) {
@@ -403,6 +443,38 @@ export class PlayerRig {
         continue;
       }
 
+      if (thr && side === thr.arm) {
+        // Бросок: рука по дугам — вниз -> назад-вверх за голову (замах) -> вперёд вдоль прицела (рывок над головой); дальше доводится
+        const t = thr.time;
+        const reach = limb.length;
+        const rest = { x: rootX + dirWorld(restDir).x * reach * 0.9, y: rootY + dirWorld(restDir).y * reach * 0.9 };
+        const cock = { x: rootX - thr.dirX * reach * 0.62, y: rootY - reach * 0.78 };
+        const fwd = { x: rootX + thr.dirX * reach * 0.98, y: rootY + thr.dirY * reach * 0.98 };
+        const sweep = thr.dirX >= 0 ? 1 : -1;
+        let tx: number;
+        let ty: number;
+        if (t < THROW_WINDUP) {
+          [tx, ty] = this.sweepVec(rootX, rootY, rest, cock, smoothstep(0, 1, t / THROW_WINDUP), sweep);
+        } else {
+          [tx, ty] = this.sweepVec(rootX, rootY, cock, fwd, easeOutQuad(clamp((t - THROW_WINDUP) / THROW_SWING, 0, 1)), sweep);
+        }
+        limb.setKinematic(dt, rootX, rootY, tx, ty, bend, frame, THROW_BLEND);
+        const tip = limb.tip;
+        this.hand.x = tip.x;
+        this.hand.y = tip.y;
+        this.hand.active = true;
+        if (this.gear) {
+          // шестерёнка в кисти на замахе (в броске — пока не отпущена), вертится
+          const hold = thr.gear && t < THROW_RELEASE;
+          this.gear.visible = hold;
+          if (hold) {
+            this.gear.position.set((tip.x - s.bodyX) * f, tip.y - s.bodyY);
+            this.gear.rotation = this.time * 14;
+          }
+        }
+        continue;
+      }
+
       if (punch && side === punch.arm) {
         // Удар: рука резко выбрасывается от плеча по направлению удара (дуга без физики)
         const t = punch.time;
@@ -456,6 +528,10 @@ export class PlayerRig {
     }
 
     this.wasClimbing = !!climb;
+    if (!thr) {
+      this.hand.active = false;
+      if (this.gear) this.gear.visible = false;
+    }
   }
 
   /** Пружина ног: затухающие колебания сжатия (фиксированный шаг — одинаково при любом dt). В воздухе ноги распрямляются. */

@@ -63,6 +63,11 @@ export class ProjectileSystem {
     this.container.addChild(this.gfx);
   }
 
+  /** Можно ли запускать спец-атаку (перезарядка прошла). */
+  public get ready(): boolean {
+    return this.cooldown <= 0;
+  }
+
   /**
    * Запуск спец-атаки на ПКМ в зависимости от активной руки и её уровня
    */

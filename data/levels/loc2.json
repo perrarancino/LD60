@@ -61,24 +61,6 @@
       "y": 15
     },
     {
-      "enemy_id": "ptichka",
-      "sprite_id": "enemy_ptichka",
-      "x": 18,
-      "y": 8
-    },
-    {
-      "enemy_id": "ptichka",
-      "sprite_id": "enemy_ptichka",
-      "x": 30,
-      "y": 6
-    },
-    {
-      "enemy_id": "ptichka",
-      "sprite_id": "enemy_ptichka",
-      "x": 44,
-      "y": 9
-    },
-    {
       "enemy_id": "ward",
       "sprite_id": "enemy_ward",
       "x": 26,
@@ -89,12 +71,6 @@
       "sprite_id": "enemy_ward",
       "x": 12,
       "y": 11
-    },
-    {
-      "enemy_id": "loc2_char",
-      "sprite_id": "enemy_loc2_char",
-      "x": 34,
-      "y": 15
     }
   ]
 }

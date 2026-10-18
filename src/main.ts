@@ -13,7 +13,6 @@ import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { WormBoss } from './entities/WormBoss.ts';
 import { Critter } from './entities/Critter.ts';
-import { Humanoid } from './entities/Humanoid.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
@@ -100,7 +99,7 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private bosses: WormBoss[] = [];
-  private critters: Array<Critter | Humanoid> = []; // мелкие мобы второй локации: крыса, воробей, птичка, страж, чубрик
+  private critters: Critter[] = []; // мелкие мобы второй локации: крыса, воробей, страж
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
   private grade: ColorGrade | null = null; // цветокоррекция уровня
@@ -436,7 +435,7 @@ class GameApp {
         this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
         continue;
       }
-      if (def.behavior_type === 'critter' || def.behavior_type === 'humanoid') {
+      if (def.behavior_type === 'critter') {
         // Мелкие мобы второй локации: ходят, скачут, летают, следят за героем
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
@@ -444,9 +443,7 @@ class GameApp {
           const b = this.player.body;
           return { x: b.x, y: b.y };
         };
-        const mob = def.behavior_type === 'humanoid'
-          ? new Humanoid(def, spawn, this.level, rig, this.sprites, hero, this.fx)
-          : new Critter(def, spawn, this.level, rig, this.sprites, hero);
+        const mob = new Critter(def, spawn, this.level, rig, this.sprites, hero);
         this.critters.push(mob);
         this.worldLayer.addChild(mob.container);
         this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
@@ -486,6 +483,11 @@ class GameApp {
     this.worldLayer.addChild(this.spriteFx.container);
     // Отскок от стены: клуб дыма у стены на уровне корпуса
     this.player.onWallKick = (x, y, wallDir, along) => this.wallKickSmoke(x, y, wallDir, along);
+    // Бросок: в момент отпускания снаряд стартует из кисти бросающей руки, в сторону курсора
+    this.player.onThrowRelease = (x, y, dirX, dirY) => {
+      const aim = this.aimInWorld() ?? { x: x + dirX * 100, y: y + dirY * 100 };
+      this.projectiles.triggerSpecialAttack(x, y, aim.x, aim.y, this.hittables(), this.level);
+    };
     // Тяжёлое приземление (герой теряет равновесие): пыль в обе стороны и тряска
     this.player.onHardLanding = (x, y, power) => this.hardLanding(x, y, power);
     // Обычное приземление с высоты: пыль из-под ног по силе удара
@@ -780,16 +782,9 @@ class GameApp {
     const aim = this.aimInWorld();
     this.player.update(dt, input, this.level, aim);
 
-    // Спец-атака на правую кнопку мыши (ПКМ)
-    if (input.specialAttackPressed && aim) {
-      this.projectiles.triggerSpecialAttack(
-        this.player.body.x,
-        this.player.body.y - 28,
-        aim.x,
-        aim.y,
-        this.hittables(),
-        this.level
-      );
+    // Спец-атака на правую кнопку мыши (ПКМ): бросок — рука замахивается, а в момент отпускания из кисти вылетает снаряд (шестерёнка)
+    if (input.specialAttackPressed && aim && this.projectiles.ready && this.player.canThrow) {
+      this.player.startThrow(aim, CraftingSystem.get().activeParts.arms.type === 'standard');
     }
 
     // Быстрый доступ к верстаку сборки копии в хабе

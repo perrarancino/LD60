@@ -5,8 +5,8 @@ import type { InputState } from '../core/InputManager.ts';
 import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
 import { Body } from './Body.ts';
-import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
-import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
+import { PlayerRig, PUNCH_DURATION, THROW_DURATION, THROW_RELEASE } from './PlayerRig.ts';
+import type { ClimbPhase, ClimbPose, PunchPose, ThrowPose } from './PlayerRig.ts';
 import { Ragdoll } from './Ragdoll.ts';
 import { CraftingSystem } from '../systems/CraftingSystem.ts';
 
@@ -31,6 +31,7 @@ const PHASE_ORDER: ClimbPhase[] = ['jump', 'hang', 'pull', 'mantle'];
 const WALL_KICK_FX_HEIGHT = 26; // на какой высоте над ногами у стены появляется дым отскока, px
 const PUNCH_COOLDOWN = 0.26; // с: пауза между ударами (от начала предыдущего)
 const PUNCH_BUFFER = 0.12; // с: нажатие чуть раньше конца паузы не теряется
+const THROW_COOLDOWN = 0.38; // с: пауза между бросками (от начала)
 const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: от них считается направление удара
 // Падение с большой высоты: тело становится регдоллом — падает по физике (вперёд по инерции бега, иначе ноги подкашиваются
 // и он валится назад), сталкивается с тайлами, улёгшись — встаёт; управление на это время отключено
@@ -90,6 +91,9 @@ export class Player {
   /** Обычное приземление с заметной высоты (до регдолла): точка у ног и сила 0..1 — для пыли. */
   public onLanding: ((x: number, y: number, power: number) => void) | null = null;
 
+  /** Шестерёнка (или иной снаряд) покинула руку: кисть в мире и направление броска — отсюда стартует снаряд. */
+  public onThrowRelease: ((x: number, y: number, dirX: number, dirY: number) => void) | null = null;
+
   private readonly rig: PlayerRig;
   private readonly spriteDef;
   private facing: 1 | -1 = 1;
@@ -110,6 +114,12 @@ export class Player {
   private punchId = 0;
   private punchDir = { x: 1, y: 0 };
   private punchArm: 1 | -1 = -1;
+  private throwT = -1; // время от начала броска, с; < 0 — не бросает
+  private throwCd = 0;
+  private throwArm: 1 | -1 = -1;
+  private throwDir = { x: 1, y: 0 };
+  private throwGear = false;
+  private throwReleased = false;
   private kickAlong = false; // текущий отскок — вдоль стены (вверх по ней), а не от неё
   private peakY = 0; // самая высокая точка с момента отрыва от земли (y ног)
   private wasGrounded = true;
@@ -192,9 +202,55 @@ export class Player {
       wall: this.sliding,
       wallX: this.wallX,
       punch: this.punchT >= 0 ? this.punchPose() : null,
+      throwing: this.throwT >= 0 ? this.throwPose() : null,
       ragdoll: this.downed && this.doll ? { body: this.doll, solid: (x, y) => y >= 0 && level.isSolid(Math.floor(x / level.tileSize), Math.floor(y / level.tileSize)) } : null
     });
     this.sprite.position.set(b.x, b.y);
+    this.updateThrow(dt);
+  }
+
+  private throwPose(): ThrowPose {
+    return { time: this.throwT, dirX: this.throwDir.x, dirY: this.throwDir.y, arm: this.throwArm, gear: this.throwGear };
+  }
+
+  /** Можно ли начать бросок сейчас (не лезет, не лежит, не бьёт, не бросает, пауза прошла). */
+  public get canThrow(): boolean {
+    return !this.climb && !this.downed && this.throwT < 0 && this.punchT < 0 && this.throwCd <= 0;
+  }
+
+  /**
+   * Бросок в сторону курсора: ближайшая к нему рука замахивается за голову и бросает; в момент отпускания зовётся onThrowRelease
+   * с положением кисти — оттуда и вылетает шестерёнка. gear — в руке шестерёнка (рисуется на замахе).
+   */
+  public startThrow(aim: { x: number; y: number } | null, gear: boolean): boolean {
+    if (!this.canThrow) return false;
+    const b = this.body;
+    let dx = aim ? aim.x - b.x : this.facing;
+    let dy = aim ? aim.y - (b.y - PUNCH_CHEST) : 0;
+    let len = Math.hypot(dx, dy);
+    if (len < 6) { dx = this.facing; dy = 0; len = 1; }
+    this.throwDir = { x: dx / len, y: dy / len };
+    this.throwArm = (dx >= 0 ? -this.facing : this.facing) as 1 | -1;
+    this.throwGear = gear;
+    this.throwReleased = false;
+    this.throwT = 0;
+    this.throwCd = THROW_COOLDOWN;
+    return true;
+  }
+
+  /** Ход броска; в момент отпускания — снаряд из руки (кисть уже посчитана ригом в этом кадре). */
+  private updateThrow(dt: number): void {
+    this.throwCd -= dt;
+    if (this.throwT < 0) return;
+    if (this.climb || this.downed) { this.throwT = -1; return; }
+    this.throwT += dt;
+    if (!this.throwReleased && this.throwT >= THROW_RELEASE) {
+      this.throwReleased = true;
+      const h = this.rig.hand;
+      const b = this.body;
+      this.onThrowRelease?.(h.active ? h.x : b.x, h.active ? h.y : b.y - 28, this.throwDir.x, this.throwDir.y);
+    }
+    if (this.throwT >= THROW_DURATION) this.throwT = -1;
   }
 
   /**
@@ -264,7 +320,7 @@ export class Player {
       this.punchT += dt;
       if (this.punchT >= PUNCH_DURATION) this.punchT = -1;
     }
-    if (this.climb || this.punchBuffer <= 0 || this.punchCd > 0) return;
+    if (this.climb || this.throwT >= 0 || this.punchBuffer <= 0 || this.punchCd > 0) return;
 
     const b = this.body;
     let dx = aim ? aim.x - b.x : this.facing;

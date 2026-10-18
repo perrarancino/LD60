@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/rig.schema.json",
-  "id": "loc2_char_rig",
-  "description": "Молниеносный чубрик из слоёв loc2_char.aseprite (64x64): гуманоид той же сборки, что и герой (PlayerRig): шагающие ноги, руки-канаты, голова и глаза следят за героем. Бегает быстро, рывками.",
+  "id": "player3_rig",
+  "description": "Синий человечек (бывший «молниеносный чубрик») из слоёв loc2_char.aseprite (64x64) — герой. Та же сборка, что у прежнего героя: шагающие ноги, руки-канаты, голова и глаза следят за курсором.",
   "canvas": {
     "width": 64,
     "height": 64
@@ -13,7 +13,7 @@
   "parts": [
     {
       "name": "LLeg",
-      "sprite_id": "enemy_loc2_char_lleg",
+      "sprite_id": "player3_part_lleg",
       "role": "leg",
       "side": -1,
       "pivot": {
@@ -24,7 +24,7 @@
     },
     {
       "name": "LHand",
-      "sprite_id": "enemy_loc2_char_lhand",
+      "sprite_id": "player3_part_lhand",
       "role": "arm",
       "side": -1,
       "pivot": {
@@ -37,7 +37,7 @@
     },
     {
       "name": "Torso",
-      "sprite_id": "enemy_loc2_char_torso",
+      "sprite_id": "player3_part_torso",
       "role": "torso",
       "pivot": {
         "x": 33,
@@ -46,7 +46,7 @@
     },
     {
       "name": "Head",
-      "sprite_id": "enemy_loc2_char_head",
+      "sprite_id": "player3_part_head",
       "role": "head",
       "pivot": {
         "x": 32,
@@ -57,7 +57,7 @@
         "y": 20
       },
       "face": {
-        "sprite_id": "enemy_loc2_char_eyes",
+        "sprite_id": "player3_part_eyes",
         "max_shift": {
           "x": 3,
           "y": 2
@@ -66,7 +66,7 @@
     },
     {
       "name": "RLeg",
-      "sprite_id": "enemy_loc2_char_rleg",
+      "sprite_id": "player3_part_rleg",
       "role": "leg",
       "side": 1,
       "pivot": {
@@ -77,7 +77,7 @@
     },
     {
       "name": "RHand",
-      "sprite_id": "enemy_loc2_char_rhand",
+      "sprite_id": "player3_part_rhand",
       "role": "arm",
       "side": 1,
       "pivot": {
