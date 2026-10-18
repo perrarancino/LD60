@@ -10,10 +10,11 @@ const THREAD_CENTER_X = 5; // центр нитки по x в звене (как
 // Лианы под тайлами: цепочка узлов через VINE_NODE px, по два узла на звено нитки (звено рисуется в натуральную длину — не сжимается)
 const VINE_NODE = 7;
 const VINE_PIECE = VINE_NODE * 2; // px: шаг звеньев вдоль лианы (высота звена 16 минус нахлёст 2)
-const VINE_GRAVITY = 560; // px/с²
-const VINE_DAMPING = 2.6; // 1/с: затухание скорости
-const VINE_WIND = 55; // px/с²: порывы ветра по уровню (на конце лианы сильнее)
-const VINE_RETURN = 16; // 1/с²: пружина возврата к вертикали — лиана не «улетает» и возвращается
+const VINE_GRAVITY = 300; // px/с²: нитка лёгкая — тяжесть мала, поэтому она послушно колышется и изгибается
+const VINE_DAMPING = 1.4; // 1/с: затухание скорости (малое — после толчка лиана качается ещё несколько раз, как маятник)
+const VINE_WIND = 95; // px/с²: порывы ветра (к концу лианы растут быстрее, чем линейно, — нить изгибается дугой)
+const VINE_BIAS = [18, 42]; // px/с²: постоянный лёгкий сквозняк у каждой лианы (в свою сторону) — висит с наклоном и изгибом, а не палкой
+const VINE_RETURN = 2.5; // 1/с²: слабая пружина возврата к вертикали (основная защита от «улёта» — предел отклонения ниже)
 const VINE_MAX_SWING = 0.62; // макс. смещение узла от вертикали: доля расстояния от корня до узла (≈ 38°)
 const VINE_ITERATIONS = 3;
 const VINE_SUBSTEPS = 2;
@@ -103,6 +104,9 @@ class Vine {
   private readonly collide: boolean;
   private readonly isSolid: (cx: number, cy: number) => boolean;
   private readonly ts: number;
+  private readonly bias: number; // постоянный сквозняк (px/с², со знаком)
+  private readonly freq: number; // у каждой лианы свой темп качания
+  private readonly phase: number;
   private readonly ceilY: number; // нижняя грань тайла, из которого растёт лиана: выше неё узлам делать нечего
 
   /** pieceCount звеньев; корень (rx, ry) закреплён. */
@@ -113,6 +117,9 @@ class Vine {
     this.isSolid = isSolid;
     this.ts = ts;
     this.ceilY = ry + 2.5;
+    this.bias = (Math.random() < 0.5 ? -1 : 1) * (VINE_BIAS[0] + Math.random() * (VINE_BIAS[1] - VINE_BIAS[0]));
+    this.freq = 0.75 + Math.random() * 0.6;
+    this.phase = Math.random() * Math.PI * 2;
     this.n = pieceCount * 2;
     const size = this.n + 1;
     this.x = new Float32Array(size);
@@ -167,8 +174,11 @@ class Vine {
     const rx = this.rx;
     for (let step = 0; step < VINE_SUBSTEPS; step++) {
       for (let i = 1; i <= n; i++) {
-        const k = i / n; // на конце порывы сильнее
-        const wind = VINE_WIND * k * (Math.sin(t * 0.9 + rx * 0.015 + i * 0.35) + 0.6 * Math.sin(t * 2.3 + rx * 0.04));
+        const k = Math.pow(i / n, 1.5); // чем ближе к концу, тем сильнее: нить изгибается дугой, а не качается целиком
+        const f = this.freq;
+        const wind = k * (
+          VINE_WIND * (Math.sin(t * 0.9 * f + rx * 0.015 + this.phase + i * 0.3) + 0.6 * Math.sin(t * 2.3 * f + this.phase * 1.7 + i * 0.5)) + this.bias
+        );
         const vx = (this.x[i] - this.px[i]) * damp;
         const vy = (this.y[i] - this.py[i]) * damp;
         this.px[i] = this.x[i];
@@ -337,7 +347,7 @@ export class Webs {
     const ts = this.ts;
     let room = 0;
     for (let y = cy + 1; y < this.height && !this.solid(cx, y); y++) room += ts;
-    const maxPieces = Math.min(4, Math.floor((room - 6) / VINE_PIECE));
+    const maxPieces = Math.min(6, Math.floor((room - 6) / VINE_PIECE));
     if (maxPieces < 1) return;
     const count = 2 + (rand() < 0.5 ? 1 : 0);
     for (let i = 0; i < count; i++) {
