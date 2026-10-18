@@ -12,12 +12,12 @@ const TWITCH_CHANCE = 0.25; // 1/с: как часто какая-нибудь �
 const TWITCH_SIZE = 0.22; // рад: вздрагивание (плавное, не рывок)
 const TWITCH_FOLLOW = 7; // 1/с: как быстро лапка приходит к вздрагиванию и возвращается
 
-// ---- Дыхание тела: шаг в целый пиксель (без дробных сдвигов спрайта — пиксели не мерцают)
-const BREATH_RATE = 0.5; // Гц
+// ---- Эффект плевка: тело плавно увеличивается и возвращается (в остальное время сидит неподвижно, шатаются только лапки)
+const SPIT_GROW = 0.07; // на сколько увеличивается (0.07 = +7%)
 
 // ---- Плевок: набирает воздух (раздувается, лапки напрягаются) -> выстрел (сжатие) -> отдышка
 const WINDUP_TIME = 0.9;
-const RECOIL_TIME = 0.45;
+const RECOIL_TIME = 0.8;
 const SPIT_SPEED_X: [number, number] = [25, 85]; // px/с по горизонтали (знак случайный)
 const SPIT_SPEED_Y: [number, number] = [-120, -30]; // px/с по вертикали (вверх — минус)
 const RETRY_TIME = 1.5; // с: если плюнуть нельзя (слишком много паучков) — подождать
@@ -58,7 +58,6 @@ export class SpiderMother {
   private state: 'idle' | 'windup' | 'recoil' = 'idle';
   private stateTime = 0;
   private nextSpit: number;
-  private squash = 0; // 0..1: сжатие после выстрела (затухает)
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, tileSize: number, rig: RigDef, sprites: SpriteLibrary,
@@ -109,7 +108,6 @@ export class SpiderMother {
     dt = Math.min(dt, 1 / 30);
     this.time += dt;
     this.stateTime += dt;
-    this.squash = Math.max(0, this.squash - dt / RECOIL_TIME);
 
     switch (this.state) {
       case 'idle':
@@ -146,7 +144,6 @@ export class SpiderMother {
     if (baby) this.babies.push(baby);
     this.state = 'recoil';
     this.stateTime = 0;
-    this.squash = 1;
     for (const l of this.limbs) l.twitchTarget = (Math.random() < 0.5 ? -1 : 1) * TWITCH_SIZE; // лапки вздрагивают от выстрела
   }
 
@@ -167,12 +164,12 @@ export class SpiderMother {
     }
     this.flex.commit();
 
-    // Тело: дышит шагом в целый пиксель; перед плевком раздувается, после — сжимается. Масштаб кратен 1/64 (целые
-    // пиксели размера 64x64) — иначе края спрайта мерцают.
-    const breath = Math.round(0.8 * Math.sin(this.time * Math.PI * 2 * BREATH_RATE));
-    const inflate = tension * 0.08;
-    const q = (v: number) => Math.round(v * 64) / 64;
-    this.bodyHolder.scale.set(q(1 + inflate - 0.09 * this.squash), q(1 + inflate * 0.6 + 0.05 * this.squash));
-    this.bodyHolder.position.set(0, breath);
+    // Тело на месте; только эффект плевка: плавно растёт за время набора воздуха и так же плавно возвращается после выстрела
+    const ease = (x: number) => x * x * (3 - 2 * x);
+    let grow = 0;
+    if (this.state === 'windup') grow = ease(tension);
+    else if (this.state === 'recoil') grow = 1 - ease(Math.min(1, this.stateTime / RECOIL_TIME));
+    const k = 1 + SPIT_GROW * grow;
+    this.bodyHolder.scale.set(k, k);
   }
 }
