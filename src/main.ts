@@ -65,7 +65,8 @@ const HIT_STOP = 0.045; // с: стоп-кадр при попадании (уд
 const CRIT_HIT_STOP = 0.07;
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
-const SHAKE_DECAY = 18; // 1/с: как быстро тряска затухает
+const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухает
+const SHAKE_FREQ = 17; // Гц: частота колебаний тряски
 const LAND_DUST = [0x9fb4c8, 0x6f8296, 0xdbe9f7]; // пыль при тяжёлом приземлении героя
 
 /** Здоровье врага: сколько осталось, из скольких; view — что рисуется (убирается при смерти); remove — вычеркнуть из списков игры. */
@@ -112,6 +113,7 @@ class GameApp {
   private readonly numbers = new DamageNumbers(); // цифры урона (поверх цветокоррекции, под ним ничего нет)
   private hitStop = 0; // с: оставшийся стоп-кадр
   private shake = 0; // px арта: текущая сила тряски камеры
+  private shakePhase = 0;
   private readonly combat = (playerData as unknown as { combat?: { punch_damage: [number, number]; crit_chance?: number; crit_multiplier?: number } }).combat
     ?? { punch_damage: [5, 8] as [number, number] };
 
@@ -310,11 +312,13 @@ class GameApp {
 
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
-    // тряска: случайный сдвиг на целые пиксели арта, затухает
+    // тряска: затухающее колебание по времени (две несоизмеримые частоты — траектория не по прямой), без случайных скачков кадр к кадру;
+    // сдвиг выравнивается по физическим пикселям, поэтому ход плавный, а не ступенями по пикселю арта
     this.shake *= Math.exp(-SHAKE_DECAY * dt);
-    if (this.shake < 0.3) this.shake = 0;
-    const sx = this.shake ? Math.round((Math.random() * 2 - 1) * this.shake) : 0;
-    const sy = this.shake ? Math.round((Math.random() * 2 - 1) * this.shake) : 0;
+    if (this.shake < 0.02) this.shake = 0;
+    this.shakePhase += dt * Math.PI * 2 * SHAKE_FREQ;
+    const sx = this.shake ? snap(this.shake * Math.sin(this.shakePhase)) : 0;
+    const sy = this.shake ? snap(this.shake * Math.sin(this.shakePhase * 1.37 + 1.9)) : 0;
     this.worldLayer.position.set(-snap(camX) + sx, -snap(camY) + sy);
     this.numbers.container.position.copyFrom(this.worldLayer.position);
     this.background?.update(snap(camX), snap(camY), lh, this.scale);
