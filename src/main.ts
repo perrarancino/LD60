@@ -307,7 +307,7 @@ class GameApp {
     this.spriteFx = new SpriteEffects(this.sprites);
     this.worldLayer.addChild(this.spriteFx.container);
     // Отскок от стены: клуб дыма у стены на уровне корпуса
-    this.player.onWallKick = (x, y) => this.spriteFx.spawn(SMOKE_FX, x, y);
+    this.player.onWallKick = (x, y, wallDir) => this.wallKickSmoke(x, y, wallDir);
     this.updateCamera();
   }
 
@@ -403,12 +403,32 @@ class GameApp {
     return best;
   }
 
+  /**
+   * Отскок от стены: 3–4 клуба дыма разного размера у стены на разной высоте; разлетаются от стены и в стороны (разлёт небольшой).
+   * Первый — крупный, у самого корпуса.
+   */
+  private wallKickSmoke(x: number, y: number, wallDir: -1 | 1): void {
+    const count = 3 + Math.floor(Math.random() * 2);
+    const away = -wallDir; // от стены
+    for (let i = 0; i < count; i++) {
+      const big = i === 0;
+      const scale = big ? 0.9 + Math.random() * 0.25 : 0.4 + Math.random() * 0.45;
+      this.spriteFx.spawn(SMOKE_FX, x + away * (2 + Math.random() * 6), y + (big ? 0 : (Math.random() - 0.5) * 26), {
+        angle: Math.random() * Math.PI * 2,
+        scale,
+        vx: away * (big ? 12 : 22 + Math.random() * 28),
+        vy: big ? -6 : (Math.random() - 0.6) * 44,
+        speed: 0.85 + Math.random() * 0.4
+      });
+    }
+  }
+
   /** Эффект удара в точке попадания: картинка punch повёрнута по направлению удара + искры. */
   private landPunch(x: number, y: number, strike: Strike): void {
     const angle = Math.atan2(strike.dirY, strike.dirX);
     const hx = x + strike.dirX * FIST_RADIUS;
     const hy = y + strike.dirY * FIST_RADIUS;
-    this.spriteFx.spawn(PUNCH_FX, hx, hy, angle);
+    this.spriteFx.spawn(PUNCH_FX, hx, hy, { angle });
     this.fx.burst(hx, hy, {
       count: 8, colors: PUNCH_SPARKS, speed: [60, 150], angle, spread: 0.8, life: [0.12, 0.3], size: [1, 2], drag: 5, grow: 0.4
     });
@@ -465,7 +485,7 @@ class GameApp {
     for (const mother of this.mothers) mother.update(dt);
     this.resolveStrike();
     this.fx.update(dt);
-    this.spriteFx.update();
+    this.spriteFx.update(dt);
     // Выплюнутые паучки живут ограниченное время
     for (let i = this.spiders.length - 1; i >= 0; i--) {
       if (!this.spiders[i].expired) continue;
