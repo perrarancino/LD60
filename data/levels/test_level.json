@@ -96,23 +96,9 @@
       "x": 10,
       "y": 12,
       "layer": "back"
-    },
-    {
-      "sprite_id": "deco_ram",
-      "x": 7,
-      "y": 15,
-      "layer": "back"
     }
   ],
   "zones": [
-    {
-      "kind": "transistors",
-      "x0": 3,
-      "y0": 10,
-      "x1": 10,
-      "y1": 15,
-      "density": 0.6
-    },
     {
       "kind": "webs",
       "x0": 17,
@@ -136,6 +122,30 @@
       "x1": 18,
       "y1": 11,
       "density": 0.6
+    },
+    {
+      "kind": "transistors",
+      "x0": 3,
+      "y0": 10,
+      "x1": 12,
+      "y1": 15,
+      "density": 0.9
+    },
+    {
+      "kind": "transistors",
+      "x0": 17,
+      "y0": 9,
+      "x1": 22,
+      "y1": 15,
+      "density": 0.75
+    },
+    {
+      "kind": "transistors",
+      "x0": 23,
+      "y0": 3,
+      "x1": 29,
+      "y1": 15,
+      "density": 0.8
     }
   ],
   "grade": {

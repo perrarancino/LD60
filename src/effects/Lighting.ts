@@ -1,14 +1,12 @@
-import { BlurFilter, Container, Filter, GlProgram, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js';
+import { Container, Filter, GlProgram, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 
 /**
  * Освещение — плавное и «объёмное», без пикселизации:
  *  - Зелёный свет от фона на предметах: мир рисуется в текстуру, и шейдер даёт контровую подсветку граням, обращённым вверх и в стороны
  *    (мягкий спад на несколько пикселей — предметы выглядят объёмными), плюс общий зелёный свет, сильнее к низу, + туман у земли за миром.
- *  - Свечение мобов: яркие фиолетовые пиксели (глаза, наросты) вырезаются из той же текстуры, размываются в два слоя (ядро и гало)
- *    и ложатся аддитивно на всё вокруг — на тайлы, паутину, героя.
- * Дёшево: один проход рисования мира в текстуру, свечение считается в разрешении арта (в 25 раз меньше пикселей, чем на экране)
- * и растягивается билинейно.
+ *  - Неоновые пиксели: светятся только пиксели заданных цветов (глаза и метки мобов) — ярче и сочнее, чуть пульсируют. Блума и ореолов нет.
+ * Дёшево: один проход рисования мира в текстуру и один фильтр света.
  */
 
 const VERTEX = `
@@ -32,37 +30,6 @@ void main(void) {
 }
 `;
 
-/** Пиксели заданных цветов (EMISSIVE_COLORS) -> яркость свечения: светятся только они, а не все яркие места. */
-const EXTRACT_FRAGMENT = `
-in vec2 vTextureCoord;
-out vec4 finalColor;
-uniform sampler2D uTexture;
-uniform vec3 uE0;
-uniform vec3 uE1;
-uniform vec3 uE2;
-void main(void) {
-  vec4 c = texture(uTexture, vTextureCoord);
-  vec3 rgb = c.a > 0.0 ? c.rgb / c.a : vec3(0.0);
-  float m = 1.0 - step(0.04, min(distance(rgb, uE0), min(distance(rgb, uE1), distance(rgb, uE2))));
-  float e = m * c.a;
-  finalColor = vec4(e, e, e, e);
-}
-`;
-
-/** Размытая яркость -> мягкое цветное свечение (плавный спад, без ступеней). */
-const GLOW_FRAGMENT = `
-in vec2 vTextureCoord;
-out vec4 finalColor;
-uniform sampler2D uTexture;
-uniform vec3 uColor;
-uniform float uGain;
-void main(void) {
-  float i = texture(uTexture, vTextureCoord).r * uGain;
-  float q = 1.0 - exp(-i); // мягкое насыщение: у источника не «выгорает», вдали плавно сходит на нет
-  finalColor = vec4(uColor * q, q);
-}
-`;
-
 /**
  * Итоговый свет. Воздух (где в мире пусто) освещается мягко: небольшое свечение у ярких фиолетовых деталей мобов. На объектах (тайлы, мобы, герой,
  * декор) свет лежит только на крайних пикселях спрайта — на 1–2 пикселя арта от его края, а не на всём теле: зелёная контровая кромка от фона
@@ -74,17 +41,14 @@ const COMPOSITE_FRAGMENT = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture; // мир (физические пиксели)
-uniform sampler2D uGlow;    // свечение мобов (пиксели арта)
 uniform sampler2D uCaster;  // только существа и транзисторы
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
-uniform vec2 uGlowSize;
 uniform float uScale;       // физических пикселей на пиксель арта
-uniform vec2 uOrigin;       // сдвиг сетки свечения относительно экрана, физ. px
 uniform vec3 uColor;
 uniform float uRim;
 uniform float uAmbient;
-uniform float uLevels;
-uniform vec3 uEmit;         // добавка яркости светящимся деталям
+uniform float uTime;
+uniform vec3 uNeon;         // цвет неоновых пикселей
 uniform vec3 uE0;
 uniform vec3 uE1;
 uniform vec3 uE2;
@@ -104,12 +68,7 @@ void main(void) {
   float a = texture(uTexture, vTextureCoord).a;
   onCaster = texture(uCaster, vTextureCoord).a > 0.5;
   onTile = texture(uGround, vTextureCoord).a > 0.5;
-  vec2 frag = vTextureCoord * uInputSize.xy;
-  vec3 glow = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb;
-  if (a < 0.5) {
-    finalColor = vec4(glow, max(glow.r, max(glow.g, glow.b))); // воздух: мягкое свечение
-    return;
-  }
+  if (a < 0.5) { finalColor = vec4(0.0); return; } // пустота света не получает: ни свечения, ни блума
   float up1 = 1.0 - solidAt(vec2(0.0, -1.0));
   float dn1 = 1.0 - solidAt(vec2(0.0, 1.0));
   float lf1 = 1.0 - solidAt(vec2(-1.0, 0.0));
@@ -121,17 +80,14 @@ void main(void) {
   float edge1 = max(max(up1, dn1), max(lf1, rt1));
   float edge2 = max(max(up2, dn2), max(lf2, rt2));
   float edge = edge1 > 0.5 ? 1.0 : (edge2 > 0.5 ? 0.5 : 0.0); // 1-й пиксель от края — полностью, 2-й — вполсилы, глубже — ничего
-  // Сами светящиеся детали (яркие фиолетовые пиксели): светятся ярче и сочнее, а вокруг них внутри спрайта лежит блум
+  // Неоновые пиксели: только пиксели заданных цветов светятся — ярче и сочнее, чуть пульсируют; вокруг них ничего не светится (блума нет)
   vec3 own = texture(uTexture, vTextureCoord).rgb / max(a, 0.001);
-  float emissive = 1.0 - step(0.04, min(distance(own, uE0), min(distance(own, uE1), distance(own, uE2)))); // только пиксели заданных цветов
-  float gl = max(glow.r, max(glow.g, glow.b));
-  float bloom = 0.2 * smoothstep(0.12, 0.5, gl);                // мягкий блум на пиксели рядом со светящимися деталями, а не на всё тело
-  float lit = max(edge, bloom);
-  if (lit == 0.0 && emissive == 0.0) { finalColor = vec4(0.0); return; }
-  if (gl > 0.0) glow *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение — чёткими ступенями
+  float emissive = 1.0 - step(0.04, min(distance(own, uE0), min(distance(own, uE1), distance(own, uE2))));
+  if (edge == 0.0 && emissive == 0.0) { finalColor = vec4(0.0); return; }
   float rim = up1 > 0.5 ? 1.0 : (up2 > 0.5 ? 0.5 : ((lf1 + rt1) > 0.5 ? 0.4 : 0.0)); // кромка сверху ярче, по бокам слабее
   float band = floor((0.25 + 0.75 * vTextureCoord.y) * 3.0) / 3.0;                  // общий свет тремя ровными полосами
-  vec3 c = uColor * (rim * uRim + uAmbient * band * edge) + glow * lit + uEmit * emissive;
+  float pulse = 1.0 + 0.1 * sin(uTime * 3.0);
+  vec3 c = uColor * (rim * uRim + uAmbient * band * edge) + max(uNeon * pulse - own, vec3(0.0)) * emissive;
   finalColor = vec4(c, max(c.r, max(c.g, c.b)));
 }
 `;
@@ -227,8 +183,8 @@ const SHADOW_COLOR = [0.0, 0.01, 0.04];
 const EMISSIVE_COLORS: number[][] = [[0xc0, 0x95, 0xfc]];
 const emissiveUniform = (i: number) => new Float32Array((EMISSIVE_COLORS[i] ?? [-255, -255, -255]).map((v) => v / 255));
 
-const PURPLE_CORE = [0.85, 0.55, 1.0];
 const GREEN = [0.2, 1.0, 0.55];
+const NEON = [0.96, 0.66, 1.0]; // цвет неоновых пикселей (до пульсации): они светятся не ярче его и не темнее нарисованного
 
 function makeFilter(
   fragment: string, name: string, uniforms: Record<string, { value: unknown; type: string }>, extra: Record<string, unknown> = {}
@@ -271,10 +227,7 @@ export class Lighting {
   private worldRT: RenderTexture | null = null;
   private casterRT: RenderTexture | null = null; // только существа: от них зависит тень
   private groundRT: RenderTexture | null = null; // только тайлы: на них тень ложится
-  private glowRT: RenderTexture | null = null;
-  private readonly glowRoot = new Container(); // источники для рендера свечения в низком разрешении
-  private readonly glowSprites: Sprite[] = [];
-  private readonly compSprite = new Sprite(); // итоговый свет: фильтр читает мир и свечение
+  private readonly compSprite = new Sprite(); // итоговый свет: фильтр читает мир
   private comp: Filter | null = null;
   private readonly shadowSprite = new Sprite();
   private shadow: Filter | null = null;
@@ -291,27 +244,6 @@ export class Lighting {
     private readonly spiders: () => Container[] = () => []
   ) {
     this.compSprite.blendMode = 'add';
-
-    // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
-    const layers = [{ blur: 7, color: PURPLE_CORE, gain: 5 }];
-    for (const l of layers) {
-      const sprite = new Sprite();
-      sprite.filters = [
-        makeFilter(EXTRACT_FRAGMENT, 'glow-extract', {
-          uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
-          uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
-          uE2: { value: emissiveUniform(2), type: 'vec3<f32>' }
-        }),
-        new BlurFilter({ strength: l.blur, quality: 3 }),
-        makeFilter(GLOW_FRAGMENT, 'glow-final', {
-          uColor: { value: new Float32Array(l.color), type: 'vec3<f32>' },
-          uGain: { value: l.gain, type: 'f32' }
-        })
-      ];
-      sprite.blendMode = 'add';
-      this.glowRoot.addChild(sprite);
-      this.glowSprites.push(sprite);
-    }
 
     // туман у земли: зелёное свечение из глубины, снизу вверх
     this.fog.texture = makeTexture(4, 128, (_u, v) => Math.pow(smoothstep(0.3, 1.0, v), 1.6));
@@ -331,31 +263,24 @@ export class Lighting {
     this.worldRT?.destroy(true);
     this.casterRT?.destroy(true);
     this.groundRT?.destroy(true);
-    this.glowRT?.destroy(true);
     this.worldRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
     this.casterRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
     this.groundRT = RenderTexture.create({ width: physW, height: physH, resolution: 1, scaleMode: 'nearest' });
-    // свечение — в разрешении арта (+ запас на сдвиг сетки под дробное положение камеры), на экран растягивается плавно
-    const gw = Math.ceil(this.viewW) + 2;
-    const gh = Math.ceil(this.viewH) + 2;
-    this.glowRT = RenderTexture.create({ width: gw, height: gh, resolution: 1, scaleMode: 'linear' });
-
     this.compSprite.texture = this.worldRT;
     this.compSprite.scale.set(1 / scale); // сцена масштабируется на scale: на экране текстура 1:1
-    // фильтр пересоздаётся вместе с текстурой свечения (она передаётся ему вторым ресурсом)
+    // фильтр пересоздаётся вместе с текстурами (они передаются ему ресурсами)
     this.comp = makeFilter(COMPOSITE_FRAGMENT, 'composite', {
-      uGlowSize: { value: new Float32Array([gw, gh]), type: 'vec2<f32>' },
       uScale: { value: scale, type: 'f32' },
-      uOrigin: { value: new Float32Array(2), type: 'vec2<f32>' },
       uColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' },
       uRim: { value: 0.5, type: 'f32' },
       uAmbient: { value: 0.09, type: 'f32' },
-      uLevels: { value: 5, type: 'f32' },
-      uEmit: { value: new Float32Array([0.1, 0.04, 0.18]), type: 'vec3<f32>' },
+      uTime: { value: 0, type: 'f32' },
+      uNeon: { value: new Float32Array(NEON), type: 'vec3<f32>' },
       uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
       uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
       uE2: { value: emissiveUniform(2), type: 'vec3<f32>' }
-    }, { uGlow: this.glowRT.source, uCaster: this.casterRT.source, uGround: this.groundRT.source });
+    }, { uCaster: this.casterRT.source, uGround: this.groundRT.source });
+    this.comp.blendMode = 'add'; // фильтр рисуется в кадр прибавлением света (blendMode спрайта на результат фильтра не действует)
     this.compSprite.filters = [this.comp];
     this.shadowSprite.texture = this.groundRT;
     this.shadowSprite.scale.set(1 / scale);
@@ -368,17 +293,13 @@ export class Lighting {
       uStrength: { value: SHADOW_STRENGTH, type: 'f32' }
     }, { uCaster: this.casterRT.source });
     this.shadowSprite.filters = [this.shadow];
-    for (const s of this.glowSprites) {
-      s.texture = this.worldRT;
-      s.scale.set(1 / scale);
-    }
     this.fog.width = this.viewW;
     this.fog.height = this.viewH;
   }
 
   /** Раз в кадр после обновления камеры (до отрисовки сцены). */
   public update(): void {
-    if (!this.worldRT || !this.glowRT || !this.casterRT || !this.groundRT) return;
+    if (!this.worldRT || !this.casterRT || !this.groundRT) return;
     const s = this.scale;
     const wx = this.world.x;
     const wy = this.world.y;
@@ -411,11 +332,6 @@ export class Lighting {
       });
     }
 
-    // 2. свечение: сетка пикселей свечения совпадает с сеткой арта (дробная часть сдвига камеры)
-    const fx = wx - Math.floor(wx);
-    const fy = wy - Math.floor(wy);
-    for (const sp of this.glowSprites) sp.position.set(-fx, -fy);
-    this.renderer.render({ container: this.glowRoot, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] });
-    this.comp!.resources.u.uniforms.uOrigin = new Float32Array([fx * s, fy * s]); // сетка арта относительно экрана
+    this.comp!.resources.u.uniforms.uTime = performance.now() / 1000; // неон пульсирует
   }
 }

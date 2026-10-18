@@ -54,7 +54,7 @@ void main(void) {
   c *= 1.0 - uVignette * smoothstep(0.25, 0.85, dot(d, d) * 2.0);
   // светящиеся фиолетовые детали (и блум вокруг них) не затемняются коррекцией: остаются яркими и сочными, как нарисованы
   vec3 s = src.rgb;
-  float emit = step(0.5, s.g) * step(s.g + 0.10, s.r) * step(s.g + 0.30, s.b) * smoothstep(0.88, 0.97, s.b); // самые светлые лиловые (глаза): не затемняются
+  float emit = step(s.g + 0.10, s.r) * smoothstep(0.82, 0.9, s.r) * smoothstep(0.96, 0.995, s.b); // неоновые пиксели (красный и синий почти на максимуме): не затемняются
   c = mix(c, min(s * 1.08, 1.0), emit);
   finalColor = vec4(clamp(c, 0.0, 1.0) * src.a, src.a);
 }
