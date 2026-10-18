@@ -45,6 +45,26 @@
       }
     },
     {
+      "name": "Head",
+      "sprite_id": "player2_part_head",
+      "role": "head",
+      "pivot": {
+        "x": 32,
+        "y": 28
+      },
+      "gaze_origin": {
+        "x": 33.5,
+        "y": 20
+      },
+      "face": {
+        "sprite_id": "player2_part_eyes",
+        "max_shift": {
+          "x": 3,
+          "y": 2
+        }
+      }
+    },
+    {
       "name": "RLeg",
       "sprite_id": "player2_part_rleg",
       "role": "leg",
@@ -66,26 +86,6 @@
       },
       "rope": {
         "segments": 4
-      }
-    },
-    {
-      "name": "Head",
-      "sprite_id": "player2_part_head",
-      "role": "head",
-      "pivot": {
-        "x": 32,
-        "y": 28
-      },
-      "gaze_origin": {
-        "x": 33.5,
-        "y": 20
-      },
-      "face": {
-        "sprite_id": "player2_part_eyes",
-        "max_shift": {
-          "x": 3,
-          "y": 2
-        }
       }
     }
   ]

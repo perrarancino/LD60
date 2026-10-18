@@ -42,33 +42,9 @@
       ]
     },
     {
-      "name": "RLeg",
-      "file": "new_char_layers/RLeg.png",
-      "z": 3,
-      "visible": true,
-      "bbox": [
-        24,
-        41,
-        32,
-        63
-      ]
-    },
-    {
-      "name": "RHand",
-      "file": "new_char_layers/RHand.png",
-      "z": 4,
-      "visible": true,
-      "bbox": [
-        11,
-        31,
-        28,
-        48
-      ]
-    },
-    {
       "name": "Head",
       "file": "new_char_layers/Head.png",
-      "z": 5,
+      "z": 3,
       "visible": true,
       "bbox": [
         21,
@@ -80,13 +56,37 @@
     {
       "name": "Eyes",
       "file": "new_char_layers/Eyes.png",
-      "z": 6,
+      "z": 4,
       "visible": true,
       "bbox": [
         27,
         16,
         40,
         28
+      ]
+    },
+    {
+      "name": "RLeg",
+      "file": "new_char_layers/RLeg.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        24,
+        41,
+        32,
+        63
+      ]
+    },
+    {
+      "name": "RHand",
+      "file": "new_char_layers/RHand.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        11,
+        31,
+        28,
+        48
       ]
     }
   ]
