@@ -1,9 +1,10 @@
-import { Container, TilingSprite } from 'pixi.js';
+import { Container } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { FlexBody } from './FlexBody.ts';
 import type { Spider } from './Spider.ts';
+import { ThreadRope } from './ThreadRope.ts';
 
 // ---- Лапки шатаются: цепочка костей (FlexBody), поворот у корня + плавный изгиб к кончику; по две несоизмеримые синусоиды
 const ROOT_SWING = 0.06; // рад: размах поворота у корня лапки
@@ -80,7 +81,7 @@ export class SpiderMother {
   private readonly swing = new Container(); // у верхнего конца нитки, вращается как маятник
   private readonly hang = new Container(); // у нижнего конца нитки, вращается тело
   private readonly bodyHolder = new Container();
-  private readonly thread: TilingSprite | null;
+  private readonly thread: ThreadRope | null;
   private readonly flex: FlexBody;
   private readonly limbs: Limb[] = [];
 
@@ -128,10 +129,10 @@ export class SpiderMother {
     this.anchor = { x: restAttach.x, y: (spawn.anchor_y ?? DEFAULT_ANCHOR_ROW) * tileSize };
     this.length = Math.max(20, restAttach.y - this.anchor.y);
     if (wob.thread) {
+      // лёгкая нитка (verlet): чуть длиннее прямой, звенья случайно отражены; рисуется в мировых координатах под телом
       const tex = sprites.texture(wob.thread.sprite_id);
-      this.thread = new TilingSprite({ texture: tex, width: tex.width, height: this.length });
-      this.thread.position.set(-(wob.thread.width_center ?? tex.width / 2), 0);
-      this.swing.addChild(this.thread);
+      this.thread = new ThreadRope(tex, wob.thread.width_center ?? tex.width / 2, this.anchor, restAttach);
+      this.container.addChild(this.thread.container);
     } else {
       this.thread = null;
     }
@@ -147,7 +148,8 @@ export class SpiderMother {
     this.bodyHolder.addChild(this.flex.container);
     this.hang.addChild(this.bodyHolder);
 
-    this.container.addChild(this.babyLayer, this.swing);
+    this.container.addChild(this.swing); // под ней добавлены: нитка (выше) и слой паучков (самый нижний)
+    this.container.addChildAt(this.babyLayer, 0);
 
     wob.limbs.forEach((l, i) => {
       // в какую сторону поворачивать лапку, чтобы она поджималась к телу (знак векторного произведения оси и направления на центр)
@@ -378,7 +380,7 @@ export class SpiderMother {
     this.swing.rotation = this.theta;
     this.hang.position.set(0, this.hangLength);
     this.hang.rotation = this.psi - this.theta;
-    if (this.thread) this.thread.height = this.hangLength + 1; // конец нитки прячется под телом
+    this.thread?.update(dt, this.anchor, this.attachWorld()); // нижний конец ведёт тело; он прячется под телом
 
     // тело: сжатие/выброс; ширина и высота компенсируют друг друга (объём «сохраняется»)
     const sx = this.scaleX;
