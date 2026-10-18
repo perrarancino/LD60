@@ -11,7 +11,7 @@
     "y": 104
   },
   "segmented": {
-    "thickness": 46,
+    "thickness": 92,
     "length_min": 10,
     "length_max": 10,
     "head": {
@@ -20,8 +20,8 @@
         "x": 64,
         "y": 103.5
       },
-      "scale": 0.5,
-      "hit_radius": 28,
+      "scale": 1.0,
+      "hit_radius": 56,
       "under": [
         {
           "sprite_id": "boss_worm_tent_l_base"
@@ -120,8 +120,8 @@
         "x": 64,
         "y": 252
       },
-      "scale": 0.42,
-      "hit_radius": 23
+      "scale": 1.0,
+      "hit_radius": 46
     },
     "tail": {
       "sprite_id": "boss_worm_body",
@@ -129,28 +129,28 @@
         "x": 64,
         "y": 252
       },
-      "scale": 0.3,
-      "hit_radius": 14
+      "scale": 1.0,
+      "hit_radius": 42
     },
-    "head_to_body": 72,
-    "body_to_body": 55,
-    "body_to_tail": 49,
+    "head_to_body": 148,
+    "body_to_body": 110,
+    "body_to_tail": 110,
     "health": {
-      "head": 500,
-      "body": 150,
-      "tail": 200
+      "head": 250,
+      "body": 75,
+      "tail": 100
     },
     "flight": {
       "turn_rate": 1.7,
-      "pass_distance": 120,
+      "pass_distance": 200,
       "pass_time": [
         1.1,
         1.8
       ],
       "boost": 1.35,
       "wave": {
-        "amp": 4,
-        "k": 0.045
+        "amp": 0,
+        "k": 0
       }
     }
   },

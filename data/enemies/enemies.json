@@ -338,7 +338,7 @@
     ],
     "rig_id": "worm_boss_rig",
     "stats": {
-      "max_health": 500,
+      "max_health": 250,
       "contact_damage": 0,
       "movement_speed": 125.0
     },

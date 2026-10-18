@@ -7,9 +7,9 @@ import { SegmentChain } from './SegmentChain.ts';
 import type { ChainPartDef, PartKind, Vec } from './SegmentChain.ts';
 import { applySolidMask } from './solidMask.ts';
 
-const BOUNDS_MARGIN_X = 24; // px: дальше от краёв уровня голова разворачивается к центру
-const BOUNDS_TOP = 28;
-const BOUNDS_BOTTOM = 56; // ниже пола уходить можно (тело скрыто в блоках), но не слишком глубоко
+const BOUNDS_MARGIN_X = 64; // px: дальше от краёв уровня голова разворачивается к центру
+const BOUNDS_TOP = 50;
+const BOUNDS_BOTTOM = 80; // ниже пола уходить можно (тело скрыто в блоках), но не слишком глубоко
 const SPEED_RATE = 2.2; // 1/с: как быстро скорость догоняет желаемую
 const WANDER = 0.35; // рад: голова чуть виляет по курсу, пока далеко от героя — траектория не прямая как линейка
 const WANDER_RATE = 1.3; // рад/с
@@ -78,7 +78,7 @@ export class WormBoss implements PartDamageable {
     const ts = level.tileSize;
     this.p = { x: (spawn.x + 0.5) * ts, y: (spawn.y + 0.5) * ts };
     this.heading = Math.random() < 0.5 ? Math.PI : 0; // вылетает вбок
-    this.chain.reset(this.p, { x: Math.cos(this.heading), y: Math.sin(this.heading) }, this.phase);
+    this.chain.reset(this.p, { x: Math.cos(this.heading), y: Math.sin(this.heading) }, this.phase, this.heading + Math.PI / 2);
   }
 
   private makePart(kind: PartKind, d: SegmentDef, hp: number, thickness: number, sprites: SpriteLibrary): ChainPartDef {
@@ -188,6 +188,6 @@ export class WormBoss implements PartDamageable {
     const lag = clamp(-this.turnRate * SWAY_LAG, -SWAY_LAG_MAX, SWAY_LAG_MAX);
     for (const t of this.tentacles) t.sprite.rotation = t.amp * Math.sin(this.time * t.speed + t.phase) + lag;
 
-    this.chain.update(dt, this.p, this.phase, f.wave);
+    this.chain.update(dt, this.p, this.phase, f.wave, 0, this.heading + Math.PI / 2);
   }
 }
