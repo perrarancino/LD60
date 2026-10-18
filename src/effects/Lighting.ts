@@ -403,7 +403,8 @@ const EMISSIVE_COLORS: number[][] = [[0xc0, 0x95, 0xfc], [0x96, 0x67, 0xf2]]; //
 const emissiveUniform = (i: number) => new Float32Array((EMISSIVE_COLORS[i] ?? [-255, -255, -255]).map((v) => v / 255));
 
 const GREEN = [0.2, 1.0, 0.55];
-const FOG = [0.169 * 0.3, 0.839 * 0.3, 0.451 * 0.3]; // туман у земли: цвет 0x2bd673 с силой 0.3
+const FOG_COLOR = [0.169, 0.839, 0.451]; // туман у земли: цвет 0x2bd673...
+const FOG_STRENGTH = 0.3; // ...с силой 0.3
 
 const NEON_BOOST = 1.3; // во сколько раз неоновые пиксели ярче нарисованных (оттенок тот же)
 
@@ -599,6 +600,8 @@ export class Lighting {
   private readonly lightData = new Float32Array(MAX_LIGHTS * 4);
   private readonly colorData = new Float32Array(MAX_LIGHTS * 4);
   private readonly frac = new Float32Array(2); // дробная часть положения камеры, пиксели арта
+  private rimColor = GREEN; // цвет контровой кромки от фона (по умолчанию зелёный; уровень может задать свой)
+  private fogColor = FOG_COLOR;
   private scale = 1;
   private viewW = 480;
   private viewH = 270;
@@ -617,6 +620,19 @@ export class Lighting {
   ) {
     this.overlay.addChild(this.glowSprite);
     for (let i = 0; i < MAX_LIGHTS; i++) this.colorData.set(LIGHT_COLOR, i * 4);
+  }
+
+  /** Цвета света от фона на уровне (rgb 0..255): контровая кромка и туман у земли. Вызывать до resize() или после — применится при следующем resize(). */
+  public setColors(rim: number | null, fog: number | null): void {
+    const rgb = (c: number) => [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
+    if (rim !== null) this.rimColor = rgb(rim);
+    if (fog !== null) this.fogColor = rgb(fog);
+    const u = this.scene?.resources.u.uniforms;
+    if (u) {
+      u.uRimColor = new Float32Array(this.rimColor);
+      u.uFog = new Float32Array(this.fogColor.map((v) => v * FOG_STRENGTH));
+      this.scene!.resources.u.update();
+    }
   }
 
   /** physW/physH — размер холста в физических пикселях, scale — физических пикселей на пиксель арта. */
@@ -665,8 +681,8 @@ export class Lighting {
     this.sceneView.scale.set(1 / scale);
     this.scene = makeFilter(SCENE_FRAGMENT, 'light-scene', {
       uScale: f1(scale), uFrac: frac, uArtSize: { value: new Float32Array([aw, ah]), type: 'vec2<f32>' }, uRim: f1(0.5), uAmbient: f1(0.09),
-      uRimColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' }, uShadowColor: { value: new Float32Array(SHADOW_COLOR), type: 'vec3<f32>' },
-      uFog: { value: new Float32Array(FOG), type: 'vec3<f32>' }
+      uRimColor: { value: new Float32Array(this.rimColor), type: 'vec3<f32>' }, uShadowColor: { value: new Float32Array(SHADOW_COLOR), type: 'vec3<f32>' },
+      uFog: { value: new Float32Array(this.fogColor.map((v) => v * FOG_STRENGTH)), type: 'vec3<f32>' }
     }, { uFx: this.fxRT.source, uCaster: this.casterRT.source, uGroundA: this.groundA.source });
     this.sceneView.filters = [this.scene];
 

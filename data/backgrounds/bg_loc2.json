@@ -1,0 +1,56 @@
+{
+  "$schema": "../schemas/background.schema.json",
+  "id": "bg_loc2",
+  "description": "Параллакс-фон второй локации из слоёв, нарисованных tools/gen_loc2_art.py (512x128 каждый): общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (electric): ночное небо с искрами данных, далёкие дорожки и блоки-чипы, бирюзовое свечение и туман у горизонта, силуэты конденсаторов, стоек, опор с проводами и тарелок; ближний слой — те же силуэты и полоса земли с огоньками. Поля как у bg_textalite.",
+  "sky_color": "#010a20",
+  "scale": 2,
+  "ground_offset": 32,
+  "ground_color": "#010a20",
+  "layers": [
+    {
+      "name": "sky_noise",
+      "sprite_id": "bg_loc2_layer1",
+      "parallax_x": 0,
+      "mirror": true
+    },
+    {
+      "name": "circuits",
+      "sprite_id": "bg_loc2_layer2",
+      "parallax_x": 0.08
+    },
+    {
+      "name": "blobs",
+      "sprite_id": "bg_loc2_layer3",
+      "parallax_x": 0.14
+    },
+    {
+      "name": "haze_dark",
+      "sprite_id": "bg_loc2_layer4",
+      "parallax_x": 0,
+      "mirror": true
+    },
+    {
+      "name": "haze_light",
+      "sprite_id": "bg_loc2_layer5",
+      "parallax_x": 0,
+      "mirror": true
+    },
+    {
+      "name": "machines",
+      "sprite_id": "bg_loc2_layer6",
+      "parallax_x": 0.34,
+      "mirror": true
+    },
+    {
+      "name": "fog",
+      "sprite_id": "bg_loc2_layer7",
+      "parallax_x": 0,
+      "mirror": true
+    },
+    {
+      "name": "skyline",
+      "sprite_id": "bg_loc2_layer8",
+      "parallax_x": 0.55
+    }
+  ]
+}

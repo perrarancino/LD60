@@ -1686,6 +1686,123 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "tile_loc2",
+      "category": "tiles",
+      "image": "tiles/tilemap_loc2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 10,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer1",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_1.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer2",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_2.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer3",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_3.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer4",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_4.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer5",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_5.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer6",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_6.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer7",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_7.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2_layer8",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2_layers/Layer_8.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

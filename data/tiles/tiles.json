@@ -107,6 +107,27 @@
         3,
         4
       ]
+    },
+    {
+      "id": "loc2",
+      "display_name": "Блок второй локации (loc2, 10 вариантов: синий с бирюзовым)",
+      "sprite_id": "tile_loc2",
+      "solid": true,
+      "one_way": false,
+      "top_frames": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "fill_frames": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
     }
   ]
 }

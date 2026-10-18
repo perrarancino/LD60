@@ -519,6 +519,10 @@ class GameApp {
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
+    if (levelDef.light) {
+      const hex = (v?: string) => (v ? parseInt(v.slice(1), 16) : null);
+      this.lighting.setColors(hex(levelDef.light.rim_color), hex(levelDef.light.fog_color));
+    }
     // Мир на экран не рисуется напрямую: он один раз за кадр рисуется в текстуру (Lighting.update), а на экран выводится спрайтом из неё
     // с фильтром кромки, теней и тумана; слою мира в сцене места нет
     this.sceneLayer.removeChild(this.worldLayer);

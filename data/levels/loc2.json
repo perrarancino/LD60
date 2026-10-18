@@ -7,12 +7,16 @@
     "rig_id": "player3_rig"
   },
   "debug_key": 2,
-  "background_id": "bg_textalite",
+  "background_id": "bg_loc2",
+  "light": {
+    "rim_color": "#3de9e6",
+    "fog_color": "#22c5cd"
+  },
   "tile_size": 32,
   "width": 56,
   "height": 18,
   "legend": {
-    "#": "tile1",
+    "#": "loc2",
     ".": null
   },
   "rows": [

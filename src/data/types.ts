@@ -126,6 +126,7 @@ export interface LevelDef {
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
   grade?: GradeDef;
+  light?: { rim_color?: string; fog_color?: string }; // цвета света от фона на уровне (#rrggbb); по умолчанию зелёные
   zones?: DecorZoneDef[];
   enemies: EnemySpawnDef[];
   rooms?: RoomDef[];
