@@ -513,7 +513,7 @@ class GameApp {
     const camLeft = -this.worldLayer.x;
     const b = this.player.body;
     this.level.update(dt, camLeft, camLeft + this.viewW, [{ left: b.left, right: b.right, top: b.top, bottom: b.bottom, vx: b.vx, vy: b.vy }]);
-    this.lighting?.update(dt);
+    this.lighting?.update();
   }
 }
 
