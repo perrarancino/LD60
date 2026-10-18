@@ -162,14 +162,23 @@ float shadowFrom(vec2 dir, vec2 side) {
   float cover = 0.0;
   float nearest = 1000.0;
   float nearestMark = 1.0;
+  float heightSum = 0.0; // сумма «густот» по колонкам окна (для мелких предметов: тень по всей площади, а не пятна под тонкими ножками)
   bool onlySpiders = dir.y > -0.5; // пол (dir вверх) — для всех, потолок и стены — только для пауков
   for (int j = -3; j <= 3; j++) {
     float k = firstHit(dir, side, float(j) - uShift, onlySpiders);
-    if (k > 0.0) { cover += 1.0; if (k < nearest) { nearest = k; nearestMark = hitMark; } }
+    if (k > 0.0) {
+      cover += 1.0;
+      heightSum += clamp(1.0 - (k - 1.0) / uReach, 0.0, 1.0);
+      if (k < nearest) { nearest = k; nearestMark = hitMark; }
+    }
   }
   if (cover / 7.0 < need) return 0.0;
-  float weight = nearestMark < 0.65 ? uSmall : 1.0; // мелкие предметы дают тень слабее
-  return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band * weight;
+  if (nearestMark < 0.65) {
+    // мелкий предмет (транзистор): густота — среднее по окну, поэтому узкие ножки не дают тёмных точек, а тело — мягкую тень под всей площадью
+    float soft = heightSum / 7.0 * uSmall;
+    return soft < 0.12 ? 0.0 : soft * band;
+  }
+  return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band;
 }
 void main(void) {
   if (tileAt(vec2(0.0)) < 0.5 || texture(uCaster, vTextureCoord).a > 0.5) { finalColor = vec4(0.0); return; }
