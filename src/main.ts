@@ -404,20 +404,26 @@ class GameApp {
   }
 
   /**
-   * Отскок от стены: 3–4 клуба дыма разного размера у стены на разной высоте; разлетаются от стены и в стороны (разлёт небольшой).
-   * Первый — крупный, у самого корпуса.
+   * Отскок от стены: 3–4 клуба дыма разного размера веером разлетаются от стены в разные стороны. Крупный — по центру веера и медленный,
+   * мелкие улетают дальше и быстрее по краям.
    */
   private wallKickSmoke(x: number, y: number, wallDir: -1 | 1): void {
     const count = 3 + Math.floor(Math.random() * 2);
-    const away = -wallDir; // от стены
+    const base = wallDir > 0 ? Math.PI : 0; // направление от стены
+    const fan = 2.3; // рад: ширина веера
+    const middle = Math.floor((count - 1) / 2);
     for (let i = 0; i < count; i++) {
-      const big = i === 0;
-      const scale = big ? 0.9 + Math.random() * 0.25 : 0.4 + Math.random() * 0.45;
-      this.spriteFx.spawn(SMOKE_FX, x + away * (2 + Math.random() * 6), y + (big ? 0 : (Math.random() - 0.5) * 26), {
+      const big = i === middle;
+      const a = base + fan * (i / (count - 1) - 0.5) + (Math.random() - 0.5) * 0.3;
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      const speed = big ? 55 + Math.random() * 20 : 140 + Math.random() * 70;
+      const scale = big ? 0.9 + Math.random() * 0.25 : 0.35 + Math.random() * 0.4;
+      this.spriteFx.spawn(SMOKE_FX, x + dx * 3, y + dy * 3, {
         angle: Math.random() * Math.PI * 2,
         scale,
-        vx: away * (big ? 12 : 22 + Math.random() * 28),
-        vy: big ? -6 : (Math.random() - 0.6) * 44,
+        vx: dx * speed,
+        vy: dy * speed - 10, // дым чуть поднимается
         speed: 0.85 + Math.random() * 0.4
       });
     }
