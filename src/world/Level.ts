@@ -42,7 +42,7 @@ export class Level {
     const used = new Set(Object.values(def.legend).filter((v): v is string => v !== null));
     const zones = def.zones ?? [];
     return [
-      ...tileset.tiles.filter((t) => used.has(t.id)).map((t) => t.sprite_id),
+      ...tileset.tiles.filter((t) => used.has(t.id)).flatMap((t) => (t.fill_sprite_id ? [t.sprite_id, t.fill_sprite_id] : [t.sprite_id])),
       ...(def.decor ?? []).map((d) => d.sprite_id),
       ...(zones.some((z) => z.kind === 'transistors') ? SPRITE_TRANSISTORS : []),
       THREAD_SPRITE
@@ -73,7 +73,12 @@ export class Level {
         if (tileId && !tile) throw new Error(`[Level] неизвестный тайл "${tileId}"`);
 
         this.solid[cy][cx] = !!tile?.solid;
-        if (tile) {
+        if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx]) {
+          // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
+          const fill = sprites.createSprite(tile.fill_sprite_id);
+          fill.position.set(cx * this.tileSize, cy * this.tileSize);
+          this.container.addChild(fill);
+        } else if (tile) {
           // Платформа из трёх кадров: левый край (0), середина (1, повторяется), правый край (2). Одиночный тайл (стенка) — середина.
           let frame = 0;
           if (tile.loop_frames && tile.loop_frames >= 3) {

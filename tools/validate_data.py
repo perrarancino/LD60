@@ -47,6 +47,7 @@ tileset = load("tiles/tiles.json")
 tiles = {t["id"]: t for t in tileset["tiles"]}
 for t in tiles.values():
     check(t["sprite_id"] in sprites, f"тайл {t['id']}: нет спрайта {t['sprite_id']}")
+    check(t.get("fill_sprite_id") is None or t["fill_sprite_id"] in sprites, f"тайл {t['id']}: нет спрайта заливки {t.get('fill_sprite_id')}")
     sp = sprites.get(t["sprite_id"])
     if sp:
         check(sp["frame_width"] == sp["frame_height"] == tileset["tile_size"], f"тайл {t['id']}: спрайт не {tileset['tile_size']}x{tileset['tile_size']}")

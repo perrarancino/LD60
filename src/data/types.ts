@@ -32,6 +32,7 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
+  fill_sprite_id?: string; // спрайт заливки для клеток под верхним слоем (над которыми тоже твёрдая клетка): стены и толща
   loop_frames?: number; // спрайт — лист из трёх кадров-тайлов: левый край платформы, середина (повторяется), правый край
 }
 

@@ -9,7 +9,8 @@
       "sprite_id": "tile_tileset_loop",
       "solid": true,
       "one_way": false,
-      "loop_frames": 3
+      "loop_frames": 3,
+      "fill_sprite_id": "tile_doptileset"
     },
     {
       "id": "tileset1",
