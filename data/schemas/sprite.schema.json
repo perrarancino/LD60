@@ -19,7 +19,7 @@
         "id": { "type": "string", "description": "Уникальный id спрайта, например enemy_transistoid_purple" },
         "category": {
           "type": "string",
-          "enum": ["player", "enemies", "bosses", "tiles", "items", "effects", "ui", "backgrounds"],
+          "enum": ["player", "enemies", "bosses", "tiles", "items", "effects", "ui", "backgrounds", "decor"],
           "description": "Категория = подпапка в assets/sprites/ и assets/source/"
         },
         "image": { "type": "string", "description": "Путь к PNG относительно assets/sprites/" },

@@ -32,6 +32,7 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
+  loop_frames?: number; // спрайт — лист из стольких кадров-тайлов; в ряду тайлов кадры чередуются по кругу с начала ряда
 }
 
 export interface TileSetDef {
@@ -49,6 +50,14 @@ export interface EnemySpawnDef {
   anchor_y?: number; // для висящих на нитке: ряд тайлов, где закреплён верх нитки (по умолчанию -2)
 }
 
+/** Декор уровня (без коллизии): точка привязки спрайта ставится в (x, y) тайлов. back — за тайлами, front — поверх них. */
+export interface DecorDef {
+  sprite_id: string;
+  x: number;
+  y: number;
+  layer?: 'back' | 'front';
+}
+
 export interface LevelDef {
   id: string;
   display_name?: string;
@@ -59,6 +68,7 @@ export interface LevelDef {
   legend: Record<string, string | null>;
   rows: string[];
   player_spawn: { x: number; y: number };
+  decor?: DecorDef[];
   enemies: EnemySpawnDef[];
 }
 

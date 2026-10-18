@@ -23,6 +23,20 @@
       "description": "Клетка, на нижней границе которой появляется игрок",
       "properties": { "x": { "type": "integer" }, "y": { "type": "integer" } }
     },
+    "decor": {
+      "type": "array",
+      "description": "Декор: спрайты без коллизии. x, y — в тайлах (могут быть дробными): точка привязки спрайта (origin из sprites.json) ставится в (x*tile_size, y*tile_size)",
+      "items": {
+        "type": "object",
+        "required": ["sprite_id", "x", "y"],
+        "properties": {
+          "sprite_id": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "layer": { "type": "string", "enum": ["back", "front"], "description": "back — за тайлами (фон: куллер), front — поверх тайлов, под героем и врагами (по умолчанию)" }
+        }
+      }
+    },
     "enemies": {
       "type": "array",
       "items": {

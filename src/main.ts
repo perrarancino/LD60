@@ -5,6 +5,7 @@ import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { SpiderMother } from './entities/SpiderMother.ts';
 import { Particles } from './effects/Particles.ts';
+import { Lighting } from './effects/Lighting.ts';
 import { PUNCH_FX, SMOKE_FX, SpriteEffects } from './effects/SpriteEffects.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
@@ -64,6 +65,7 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private fx = new Particles(); // частицы: брызги, пыль, след
+  private lighting: Lighting | null = null; // освещение: свечение фиолетовых деталей мобов и зелёный свет от фона
   private spriteFx!: SpriteEffects; // покадровые эффекты: удар по врагу, дым отскока от стены
   private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
   private punchHitId = 0;
@@ -147,6 +149,7 @@ class GameApp {
     for (const t of [this.timerText, this.hudText]) if (t) t.resolution = this.scale;
 
     this.drawGrid();
+    this.lighting?.resize(physW, physH, this.scale);
     this.background?.resize(this.viewW, this.viewH);
     if (this.level) this.updateCamera();
   }
@@ -262,7 +265,9 @@ class GameApp {
     this.app.stage.addChild(this.worldLayer);
 
     this.level = new Level(levelDef, tileset, this.sprites);
+    this.worldLayer.addChild(this.level.backLayer); // декор за тайлами (куллер) и отростки паутины
     this.worldLayer.addChild(this.level.container);
+    this.worldLayer.addChild(this.level.frontLayer); // паутина и транзисторы поверх тайлов
 
     for (const spawn of levelDef.enemies) {
       const def = enemyDefs.get(spawn.enemy_id);
@@ -308,6 +313,10 @@ class GameApp {
     this.worldLayer.addChild(this.spriteFx.container);
     // Отскок от стены: клуб дыма у стены на уровне корпуса
     this.player.onWallKick = (x, y, wallDir) => this.wallKickSmoke(x, y, wallDir);
+    // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
+    this.lighting = new Lighting(this.app.renderer, this.worldLayer);
+    this.app.stage.addChild(this.lighting.container);
+    this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
   }
 
@@ -499,8 +508,11 @@ class GameApp {
       this.spiders.splice(i, 1);
     }
 
-    // 4. Камера
+    // 4. Камера и анимация декора (отростки качаются только в обзоре)
     this.updateCamera(dt);
+    const camLeft = -this.worldLayer.x;
+    this.level.update(dt, camLeft, camLeft + this.viewW);
+    this.lighting?.update();
   }
 }
 

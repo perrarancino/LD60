@@ -5,10 +5,11 @@
   "tiles": [
     {
       "id": "platform_block",
-      "display_name": "Блок платформы (текстолит)",
-      "sprite_id": "tile_platform_block",
+      "display_name": "Блок платформы (текстолит, 3 зацикленных тайла)",
+      "sprite_id": "tile_tileset_loop",
       "solid": true,
-      "one_way": false
+      "one_way": false,
+      "loop_frames": 3
     },
     {
       "id": "tileset1",

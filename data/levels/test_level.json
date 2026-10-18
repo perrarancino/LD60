@@ -101,5 +101,97 @@
       "y": 8,
       "anchor_y": -2
     }
+  ],
+  "decor": [
+    {
+      "sprite_id": "deco_cooler",
+      "x": 15,
+      "y": 15,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 5.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 28.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 23.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 15.5,
+      "y": 11,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 9.5,
+      "y": 12,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 3,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 10,
+      "y": 12,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 26,
+      "y": 4,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 26,
+      "y": 9,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 25,
+      "y": 14,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_tile",
+      "x": 27,
+      "y": 14,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_hang",
+      "x": 16,
+      "y": 12,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_hang",
+      "x": 18,
+      "y": 12,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_web_hang",
+      "x": 9,
+      "y": 13,
+      "layer": "front"
+    }
   ]
 }

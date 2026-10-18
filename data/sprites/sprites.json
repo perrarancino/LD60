@@ -501,6 +501,98 @@
       "animations": {}
     },
     {
+      "id": "tile_tileset_loop",
+      "category": "tiles",
+      "image": "tiles/tileset.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 3,
+      "columns": 3,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_cooler",
+      "category": "decor",
+      "image": "decor/cooler.png",
+      "frame_width": 128,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_transistor",
+      "category": "decor",
+      "image": "decor/transistor.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_transistor2",
+      "category": "decor",
+      "image": "decor/transistor2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_web_tile",
+      "category": "decor",
+      "image": "decor/pautina_natile.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_web_hang",
+      "category": "decor",
+      "image": "decor/pautina2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_sprout",
+      "category": "decor",
+      "image": "decor/otrostokpautine_undertile.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
       "id": "enemy_swire",
       "category": "enemies",
       "image": "enemies/swire.png",

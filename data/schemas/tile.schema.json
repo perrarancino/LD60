@@ -17,7 +17,8 @@
           "display_name": { "type": "string" },
           "sprite_id": { "type": "string", "description": "Id спрайта из data/sprites/sprites.json" },
           "solid": { "type": "boolean", "description": "Твёрдый тайл блокирует движение" },
-          "one_way": { "type": "boolean", "description": "Проходим снизу, твёрд сверху (платформа-«облачко»)" }
+          "one_way": { "type": "boolean", "description": "Проходим снизу, твёрд сверху (платформа-«облачко»)" },
+          "loop_frames": { "type": "integer", "minimum": 2, "description": "Спрайт — лист из стольких кадров-тайлов подряд; в ряду тайлов кадры чередуются по кругу (0, 1, 2, 0, 1, 2…) с начала ряда" }
         }
       }
     }

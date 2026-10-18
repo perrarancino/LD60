@@ -79,9 +79,9 @@ export class SpriteLibrary {
     return def;
   }
 
-  /** Статичный спрайт (кадр 0) с точкой привязки из реестра. */
-  public createSprite(id: string): Sprite {
-    const sprite = new Sprite(this.textures(id)[0]);
+  /** Статичный спрайт (по умолчанию кадр 0) с точкой привязки из реестра. */
+  public createSprite(id: string, frame = 0): Sprite {
+    const sprite = new Sprite(this.textures(id)[frame]);
     sprite.anchor.set(this.def(id).origin.x, this.def(id).origin.y);
     return sprite;
   }
