@@ -71,6 +71,9 @@ export interface DecorZoneDef {
 
 /** Цветокоррекция уровня: тона (RGB-добавки 0..1) теней и светов в начале уровня и (по желанию) в конце — по уровню они плавно переходят. */
 export interface GradeDef {
+  exposure?: number; // общая яркость (<1 — темнее)
+  gamma?: number; // >1 — средние тона темнее
+  tint?: [number, number, number]; // множитель цвета (общий оттенок кадра)
   saturation?: number;
   contrast?: number;
   vignette?: number;

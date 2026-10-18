@@ -35,6 +35,7 @@ export class Level {
   public readonly def: LevelDef;
 
   private solid: boolean[][] = [];
+  private readonly reserved = new Set<string>(); // «ряд:колонка» клеток, где уже стоит декор (автодекор там не ставится)
   private readonly webs: Webs;
 
   /** Id спрайтов, нужных уровню (тайлы, декор, зоны) — для предзагрузки. */
@@ -96,6 +97,11 @@ export class Level {
     // Декор, заданный вручную: точка привязки спрайта (origin из реестра) — в (x, y) тайлов
     for (const d of def.decor ?? []) {
       this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer);
+      // колонки, которые декор занимает по ширине на своём ряду: автодекор (транзисторы) в них не ставим — ничего не пересекается
+      const def = sprites.def(d.sprite_id);
+      const left = Math.floor((d.x * this.tileSize - def.frame_width * def.origin.x) / this.tileSize);
+      const right = Math.floor((d.x * this.tileSize + def.frame_width * (1 - def.origin.x) - 1) / this.tileSize);
+      for (let cx = left; cx <= right; cx++) this.reserved.add(`${Math.round(d.y)}:${cx}`);
     }
 
     // Висящая паутина (нитка паучихи): лианы под тайлами и длинные нитки с неба — по зонам; лежит под тайлами (корни спрятаны)
@@ -124,6 +130,7 @@ export class Level {
         const roll = rand();
         const pick = rand();
         if (!this.solid[cy][cx] || (cy > 0 && this.solid[cy - 1][cx]) || roll >= density) continue;
+        if (this.reserved.has(`${cy}:${cx}`)) continue; // здесь уже стоит другой декор
         if (Math.abs(cx - spawn.x) <= 1 && cy === spawn.y + 1) continue; // не на месте появления героя
         this.placeDecor(sprites, SPRITE_TRANSISTORS[pick < 0.5 ? 0 : 1], cx + 0.5, cy, this.frontLayer);
       }

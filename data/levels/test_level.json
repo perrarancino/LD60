@@ -87,19 +87,19 @@
     },
     {
       "sprite_id": "deco_ram",
-      "x": 5,
+      "x": 4.5,
       "y": 12,
       "layer": "back"
     },
     {
       "sprite_id": "deco_ram",
-      "x": 11.5,
-      "y": 15,
+      "x": 10,
+      "y": 12,
       "layer": "back"
     },
     {
       "sprite_id": "deco_ram",
-      "x": 19,
+      "x": 7,
       "y": 15,
       "layer": "back"
     }
@@ -139,27 +139,34 @@
     }
   ],
   "grade": {
-    "saturation": 1.1,
-    "contrast": 1.08,
-    "vignette": 0.3,
+    "saturation": 1.08,
+    "contrast": 1.14,
+    "vignette": 0.5,
+    "exposure": 0.9,
+    "gamma": 1.2,
+    "tint": [
+      0.78,
+      1.0,
+      0.86
+    ],
     "shadows": [
-      0.035,
       0.0,
-      0.07
+      0.035,
+      0.02
     ],
     "highlights": [
-      0.0,
-      0.045,
+      0.02,
+      0.06,
       0.03
     ],
     "shadows_end": [
       0.0,
       0.03,
-      0.06
+      0.04
     ],
     "highlights_end": [
-      0.05,
       0.04,
+      0.05,
       0.0
     ]
   }

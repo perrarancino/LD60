@@ -41,6 +41,9 @@
       "type": "object",
       "description": "Цветокоррекция уровня на готовый кадр: насыщенность, контраст, виньетка и раздельное тонирование. shadows/highlights — RGB-добавки (0..1) к тёмным и светлым тонам в начале уровня, *_end — в конце: по уровню тона плавно переходят.",
       "properties": {
+        "exposure": { "type": "number", "minimum": 0, "description": "Общая яркость (<1 — темнее)" },
+        "gamma": { "type": "number", "minimum": 0.1, "description": ">1 — средние тона темнее" },
+        "tint": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3, "description": "Множитель цвета RGB: общий оттенок кадра (зелёный — убрать красный и синий)" },
         "saturation": { "type": "number", "minimum": 0 },
         "contrast": { "type": "number", "minimum": 0 },
         "vignette": { "type": "number", "minimum": 0, "maximum": 1 },
