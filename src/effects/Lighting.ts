@@ -137,15 +137,30 @@ float tileAt(vec2 o) {
 float casterAt(vec2 o) {
   return texture(uCaster, vTextureCoord + o * uScale * uInputSize.zw).a;
 }
-// Тень на этом пикселе от существа, стоящего снаружи поверхности в направлении dir (side — вдоль поверхности)
-float shadowFrom(vec2 dir, vec2 side) {
-  float band = (1.0 - tileAt(dir)) > 0.5 ? 1.0 : ((1.0 - tileAt(dir * 2.0)) > 0.5 ? 0.75 : ((1.0 - tileAt(dir * 3.0)) > 0.5 ? 0.45 : 0.0));
-  if (band == 0.0) return 0.0;
+// Высота (в пикселях арта) ближайшей части существа над этой точкой поверхности, 0 — нет: ищется шагом 2 px наружу от поверхности
+float firstHit(vec2 dir, vec2 side, float lateral) {
   for (int i = 1; i <= 24; i++) {
     float k = float(i) * 2.0 - 1.0;
-    if (casterAt(dir * k - side * uShift) > 0.5) return clamp(1.0 - (k - 1.0) / uReach, 0.0, 1.0) * band;
+    if (casterAt(dir * k + side * lateral) > 0.5) return k;
   }
   return 0.0;
+}
+// Тень на этом пикселе от существа, стоящего снаружи поверхности в направлении dir (side — вдоль поверхности).
+// Форма — скруглённый овал: по глубине вглубь тайла (0, 1, 2 пикселя от края) нужна всё большая доля существа в окне ±3 пикселя вдоль поверхности,
+// поэтому самый глубокий ряд короче, а края тени закруглены.
+float shadowFrom(vec2 dir, vec2 side) {
+  float depth = (1.0 - tileAt(dir)) > 0.5 ? 0.0 : ((1.0 - tileAt(dir * 2.0)) > 0.5 ? 1.0 : ((1.0 - tileAt(dir * 3.0)) > 0.5 ? 2.0 : -1.0));
+  if (depth < 0.0) return 0.0;
+  float need = depth < 0.5 ? 0.28 : (depth < 1.5 ? 0.5 : 0.78);
+  float band = depth < 0.5 ? 1.0 : (depth < 1.5 ? 0.75 : 0.45);
+  float cover = 0.0;
+  float nearest = 1000.0;
+  for (int j = -3; j <= 3; j++) {
+    float k = firstHit(dir, side, float(j) - uShift);
+    if (k > 0.0) { cover += 1.0; nearest = min(nearest, k); }
+  }
+  if (cover / 7.0 < need) return 0.0;
+  return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band;
 }
 void main(void) {
   if (tileAt(vec2(0.0)) < 0.5 || texture(uCaster, vTextureCoord).a > 0.5) { finalColor = vec4(0.0); return; }
