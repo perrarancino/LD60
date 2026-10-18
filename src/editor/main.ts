@@ -72,7 +72,6 @@ class EditorApp {
       this.populateBossPalette();
       this.populateZoneEnemyDropdown();
       this.populateBackgroundDropdowns();
-      this.populateLevelDropdown();
       this.populateWorldRegions();
       this.populateTransitionTargetLevels();
       this.setupNewTileModal();
@@ -81,9 +80,10 @@ class EditorApp {
         this.worldGraphModal.setWorld(this.config.world, (regionId) => this.handleSelectWorldRegion(regionId));
       }
 
-      // Загружаем первый доступный уровень
-      if (this.config?.levels && this.config.levels.length > 0) {
-        this.loadLevel(this.config.levels[0].filename, this.config.levels[0].data);
+      // Загружаем единый мир метроидвании (test_level.json)
+      const mainWorld = this.config?.levels?.find(l => l.filename === 'test_level.json') || this.config?.levels?.[0];
+      if (mainWorld) {
+        this.loadLevel(mainWorld.filename, mainWorld.data);
       }
 
       this.setStatus('Готов к работе');
@@ -496,54 +496,33 @@ class EditorApp {
     });
   }
 
-  private populateLevelDropdown() {
-    const select = document.getElementById('level-select') as HTMLSelectElement;
-    select.innerHTML = '';
-
-    if (!this.config?.levels || this.config.levels.length === 0) {
-      select.innerHTML = '<option value="">Нет уровней</option>';
-      return;
-    }
-
-    for (const lvl of this.config.levels) {
-      const opt = document.createElement('option');
-      opt.value = lvl.filename;
-      opt.textContent = `${lvl.data.display_name || lvl.data.id} (${lvl.filename})`;
-      select.appendChild(opt);
-    }
-
-    select.addEventListener('change', () => {
-      const chosen = this.config?.levels.find(l => l.filename === select.value);
-      if (chosen) {
-        this.loadLevel(chosen.filename, chosen.data);
-      }
-    });
-  }
-
   private loadLevel(filename: string, levelData: LevelDef) {
     this.currentFilename = filename;
     // Клонируем, чтобы работать независимо
     const clone: LevelDef = JSON.parse(JSON.stringify(levelData));
     this.canvas.setLevel(clone);
 
-    const select = document.getElementById('level-select') as HTMLSelectElement;
-    if (select.value !== filename) {
-      select.value = filename;
-    }
-
     this.syncSettingsForm();
     this.syncRoomsAndZonesUI();
-    this.setStatus(`Загружен уровень: ${clone.display_name || clone.id}`);
+    this.setStatus(`Загружен единый мир: ${clone.display_name || clone.id} (${clone.width}×${clone.height})`);
   }
 
   private syncSettingsForm() {
     if (!this.canvas.level) return;
     const lvl = this.canvas.level;
-    (document.getElementById('setting-level-id') as HTMLInputElement).value = lvl.id;
-    (document.getElementById('setting-level-name') as HTMLInputElement).value = lvl.display_name || '';
-    (document.getElementById('setting-level-width') as HTMLInputElement).value = lvl.width.toString();
-    (document.getElementById('setting-level-height') as HTMLInputElement).value = lvl.height.toString();
-    (document.getElementById('setting-level-tilesize') as HTMLInputElement).value = lvl.tile_size.toString();
+
+    const dimElem = document.getElementById('world-stats-dimensions');
+    if (dimElem) dimElem.textContent = `${lvl.width} × ${lvl.height}`;
+
+    const roomsElem = document.getElementById('world-stats-rooms');
+    if (roomsElem) roomsElem.textContent = `${lvl.rooms?.length || 0}`;
+
+    const zonesElem = document.getElementById('world-stats-zones');
+    if (zonesElem) zonesElem.textContent = `${lvl.spawn_zones?.length || 0}`;
+
+    const enemiesElem = document.getElementById('world-stats-enemies');
+    if (enemiesElem) enemiesElem.textContent = `${lvl.enemies.length}`;
+
     const bgSelect = document.getElementById('setting-level-bg') as HTMLSelectElement;
     if (bgSelect) {
       bgSelect.value = lvl.background_id || '';
@@ -981,34 +960,24 @@ class EditorApp {
   }
 
   private handleSelectWorldRegion(regionId: string) {
-    if (!this.config?.levels) return;
-    const matching = this.config.levels.find(l => l.data.id === regionId || l.filename === `${regionId}.json`);
-    if (matching) {
-      this.loadLevel(matching.filename, matching.data);
-      this.setStatus(`Загружен уровень региона: ${matching.data.display_name || regionId}`);
-    } else {
-      const regDef = this.config.world?.regions.find(r => r.id === regionId);
-      const name = regDef ? regDef.display_name : regionId;
-      if (confirm(`Уровень для региона "${name}" еще не создан. Создать новый уровень "${regionId}.json"?`)) {
-        const newLevel: LevelDef = {
-          $schema: '../schemas/level.schema.json',
-          id: regionId,
-          display_name: name,
-          background_id: 'bg_textalite',
-          tile_size: 32,
-          width: 32,
-          height: 16,
-          legend: { '#': 'platform_block', '.': null },
-          rows: Array.from({ length: 16 }, (_, y) => (y === 15 ? '#'.repeat(32) : '.'.repeat(32))),
-          player_spawn: { x: 2, y: 14 },
-          enemies: []
-        };
-        const filename = `${regionId}.json`;
-        this.config.levels.push({ filename, data: newLevel });
-        this.populateLevelDropdown();
-        this.populateTransitionTargetLevels();
-        this.loadLevel(filename, newLevel);
-        this.saveCurrentLevel();
+    const regDef = this.config?.world?.regions.find(r => r.id === regionId);
+    const name = regDef ? regDef.display_name : regionId;
+    const regionSelect = document.getElementById('setting-level-region') as HTMLSelectElement;
+    if (regionSelect) {
+      regionSelect.value = regionId;
+    }
+    this.setStatus(`Выбран регион единого мира: "${name}" (${regionId})`);
+
+    // Если в едином мире есть комната с таким регионом или ID, центрируем камеру на ней
+    if (this.canvas.level?.rooms) {
+      const room = this.canvas.level.rooms.find(r => r.id === regionId || r.name.toLowerCase().includes(name.toLowerCase()));
+      if (room) {
+        const ts = this.canvas.level.tile_size;
+        const rx = (room.x + room.width / 2) * ts;
+        const ry = (room.y + room.height / 2) * ts;
+        this.canvas.panX = Math.round(this.canvas.canvas.width / 2 - rx * this.canvas.zoom);
+        this.canvas.panY = Math.round(this.canvas.canvas.height / 2 - ry * this.canvas.zoom);
+        this.canvas.render();
       }
     }
   }
@@ -1341,121 +1310,21 @@ class EditorApp {
     document.getElementById('btn-shift-up')?.addEventListener('click', () => this.canvas.shiftMap(0, -1));
     document.getElementById('btn-shift-down')?.addEventListener('click', () => this.canvas.shiftMap(0, 1));
 
-    // Кнопки быстрого расширения границ (+1)
-    document.getElementById('btn-quick-expand-top')?.addEventListener('click', () => this.canvas.expand('top', 1));
-    document.getElementById('btn-quick-expand-bottom')?.addEventListener('click', () => this.canvas.expand('bottom', 1));
-    document.getElementById('btn-quick-expand-left')?.addEventListener('click', () => this.canvas.expand('left', 1));
-    document.getElementById('btn-quick-expand-right')?.addEventListener('click', () => this.canvas.expand('right', 1));
+    // Кнопки авто-подгонки границ мира под комнаты
+    const onAutoFit = () => this.canvas.autoFitBounds(3);
+    document.getElementById('btn-auto-fit-bounds')?.addEventListener('click', onAutoFit);
+    document.getElementById('btn-auto-fit-bounds-sidebar')?.addEventListener('click', onAutoFit);
 
-    // Форма изменения параметров и размеров уровня
-    document.getElementById('level-settings-form')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (!this.canvas.level) return;
+    // Добавление свободного пространства вокруг (+10 клеток)
+    document.getElementById('btn-pad-top')?.addEventListener('click', () => this.canvas.expand('top', 10));
+    document.getElementById('btn-pad-bottom')?.addEventListener('click', () => this.canvas.expand('bottom', 10));
+    document.getElementById('btn-pad-left')?.addEventListener('click', () => this.canvas.expand('left', 10));
+    document.getElementById('btn-pad-right')?.addEventListener('click', () => this.canvas.expand('right', 10));
 
-      const lvl = this.canvas.level;
-      const newId = (document.getElementById('setting-level-id') as HTMLInputElement).value.trim();
-      const newName = (document.getElementById('setting-level-name') as HTMLInputElement).value.trim();
-      const newW = parseInt((document.getElementById('setting-level-width') as HTMLInputElement).value, 10);
-      const newH = parseInt((document.getElementById('setting-level-height') as HTMLInputElement).value, 10);
-      const newBg = (document.getElementById('setting-level-bg') as HTMLSelectElement).value;
-
-      if (!newId || newW < 5 || newH < 5) {
-        alert('Некорректные параметры размера или ID');
-        return;
-      }
-
-      lvl.id = newId;
-      lvl.display_name = newName;
-      lvl.background_id = newBg || undefined;
-
-      // Изменение размера карты (rows)
-      const oldRows = lvl.rows;
-      const newRows: string[] = [];
-
-      for (let y = 0; y < newH; y++) {
-        let rowStr = '';
-        if (y < oldRows.length) {
-          const oldRow = oldRows[y];
-          if (newW <= oldRow.length) {
-            rowStr = oldRow.substring(0, newW);
-          } else {
-            rowStr = oldRow + '.'.repeat(newW - oldRow.length);
-          }
-        } else {
-          rowStr = '.'.repeat(newW);
-        }
-        newRows.push(rowStr);
-      }
-
-      lvl.width = newW;
-      lvl.height = newH;
-      lvl.rows = newRows;
-
-      // Обрезаем сущностей, выходящих за границы
-      lvl.enemies = lvl.enemies.filter(en => en.x < newW && en.y < newH);
-      if (lvl.player_spawn.x >= newW) lvl.player_spawn.x = newW - 1;
-      if (lvl.player_spawn.y >= newH) lvl.player_spawn.y = newH - 1;
-
-      this.canvas.saveStateToHistory();
-      this.canvas.render();
-      this.setStatus(`Размеры уровня обновлены: ${newW}x${newH}`);
-    });
-
-    // Модальное окно создания нового уровня
-    const modal = document.getElementById('new-level-modal')!;
-    document.getElementById('btn-new-level')?.addEventListener('click', () => {
-      modal.classList.add('open');
-    });
-    document.getElementById('modal-cancel-btn')?.addEventListener('click', () => {
-      modal.classList.remove('open');
-    });
-
-    document.getElementById('new-level-form')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const id = (document.getElementById('new-level-id') as HTMLInputElement).value.trim();
-      const name = (document.getElementById('new-level-name') as HTMLInputElement).value.trim();
-      const w = parseInt((document.getElementById('new-level-width') as HTMLInputElement).value, 10);
-      const h = parseInt((document.getElementById('new-level-height') as HTMLInputElement).value, 10);
-      const bg = (document.getElementById('new-level-bg') as HTMLSelectElement).value;
-
-      if (!id || w < 5 || h < 5) return;
-
-      const rows: string[] = [];
-      for (let y = 0; y < h; y++) {
-        if (y === h - 1) {
-          rows.push('#'.repeat(w)); // нижний ряд из платформ
-        } else {
-          rows.push('.'.repeat(w));
-        }
-      }
-
-      const newLevel: LevelDef = {
-        $schema: '../schemas/level.schema.json',
-        id,
-        display_name: name,
-        background_id: bg || undefined,
-        tile_size: 32,
-        width: w,
-        height: h,
-        legend: {
-          '#': 'platform_block',
-          '.': null
-        },
-        rows,
-        player_spawn: { x: 2, y: h - 2 },
-        enemies: []
-      };
-
-      const filename = `${id}.json`;
-      if (!this.config) {
-        this.config = { ld60Path: '', tiles: null, sprites: null, enemies: [], bosses: [], world: null, backgrounds: [], levels: [] };
-      }
-      this.config.levels.push({ filename, data: newLevel });
-
-      this.populateLevelDropdown();
-      this.loadLevel(filename, newLevel);
-      modal.classList.remove('open');
-      this.saveCurrentLevel();
+    // Смена региона мира
+    (document.getElementById('setting-level-region') as HTMLSelectElement)?.addEventListener('change', (e) => {
+      const regionId = (e.target as HTMLSelectElement).value;
+      this.setStatus(`Регион мира: ${regionId || 'Не привязан'}`);
     });
   }
 

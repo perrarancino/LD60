@@ -17,10 +17,12 @@
 
       <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
 
-      <select id="level-select" class="select-input" style="min-width: 170px;">
-        <option value="">Загрузка уровней...</option>
-      </select>
-      <button id="btn-new-level" class="btn" title="Создать новый уровень">+ Новый</button>
+      <div class="world-title-badge" style="display: flex; align-items: center; gap: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border); padding: 4px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; color: #38bdf8;">
+        <span>🗺️ ЕДИНЫЙ МИР METROIDVANIA</span>
+      </div>
+      <button id="btn-auto-fit-bounds" class="btn btn-primary" title="Умная оптимизация и подгонка границ мира под все комнаты">
+        📐 Подогнать границы
+      </button>
       <button id="btn-save" class="btn btn-primary" title="Сохранить уровень в LD60 (Ctrl+S)">
         💾 Сохранить
       </button>
@@ -126,7 +128,7 @@
         <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
         <button id="tab-decor-btn" class="tab-btn">ДЕКОР</button>
         <button id="tab-bg-btn" class="tab-btn">ФОН</button>
-        <button id="tab-settings-btn" class="tab-btn">ПАРАМЕТРЫ</button>
+        <button id="tab-settings-btn" class="tab-btn">МИР</button>
       </nav>
 
       <!-- Вкладка: Тайлы -->
@@ -486,70 +488,79 @@
         </button>
       </div>
 
-      <!-- Вкладка: Параметры уровня -->
+      <!-- Вкладка: Параметры единого мира -->
       <div id="tab-settings" class="tab-content">
-        <form id="level-settings-form">
-          <div class="form-group">
-            <label class="form-label">ID Уровня</label>
-            <input id="setting-level-id" type="text" class="text-input" style="width: 100%;" />
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПАРАМЕТРЫ МИРА (WORLD ENGINE)</div>
+        
+        <!-- Карточка статистики мира -->
+        <div style="padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Размер мира:</span>
+            <b id="world-stats-dimensions" style="color: #38bdf8; font-family: monospace;">-- × --</b>
           </div>
-          <div class="form-group">
-            <label class="form-label">Название</label>
-            <input id="setting-level-name" type="text" class="text-input" style="width: 100%;" />
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Комнат:</span>
+            <b id="world-stats-rooms" style="color: #4ade80;">0</b>
           </div>
-          <div class="form-group">
-            <label class="form-label">Регион мира (world_layout.json)</label>
-            <select id="setting-level-region" class="select-input" style="width: 100%;">
-              <option value="">Не привязан к локации</option>
-            </select>
-            <div id="setting-region-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.3;"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Зон спавна мобов:</span>
+            <b id="world-stats-zones" style="color: #c084fc;">0</b>
           </div>
-          <div class="form-group">
-            <label class="form-label">Параллакс-фон</label>
-            <select id="setting-level-bg" class="select-input" style="width: 100%;">
-              <option value="">Без фона</option>
-            </select>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Врагов / Боссов:</span>
+            <b id="world-stats-enemies" style="color: #fb923c;">0</b>
           </div>
-          <div class="form-row">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Ширина (тайлы)</label>
-              <input id="setting-level-width" type="number" min="5" max="256" class="text-input" style="width: 100%;" />
-            </div>
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Высота (тайлы)</label>
-              <input id="setting-level-height" type="number" min="5" max="256" class="text-input" style="width: 100%;" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Размер тайла (px)</label>
-            <input id="setting-level-tilesize" type="number" class="text-input" style="width: 100%;" readonly />
-          </div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
-            Применить размеры
+        </div>
+
+        <!-- Умная подгонка границ -->
+        <div class="form-group" style="margin-bottom: 12px;">
+          <button id="btn-auto-fit-bounds-sidebar" type="button" class="btn btn-primary" style="width: 100%; font-size: 12px; justify-content: center; padding: 8px;">
+            📐 Подогнать границы под комнаты
           </button>
-        </form>
-
-        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
-          <div class="form-label">Сдвиг содержимого карты</div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px;">
-            <button type="button" id="btn-shift-left" class="btn btn-icon" title="Сдвиг влево (Shift+←)">⬅️</button>
-            <button type="button" id="btn-shift-right" class="btn btn-icon" title="Сдвиг вправо (Shift+→)">➡️</button>
-            <button type="button" id="btn-shift-up" class="btn btn-icon" title="Сдвиг вверх (Shift+↑)">⬆️</button>
-            <button type="button" id="btn-shift-down" class="btn btn-icon" title="Сдвиг вниз (Shift+↓)">⬇️</button>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
+            Обрезает лишнюю пустоту вокруг уровня, сохраняя все комнаты, тоннели и сущности с безопасным отступом.
           </div>
         </div>
 
-        <div style="margin-top: 14px;">
-          <div class="form-label">Быстрое расширение границ (+1)</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
-            <button type="button" id="btn-quick-expand-top" class="btn" style="font-size: 11px;">+ Вверх</button>
-            <button type="button" id="btn-quick-expand-bottom" class="btn" style="font-size: 11px;">+ Вниз</button>
-            <button type="button" id="btn-quick-expand-left" class="btn" style="font-size: 11px;">+ Влево</button>
-            <button type="button" id="btn-quick-expand-right" class="btn" style="font-size: 11px;">+ Вправо</button>
-          </div>
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Быстрое добавление свободного пространства -->
+        <div class="form-label" style="margin-bottom: 6px;">Добавить свободное пространство (+10 клеток)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px;">
+          <button type="button" id="btn-pad-top" class="btn" style="font-size: 11px;">+10 Сверху</button>
+          <button type="button" id="btn-pad-bottom" class="btn" style="font-size: 11px;">+10 Снизу</button>
+          <button type="button" id="btn-pad-left" class="btn" style="font-size: 11px;">+10 Слева</button>
+          <button type="button" id="btn-pad-right" class="btn" style="font-size: 11px;">+10 Справа</button>
         </div>
 
-        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+        <!-- Сдвиг карты -->
+        <div class="form-label">Сдвиг геометрии (Shift + Стрелки)</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; margin-bottom: 14px;">
+          <button type="button" id="btn-shift-left" class="btn btn-icon" title="Сдвиг влево (Shift+←)">⬅️</button>
+          <button type="button" id="btn-shift-right" class="btn btn-icon" title="Сдвиг вправо (Shift+→)">➡️</button>
+          <button type="button" id="btn-shift-up" class="btn btn-icon" title="Сдвиг вверх (Shift+↑)">⬆️</button>
+          <button type="button" id="btn-shift-down" class="btn btn-icon" title="Сдвиг вниз (Shift+↓)">⬇️</button>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Глобальный фон мира -->
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label">Параллакс-фон мира</label>
+          <select id="setting-level-bg" class="select-input" style="width: 100%;">
+            <option value="">Без фона</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label">Регион мира (world_layout.json)</label>
+          <select id="setting-level-region" class="select-input" style="width: 100%;">
+            <option value="">Не привязан к локации</option>
+          </select>
+          <div id="setting-region-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.3;"></div>
+        </div>
+
+        <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
           <div class="form-label">Выбранная сущность</div>
           <div id="selected-entity-info" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
             Кликните на врага инструментом 🔍 или зажмите ✋ для перемещения.
@@ -576,42 +587,6 @@
     </div>
   </footer>
 
-  <!-- Модальное окно создания нового уровня -->
-  <div id="new-level-modal" class="modal-overlay">
-    <div class="modal-card">
-      <div class="modal-header">Создать новый уровень</div>
-      <form id="new-level-form">
-        <div class="form-group">
-          <label class="form-label">ID Уровня (англ., без пробелов)</label>
-          <input id="new-level-id" type="text" class="text-input" style="width: 100%;" required placeholder="level_hub" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Отображаемое название</label>
-          <input id="new-level-name" type="text" class="text-input" style="width: 100%;" required placeholder="Центральный Хаб" />
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="flex: 1;">
-            <label class="form-label">Ширина (тайлов)</label>
-            <input id="new-level-width" type="number" min="10" max="256" value="30" class="text-input" style="width: 100%;" />
-          </div>
-          <div class="form-group" style="flex: 1;">
-            <label class="form-label">Высота (тайлов)</label>
-            <input id="new-level-height" type="number" min="8" max="256" value="16" class="text-input" style="width: 100%;" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Параллакс-фон</label>
-          <select id="new-level-bg" class="select-input" style="width: 100%;">
-            <option value="">Без фона</option>
-          </select>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="modal-cancel-btn" class="btn">Отмена</button>
-          <button type="submit" class="btn btn-primary">Создать</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Модальное окно добавления нового тайла -->
   <div id="new-tile-modal" class="modal-overlay">

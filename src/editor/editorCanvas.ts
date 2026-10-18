@@ -15,15 +15,7 @@ export interface EditorCallbacks {
   onStatusMessage?: (msg: string) => void;
 }
 
-interface CanvasButton {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  label: string;
-  color: string;
-  action: () => void;
-}
+
 
 export class EditorCanvas {
   public canvas: HTMLCanvasElement;
@@ -116,9 +108,6 @@ export class EditorCanvas {
   public hoveredTileX: number = -1;
   public hoveredTileY: number = -1;
 
-  // Экранные кнопки манипуляторов границ
-  private borderButtons: CanvasButton[] = [];
-
   // Undo / Redo
   private history: string[] = [];
   private historyIndex: number = -1;
@@ -183,6 +172,8 @@ export class EditorCanvas {
       enemies: this.level.enemies,
       transitions: this.level.transitions || [],
       cables: this.level.cables || [],
+      rooms: this.level.rooms || [],
+      spawn_zones: this.level.spawn_zones || [],
       width: this.level.width,
       height: this.level.height
     });
@@ -209,6 +200,8 @@ export class EditorCanvas {
       this.level.enemies = snapshot.enemies;
       this.level.transitions = snapshot.transitions || [];
       this.level.cables = snapshot.cables || [];
+      this.level.rooms = snapshot.rooms || [];
+      this.level.spawn_zones = snapshot.spawn_zones || [];
       this.level.width = snapshot.width;
       this.level.height = snapshot.height;
       this.callbacks.onLevelChanged?.();
@@ -227,6 +220,8 @@ export class EditorCanvas {
       this.level.enemies = snapshot.enemies;
       this.level.transitions = snapshot.transitions || [];
       this.level.cables = snapshot.cables || [];
+      this.level.rooms = snapshot.rooms || [];
+      this.level.spawn_zones = snapshot.spawn_zones || [];
       this.level.width = snapshot.width;
       this.level.height = snapshot.height;
       this.callbacks.onLevelChanged?.();
@@ -252,6 +247,259 @@ export class EditorCanvas {
     };
   }
 
+  // --- Автоматическое расширение границ карты под новые комнаты и коридоры ---
+  public ensureBounds(minX: number, minY: number, maxX: number, maxY: number, margin = 2): { shiftX: number; shiftY: number } {
+    if (!this.level) return { shiftX: 0, shiftY: 0 };
+    const w = this.level.width;
+    const h = this.level.height;
+    const ts = this.level.tile_size;
+
+    const padLeft = minX < 0 ? Math.abs(minX) + margin : 0;
+    const padTop = minY < 0 ? Math.abs(minY) + margin : 0;
+    const padRight = maxX >= w ? (maxX - w + 1) + margin : 0;
+    const padBottom = maxY >= h ? (maxY - h + 1) + margin : 0;
+
+    if (padLeft === 0 && padTop === 0 && padRight === 0 && padBottom === 0) {
+      return { shiftX: 0, shiftY: 0 };
+    }
+
+    const newW = w + padLeft + padRight;
+    const newH = h + padTop + padBottom;
+
+    const newRows: string[] = [];
+    const emptyRow = '.'.repeat(newW);
+
+    for (let y = 0; y < padTop; y++) {
+      newRows.push(emptyRow);
+    }
+
+    const prefix = '.'.repeat(padLeft);
+    const suffix = '.'.repeat(padRight);
+    for (let y = 0; y < h; y++) {
+      newRows.push(prefix + this.level.rows[y] + suffix);
+    }
+
+    for (let y = 0; y < padBottom; y++) {
+      newRows.push(emptyRow);
+    }
+
+    this.level.rows = newRows;
+    this.level.width = newW;
+    this.level.height = newH;
+
+    const shiftX = padLeft;
+    const shiftY = padTop;
+
+    if (shiftX > 0 || shiftY > 0) {
+      this.level.player_spawn.x += shiftX;
+      this.level.player_spawn.y += shiftY;
+      this.level.enemies.forEach(e => { e.x += shiftX; e.y += shiftY; });
+      if (this.level.transitions) this.level.transitions.forEach(t => { t.x += shiftX; t.y += shiftY; });
+      if (this.level.cables) this.level.cables.forEach(c => { c.x1 += shiftX * ts; c.y1 += shiftY * ts; c.x2 += shiftX * ts; c.y2 += shiftY * ts; });
+      if (this.level.rooms) this.level.rooms.forEach(r => { r.x += shiftX; r.y += shiftY; });
+      if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => { z.x += shiftX; z.y += shiftY; });
+
+      this.panX -= shiftX * ts * this.zoom;
+      this.panY -= shiftY * ts * this.zoom;
+    }
+
+    this.callbacks.onLevelChanged?.();
+    return { shiftX, shiftY };
+  }
+
+  // --- Умная авто-подгонка границ карты под все комнаты, проходы и сущности ---
+  public autoFitBounds(margin = 3) {
+    if (!this.level) return;
+    const w = this.level.width;
+    const h = this.level.height;
+    const ts = this.level.tile_size;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    // 1. Поиск занятых непустых тайлов
+    for (let y = 0; y < h; y++) {
+      const row = this.level.rows[y];
+      if (!row) continue;
+      for (let x = 0; x < w; x++) {
+        const ch = row[x];
+        const tileId = this.level.legend[ch];
+        if (tileId !== null && ch !== '.') {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    // 2. Учет комнат
+    if (this.level.rooms) {
+      for (const r of this.level.rooms) {
+        if (r.x < minX) minX = r.x;
+        if (r.x + r.width - 1 > maxX) maxX = r.x + r.width - 1;
+        if (r.y < minY) minY = r.y;
+        if (r.y + r.height - 1 > maxY) maxY = r.y + r.height - 1;
+      }
+    }
+
+    // 3. Учет зон спавна
+    if (this.level.spawn_zones) {
+      for (const z of this.level.spawn_zones) {
+        if (z.x < minX) minX = z.x;
+        if (z.x + z.width - 1 > maxX) maxX = z.x + z.width - 1;
+        if (z.y < minY) minY = z.y;
+        if (z.y + z.height - 1 > maxY) maxY = z.y + z.height - 1;
+      }
+    }
+
+    // 4. Учет игрока и врагов
+    if (this.level.player_spawn) {
+      minX = Math.min(minX, this.level.player_spawn.x);
+      maxX = Math.max(maxX, this.level.player_spawn.x);
+      minY = Math.min(minY, this.level.player_spawn.y);
+      maxY = Math.max(maxY, this.level.player_spawn.y);
+    }
+    if (this.level.enemies) {
+      for (const e of this.level.enemies) {
+        minX = Math.min(minX, e.x);
+        maxX = Math.max(maxX, e.x);
+        minY = Math.min(minY, e.y);
+        maxY = Math.max(maxY, e.y);
+      }
+    }
+
+    // 5. Учет шлюзов
+    if (this.level.transitions) {
+      for (const t of this.level.transitions) {
+        minX = Math.min(minX, t.x);
+        maxX = Math.max(maxX, t.x + t.width - 1);
+        minY = Math.min(minY, t.y);
+        maxY = Math.max(maxY, t.y + t.height - 1);
+      }
+    }
+
+    // 6. Учет кабелей
+    if (this.level.cables) {
+      for (const c of this.level.cables) {
+        const cx1 = Math.floor(Math.min(c.x1, c.x2) / ts);
+        const cx2 = Math.ceil(Math.max(c.x1, c.x2) / ts);
+        const cy1 = Math.floor(Math.min(c.y1, c.y2) / ts);
+        const cy2 = Math.ceil((Math.max(c.y1, c.y2) + c.sag) / ts);
+        minX = Math.min(minX, cx1);
+        maxX = Math.max(maxX, cx2);
+        minY = Math.min(minY, cy1);
+        maxY = Math.max(maxY, cy2);
+      }
+    }
+
+    if (minX === Infinity) {
+      minX = 0;
+      maxX = 29;
+      minY = 0;
+      maxY = 19;
+    }
+
+    const targetMinX = minX - margin;
+    const targetMinY = minY - margin;
+    const targetMaxX = maxX + margin;
+    const targetMaxY = maxY + margin;
+
+    const newW = targetMaxX - targetMinX + 1;
+    const newH = targetMaxY - targetMinY + 1;
+
+    const newRows: string[] = [];
+    for (let ny = 0; ny < newH; ny++) {
+      const srcY = targetMinY + ny;
+      let rowStr = '';
+      if (srcY >= 0 && srcY < h) {
+        const oldRow = this.level.rows[srcY];
+        for (let nx = 0; nx < newW; nx++) {
+          const srcX = targetMinX + nx;
+          if (srcX >= 0 && srcX < w) {
+            rowStr += oldRow[srcX];
+          } else {
+            rowStr += '.';
+          }
+        }
+      } else {
+        rowStr = '.'.repeat(newW);
+      }
+      newRows.push(rowStr);
+    }
+
+    const dx = -targetMinX;
+    const dy = -targetMinY;
+
+    this.level.rows = newRows;
+    this.level.width = newW;
+    this.level.height = newH;
+
+    this.level.player_spawn.x += dx;
+    this.level.player_spawn.y += dy;
+    this.level.enemies.forEach(e => { e.x += dx; e.y += dy; });
+    if (this.level.transitions) this.level.transitions.forEach(t => { t.x += dx; t.y += dy; });
+    if (this.level.cables) this.level.cables.forEach(c => { c.x1 += dx * ts; c.y1 += dy * ts; c.x2 += dx * ts; c.y2 += dy * ts; });
+    if (this.level.rooms) this.level.rooms.forEach(r => { r.x += dx; r.y += dy; });
+    if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => { z.x += dx; z.y += dy; });
+
+    this.panX -= dx * ts * this.zoom;
+    this.panY -= dy * ts * this.zoom;
+
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`📐 Границы подогнаны под комнаты: ${newW}×${newH}`);
+    this.render();
+  }
+
+  // --- Быстрое соединение комнат проходом (Corridor tool) ---
+  public connectRooms(roomA: RoomDef, roomB: RoomDef, width = 3) {
+    if (!this.level) return;
+    const cx1 = Math.floor(roomA.x + roomA.width / 2);
+    const cy1 = Math.floor(roomA.y + roomA.height / 2);
+    const cx2 = Math.floor(roomB.x + roomB.width / 2);
+    const cy2 = Math.floor(roomB.y + roomB.height / 2);
+
+    const minX = Math.min(cx1, cx2) - Math.floor(width / 2) - 1;
+    const maxX = Math.max(cx1, cx2) + Math.floor(width / 2) + 1;
+    const minY = Math.min(cy1, cy2) - Math.floor(width / 2) - 1;
+    const maxY = Math.max(cy1, cy2) + Math.floor(width / 2) + 1;
+
+    const { shiftX, shiftY } = this.ensureBounds(minX, minY, maxX, maxY, 3);
+    const acx1 = cx1 + shiftX;
+    const acy1 = cy1 + shiftY;
+    const acx2 = cx2 + shiftX;
+    const acy2 = cy2 + shiftY;
+
+    const startX = Math.min(acx1, acx2);
+    const endX = Math.max(acx1, acx2);
+    for (let x = startX; x <= endX; x++) {
+      this.applyPassage(x, acy1);
+    }
+
+    const startY = Math.min(acy1, acy2);
+    const endY = Math.max(acy1, acy2);
+    const half = Math.floor(width / 2);
+    const wallTile = this.selectedTileId || 'platform_block';
+
+    for (let y = startY; y <= endY; y++) {
+      for (let w = -half; w <= half; w++) {
+        this.setTile(acx2 + w, y, null);
+      }
+      if (this.passageAutoWalls) {
+        this.setTile(acx2 - half - 1, y, wallTile);
+        this.setTile(acx2 + half + 1, y, wallTile);
+      }
+    }
+
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`Комнаты "${roomA.name}" и "${roomB.name}" соединены проходом`);
+    this.render();
+  }
+
   // --- Расширение и сжатие границ карты ---
   public expand(direction: ResizeDirection, count: number = 1) {
     if (!this.level || count <= 0) return;
@@ -267,6 +515,8 @@ export class EditorCanvas {
       this.level.enemies.forEach(e => (e.y += count));
       if (this.level.transitions) this.level.transitions.forEach(t => (t.y += count));
       if (this.level.cables) this.level.cables.forEach(c => { c.y1 += count * ts; c.y2 += count * ts; });
+      if (this.level.rooms) this.level.rooms.forEach(r => (r.y += count));
+      if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => (z.y += count));
       this.panY -= count * this.level.tile_size * this.zoom;
     } else if (direction === 'bottom') {
       for (let i = 0; i < count; i++) this.level.rows.push('.'.repeat(w));
@@ -279,6 +529,8 @@ export class EditorCanvas {
       this.level.enemies.forEach(e => (e.x += count));
       if (this.level.transitions) this.level.transitions.forEach(t => (t.x += count));
       if (this.level.cables) this.level.cables.forEach(c => { c.x1 += count * ts; c.x2 += count * ts; });
+      if (this.level.rooms) this.level.rooms.forEach(r => (r.x += count));
+      if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => (z.x += count));
       this.panX -= count * this.level.tile_size * this.zoom;
     } else if (direction === 'right') {
       const suffix = '.'.repeat(count);
@@ -312,6 +564,12 @@ export class EditorCanvas {
       if (this.level.cables) {
         this.level.cables.forEach(c => { c.y1 -= count * ts; c.y2 -= count * ts; });
       }
+      if (this.level.rooms) {
+        this.level.rooms.forEach(r => (r.y -= count));
+      }
+      if (this.level.spawn_zones) {
+        this.level.spawn_zones.forEach(z => (z.y -= count));
+      }
       this.panY += count * this.level.tile_size * this.zoom;
     } else if (direction === 'bottom') {
       if (h <= count) return;
@@ -335,6 +593,12 @@ export class EditorCanvas {
       }
       if (this.level.cables) {
         this.level.cables.forEach(c => { c.x1 -= count * ts; c.x2 -= count * ts; });
+      }
+      if (this.level.rooms) {
+        this.level.rooms.forEach(r => (r.x -= count));
+      }
+      if (this.level.spawn_zones) {
+        this.level.spawn_zones.forEach(z => (z.x -= count));
       }
       this.panX += count * this.level.tile_size * this.zoom;
     } else if (direction === 'right') {
@@ -408,13 +672,25 @@ export class EditorCanvas {
       });
     }
 
+    if (this.level.rooms) {
+      this.level.rooms.forEach(r => {
+        r.x += dx;
+        r.y += dy;
+      });
+    }
+
+    if (this.level.spawn_zones) {
+      this.level.spawn_zones.forEach(z => {
+        z.x += dx;
+        z.y += dy;
+      });
+    }
+
     this.saveStateToHistory();
     this.callbacks.onLevelChanged?.();
     this.callbacks.onStatusMessage?.(`Сдвиг карты на dx=${dx}, dy=${dy}`);
     this.render();
   }
-
-  // --- События мыши и клавиатуры ---
   private setupEvents() {
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -430,14 +706,6 @@ export class EditorCanvas {
       const rect = this.canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-
-      // 1. Проверяем клик по экранным кнопкам границ (+ / -)
-      for (const btn of this.borderButtons) {
-        if (sx >= btn.x && sx <= btn.x + btn.w && sy >= btn.y && sy <= btn.y + btn.h) {
-          btn.action();
-          return;
-        }
-      }
 
       // Панорамирование: ПКМ (e.button === 2), средняя кнопка (e.button === 1), зажатый Space или Alt+ЛКМ
       if (e.button === 2 || e.button === 1 || (e.button === 0 && this.isSpaceDown)) {
@@ -546,7 +814,7 @@ export class EditorCanvas {
 
       // 4. Инструмент комнат (Room Tool)
       if (this.activeTool === 'room') {
-        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+        if (e.button === 0 && this.level) {
           this.roomStart = { x: tileX, y: tileY };
           this.callbacks.onStatusMessage?.(`Создание комнаты от [${tileX}, ${tileY}]... Тяните мышь.`);
           this.render();
@@ -556,7 +824,7 @@ export class EditorCanvas {
 
       // 5. Инструмент зон спавна мобов (Mob Spawn Zone Tool)
       if (this.activeTool === 'mob_zone') {
-        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+        if (e.button === 0 && this.level) {
           this.mobZoneStart = { x: tileX, y: tileY };
           this.callbacks.onStatusMessage?.(`Задание области спавна от [${tileX}, ${tileY}]... Тяните мышь.`);
           this.render();
@@ -582,7 +850,7 @@ export class EditorCanvas {
 
       // 8. Инструмент проходов (Passage Tool)
       if (this.activeTool === 'passage') {
-        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+        if (e.button === 0 && this.level) {
           this.isMouseDown = true;
           this.applyPassage(tileX, tileY);
           return;
@@ -1227,6 +1495,12 @@ export class EditorCanvas {
   private setTile(x: number, y: number, tileId: string | null) {
     if (!this.level) return;
 
+    if (x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) {
+      const { shiftX, shiftY } = this.ensureBounds(x, y, x, y, 2);
+      x += shiftX;
+      y += shiftY;
+    }
+
     if (this.autotileEnabled && tileId) {
       this.setTileRaw(x, y, tileId);
       this.applyAutotileAround(x, y);
@@ -1428,34 +1702,41 @@ export class EditorCanvas {
   // --- Создание комнат (Room Tool) ---
   public applyRoom(x0: number, y0: number, x1: number, y1: number) {
     if (!this.level) return;
-    const minX = Math.max(0, Math.min(x0, x1));
-    const maxX = Math.min(this.level.width - 1, Math.max(x0, x1));
-    const minY = Math.max(0, Math.min(y0, y1));
-    const maxY = Math.min(this.level.height - 1, Math.max(y0, y1));
+    const minX = Math.min(x0, x1);
+    const maxX = Math.max(x0, x1);
+    const minY = Math.min(y0, y1);
+    const maxY = Math.max(y0, y1);
 
     if (maxX - minX < 2 || maxY - minY < 2) {
       this.callbacks.onStatusMessage?.('Комната слишком мала (минимум 3x3 тайла)');
       return;
     }
 
+    // Автоматическое расширение мира, если комната выходит за текущие границы
+    const { shiftX, shiftY } = this.ensureBounds(minX, minY, maxX, maxY, 3);
+    const adjMinX = minX + shiftX;
+    const adjMaxX = maxX + shiftX;
+    const adjMinY = minY + shiftY;
+    const adjMaxY = maxY + shiftY;
+
     const wallTile = this.selectedTileId || 'platform_block';
 
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        const isBorder = (x === minX || x === maxX || y === minY || y === maxY);
+    for (let y = adjMinY; y <= adjMaxY; y++) {
+      for (let x = adjMinX; x <= adjMaxX; x++) {
+        const isBorder = (x === adjMinX || x === adjMaxX || y === adjMinY || y === adjMaxY);
         if (isBorder) {
           // Углы со срезом, если включена опция
           if (this.roomBevelCorners) {
-            if (x === minX && y === minY) {
+            if (x === adjMinX && y === adjMinY) {
               this.setTile(x, y, 'platform_slope_ur');
               continue;
-            } else if (x === maxX && y === minY) {
+            } else if (x === adjMaxX && y === adjMinY) {
               this.setTile(x, y, 'platform_slope_ul');
               continue;
-            } else if (x === minX && y === maxY) {
+            } else if (x === adjMinX && y === adjMaxY) {
               this.setTile(x, y, 'platform_slope_cr');
               continue;
-            } else if (x === maxX && y === maxY) {
+            } else if (x === adjMaxX && y === adjMaxY) {
               this.setTile(x, y, 'platform_slope_cl');
               continue;
             }
@@ -1472,10 +1753,10 @@ export class EditorCanvas {
     const newRoom: RoomDef = {
       id: `room_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       name: `Комната ${this.level.rooms.length + 1}`,
-      x: minX,
-      y: minY,
-      width: maxX - minX + 1,
-      height: maxY - minY + 1,
+      x: adjMinX,
+      y: adjMinY,
+      width: adjMaxX - adjMinX + 1,
+      height: adjMaxY - adjMinY + 1,
       beveled: this.roomBevelCorners
     };
 
@@ -1490,24 +1771,36 @@ export class EditorCanvas {
 
   // --- Рисование проходов (Passage Tool) ---
   public applyPassage(centerX: number, centerY: number) {
-    if (!this.level || centerX < 0 || centerX >= this.level.width || centerY < 0 || centerY >= this.level.height) return;
+    if (!this.level) return;
     const half = Math.floor(this.passageWidth / 2);
-    const startY = Math.max(0, centerY - half);
+
+    // Авто-расширение границ мира, если рисуем проход за пределами
+    const { shiftX, shiftY } = this.ensureBounds(
+      centerX - 1,
+      centerY - half - 1,
+      centerX + 1,
+      centerY + half + 1,
+      2
+    );
+    const cx = centerX + shiftX;
+    const cy = centerY + shiftY;
+
+    const startY = Math.max(0, cy - half);
     const endY = Math.min(this.level.height - 1, startY + this.passageWidth - 1);
 
     // Очищаем проход
     for (let y = startY; y <= endY; y++) {
-      this.setTile(centerX, y, null);
+      this.setTile(cx, y, null);
     }
 
     // Авто-стены снизу и сверху
     if (this.passageAutoWalls) {
       const wallTile = this.selectedTileId || 'platform_block';
       if (startY > 0) {
-        this.setTile(centerX, startY - 1, wallTile);
+        this.setTile(cx, startY - 1, wallTile);
       }
       if (endY < this.level.height - 1) {
-        this.setTile(centerX, endY + 1, wallTile);
+        this.setTile(cx, endY + 1, wallTile);
       }
     }
 
@@ -2202,8 +2495,6 @@ export class EditorCanvas {
     // 11. Экранные элементы управления и HUD Playtest
     if (this.playtest.active) {
       this.renderPlaytestHUD();
-    } else {
-      this.renderBoundaryControls(levelPixelW, levelPixelH);
     }
   }
 
@@ -2669,50 +2960,5 @@ export class EditorCanvas {
     return this.showWalkability;
   }
 
-  private renderBoundaryControls(levelW: number, levelH: number) {
-    const ctx = this.ctx;
-    const btnH = 22;
-    const pad = 8;
 
-    const screenLeft = this.panX;
-    const screenRight = this.panX + levelW * this.zoom;
-    const screenTop = this.panY;
-    const screenBottom = this.panY + levelH * this.zoom;
-    const midX = (screenLeft + screenRight) / 2;
-    const midY = (screenTop + screenBottom) / 2;
-
-    const addBtn = (x: number, y: number, w: number, h: number, label: string, color: string, action: () => void) => {
-      this.borderButtons.push({ x, y, w, h, label, color, action });
-
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 4);
-      ctx.fill();
-      ctx.strokeStyle = '#384259';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + w / 2, y + h / 2);
-    };
-
-    // 1. Верхние кнопки (+ / - ряда сверху)
-    addBtn(midX - 38, screenTop - btnH - pad, 36, btnH, '+ ▲', '#4338ca', () => this.expand('top', 1));
-    addBtn(midX + 2, screenTop - btnH - pad, 36, btnH, '- ▼', '#991b1b', () => this.shrink('top', 1));
-
-    // 2. Нижние кнопки (+ / - ряда снизу)
-    addBtn(midX - 38, screenBottom + pad, 36, btnH, '+ ▼', '#4338ca', () => this.expand('bottom', 1));
-    addBtn(midX + 2, screenBottom + pad, 36, btnH, '- ▲', '#991b1b', () => this.shrink('bottom', 1));
-
-    // 3. Левые кнопки (+ / - колонки слева)
-    addBtn(screenLeft - pad - 42, midY - 14, 38, btnH, '+ ◀', '#4338ca', () => this.expand('left', 1));
-    addBtn(screenLeft - pad - 42, midY + 14, 38, btnH, '- ▶', '#991b1b', () => this.shrink('left', 1));
-
-    // 4. Правые кнопки (+ / - колонки справа)
-    addBtn(screenRight + pad, midY - 14, 38, btnH, '+ ▶', '#4338ca', () => this.expand('right', 1));
-    addBtn(screenRight + pad, midY + 14, 38, btnH, '- ◀', '#991b1b', () => this.shrink('right', 1));
-  }
 }
