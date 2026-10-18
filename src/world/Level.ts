@@ -93,14 +93,13 @@ export class Level {
       this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer);
     }
 
-    // Паутинный декор (нитка паучихи): нити, углы, лианы — по зонам; лианы лежат под тайлами, остальное поверх
+    // Висящая паутина (нитка паучихи): лианы под тайлами и длинные нитки с неба — по зонам; лежит под тайлами (корни спрятаны)
     this.webs = new Webs(sprites, this.tileSize, def.width, def.height, (cx, cy) => this.solid[cy][cx]);
     this.backLayer.addChild(this.webs.back);
     (def.zones ?? []).forEach((zone, i) => {
       if (zone.kind === 'webs') this.webs.addZone(zone, i);
       else this.fillTransistors(sprites, zone, i);
     });
-    this.frontLayer.addChild(this.webs.front);
   }
 
   /** Ставит спрайт декора (без коллизии). */
