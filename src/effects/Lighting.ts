@@ -73,6 +73,7 @@ in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture; // мир (физические пиксели)
 uniform sampler2D uGlow;    // свечение мобов (пиксели арта)
+uniform sampler2D uCaster;  // только существа и транзисторы
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
 uniform vec2 uGlowSize;
 uniform float uScale;       // физических пикселей на пиксель арта
@@ -81,11 +82,17 @@ uniform vec3 uColor;
 uniform float uRim;
 uniform float uAmbient;
 uniform float uLevels;
+bool onCaster = false; // этот пиксель принадлежит существу/транзистору
+// Твёрдый ли сосед. Для пикселей поверхностей (тайлы) существа и транзисторы соседями не считаются: пол под ногами остаётся краем и освещён
+// так же, как вокруг, а не тёмной дырой в кромке (тень на нём ляжет отдельно)
 float solidAt(vec2 o) {
-  return texture(uTexture, vTextureCoord + o * uScale * uInputSize.zw).a;
+  vec2 uv = vTextureCoord + o * uScale * uInputSize.zw;
+  float w = texture(uTexture, uv).a;
+  return onCaster ? w : w * (1.0 - step(0.5, texture(uCaster, uv).a));
 }
 void main(void) {
   float a = texture(uTexture, vTextureCoord).a;
+  onCaster = texture(uCaster, vTextureCoord).a > 0.5;
   vec2 frag = vTextureCoord * uInputSize.xy;
   vec3 glow = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb;
   if (a < 0.5) {
@@ -193,7 +200,7 @@ void main(void) {
 
 const SHADOW_SHIFT = 2; // px арта: тень чуть смещена вправо (свет — слева)
 const SHADOW_REACH = 44; // px арта: выше этого существо тень не даёт
-const SHADOW_SMALL = 0.5; // у мелких предметов (транзисторов) тень вдвое слабее: без чёрных пятен у ножек
+const SHADOW_SMALL = 1.0; // густота тени мелких предметов (транзисторов): среднее по площади — как у героя, но без точек под тонкими ножками
 const SPIDER_MARK = 0.75; // прозрачность пауков в текстуре существ: отметка «может отбросить тень на потолок и стены»
 const SMALL_MARK = 0.55; // прозрачность мелких предметов в ней же: отметка «тень слабее»
 const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
@@ -319,7 +326,7 @@ export class Lighting {
       uRim: { value: 0.7, type: 'f32' },
       uAmbient: { value: 0.09, type: 'f32' },
       uLevels: { value: 5, type: 'f32' }
-    }, { uGlow: this.glowRT.source });
+    }, { uGlow: this.glowRT.source, uCaster: this.casterRT.source });
     this.compSprite.filters = [this.comp];
     this.shadowSprite.texture = this.groundRT;
     this.shadowSprite.scale.set(1 / scale);
