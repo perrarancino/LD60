@@ -232,7 +232,7 @@ class GameApp {
     this.drawGrid();
 
     const tileset = tilesData as TileSetDef;
-    const levelDef = levelData as LevelDef;
+    const levelDef = levelData as unknown as LevelDef;
     const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
 
     // Параллакс-фон уровня (если задан)
@@ -315,6 +315,7 @@ class GameApp {
     this.player.onWallKick = (x, y, wallDir) => this.wallKickSmoke(x, y, wallDir);
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
     this.lighting = new Lighting(this.app.renderer, this.worldLayer);
+    this.app.stage.addChildAt(this.lighting.backContainer, this.app.stage.getChildIndex(this.worldLayer)); // лучи и туман — за миром
     this.app.stage.addChild(this.lighting.container);
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
@@ -490,7 +491,7 @@ class GameApp {
     this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
-    const solids = [...this.hittables()].flatMap((h) => h.solidBoxes()); // враги твёрдые: на них можно встать
+    const solids = [...this.hittables()].flatMap((h) => h.solidBoxes()).concat(this.level.staticSolids); // враги твёрдые: на них можно встать
     this.player.update(dt, this.input.poll(), this.level, this.aimInWorld(), solids);
 
     // 3. Враги
@@ -512,7 +513,7 @@ class GameApp {
     this.updateCamera(dt);
     const camLeft = -this.worldLayer.x;
     this.level.update(dt, camLeft, camLeft + this.viewW);
-    this.lighting?.update();
+    this.lighting?.update(dt);
   }
 }
 

@@ -32,7 +32,7 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
-  loop_frames?: number; // спрайт — лист из стольких кадров-тайлов; в ряду тайлов кадры чередуются по кругу с начала ряда
+  loop_frames?: number; // спрайт — лист из трёх кадров-тайлов: левый край платформы, середина (повторяется), правый край
 }
 
 export interface TileSetDef {
@@ -56,6 +56,18 @@ export interface DecorDef {
   x: number;
   y: number;
   layer?: 'back' | 'front';
+  solid?: boolean; // герой встаёт на хитбокс спрайта
+  solid_cells?: [number, number, number, number][]; // клетки сетки, ставшие твёрдыми: [колонка, ряд, ширина, высота]
+}
+
+/** Зона автодекора: в прямоугольнике клеток (включительно) декор раскладывается сам, детерминированно. */
+export interface DecorZoneDef {
+  kind: 'transistors' | 'webs';
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  density?: number;
 }
 
 export interface LevelDef {
@@ -69,6 +81,7 @@ export interface LevelDef {
   rows: string[];
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
+  zones?: DecorZoneDef[];
   enemies: EnemySpawnDef[];
 }
 

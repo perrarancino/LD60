@@ -2,8 +2,8 @@ import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 
 export const SPROUT_SPRITE = 'deco_sprout';
+const SPROUT_WIDTH = 8; // px: ширина спрайта отростка
 
-const PER_CELL: [number, number] = [2, 3]; // сколько отростков под одной клеткой (от, до)
 const HIDDEN = 1; // px: корень отростка спрятан под тайлом (слой рисуется под тайлами)
 const SWAY_AMOUNT = 0.3; // рад: размах наклона (низ отростка уходит на 2–3 px)
 const SWAY_SPEED: [number, number] = [1.1, 1.9]; // рад/с
@@ -49,16 +49,15 @@ export class Sprouts {
       for (let cx = 0; cx < width; cx++) {
         if (!isSolid(cx, cy) || isSolid(cx, cy + 1)) continue; // нужна твёрдая клетка с пустотой снизу
         const rand = mulberry32(cx * 7919 + cy * 104729 + 17);
-        const n = PER_CELL[0] + Math.floor(rand() * (PER_CELL[1] - PER_CELL[0] + 1));
+        // отростки идут вплотную друг за другом вдоль всей нижней грани: 8 px каждый — четыре на тайл
+        const n = Math.max(1, Math.floor(tileSize / SPROUT_WIDTH));
         for (let k = 0; k < n; k++) {
           const sprite = sprites.createSprite(SPROUT_SPRITE);
-          // равномерные слоты вдоль грани со сдвигом, чтобы не было «гребёнки»
-          const x = cx * tileSize + ((k + 0.5) / n) * tileSize + (rand() - 0.5) * 5;
-          sprite.position.set(Math.round(x), (cy + 1) * tileSize - HIDDEN);
-          if (rand() < 0.5) sprite.scale.x = -1;
+          const x = cx * tileSize + (k + 0.5) * SPROUT_WIDTH;
+          sprite.position.set(x, (cy + 1) * tileSize - HIDDEN);
           this.container.addChild(sprite);
           this.sprouts.push({
-            sprite, x, phase: rand() * Math.PI * 2,
+            sprite, x, phase: x * 0.07 + rand() * 0.6, // соседние отростки качаются волной
             speed: SWAY_SPEED[0] + rand() * (SWAY_SPEED[1] - SWAY_SPEED[0]),
             amount: SWAY_AMOUNT * (0.6 + rand() * 0.6)
           });

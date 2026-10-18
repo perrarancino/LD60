@@ -33,7 +33,22 @@
           "sprite_id": { "type": "string" },
           "x": { "type": "number" },
           "y": { "type": "number" },
-          "layer": { "type": "string", "enum": ["back", "front"], "description": "back — за тайлами (фон: куллер), front — поверх тайлов, под героем и врагами (по умолчанию)" }
+          "layer": { "type": "string", "enum": ["back", "front"], "description": "back — за тайлами (фон: куллер), front — поверх тайлов, под героем и врагами (по умолчанию)" },
+          "solid": { "type": "boolean", "description": "Твёрдый: герой встаёт на хитбокс спрайта (sprites.json), как на врага" },
+          "solid_cells": { "type": "array", "description": "Клетки сетки, которые становятся твёрдыми (как тайлы, для героя и ползающих врагов): [колонка, ряд, ширина, высота] в тайлах", "items": { "type": "array", "items": { "type": "integer" }, "minItems": 4, "maxItems": 4 } }
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "description": "Зоны автодекора: в прямоугольнике клеток (включительно) декор раскладывается сам, детерминированно",
+      "items": {
+        "type": "object",
+        "required": ["kind", "x0", "y0", "x1", "y1"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["transistors", "webs"], "description": "transistors — транзисторы на верхних гранях тайлов (твёрдые); webs — паутина поверх тайлов и в углах" },
+          "x0": { "type": "integer" }, "y0": { "type": "integer" }, "x1": { "type": "integer" }, "y1": { "type": "integer" },
+          "density": { "type": "number", "minimum": 0, "maximum": 1, "description": "Вероятность декора на подходящую клетку (по умолчанию 0.5)" }
         }
       }
     },
