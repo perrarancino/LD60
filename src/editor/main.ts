@@ -75,16 +75,16 @@ class EditorApp {
       this.populateWorldRegions();
       this.populateTransitionTargetLevels();
       this.setupNewTileModal();
+      this.setupNewLevelModal();
       this.populateLevelDropdown();
 
       if (this.config?.world) {
         this.worldGraphModal.setWorld(this.config.world, (regionId) => this.handleSelectWorldRegion(regionId));
       }
 
-      // Загружаем начальный уровень (по URL параметру, world_prototype.json или test_level.json)
+      // Загружаем начальный уровень (по URL параметру ?level=... или первый доступный)
       const urlLevel = new URLSearchParams(window.location.search).get('level');
       const targetLvl = (urlLevel ? this.config?.levels?.find(l => l.filename === urlLevel || l.data.id === urlLevel) : undefined)
-        ?? this.config?.levels?.find(l => l.filename === 'world_prototype.json')
         ?? this.config?.levels?.find(l => l.filename === 'test_level.json')
         ?? this.config?.levels?.[0];
 
@@ -498,6 +498,140 @@ class EditorApp {
         form.reset();
       } catch (err: any) {
         alert(`Ошибка сохранения тайла: ${err.message}`);
+      }
+    });
+  }
+
+  private setupNewLevelModal() {
+    const modal = document.getElementById('new-level-modal') as HTMLElement;
+    const form = document.getElementById('new-level-form') as HTMLFormElement;
+    const btnOpen = document.getElementById('btn-new-level') as HTMLButtonElement;
+    const btnCancel = document.getElementById('modal-level-cancel-btn') as HTMLButtonElement;
+    const bgSelect = document.getElementById('new-level-bg') as HTMLSelectElement;
+
+    if (!modal || !form || !btnOpen) return;
+
+    btnOpen.addEventListener('click', () => {
+      // Заполняем доступные фоны
+      if (bgSelect) {
+        bgSelect.innerHTML = '<option value="">Без фона</option>';
+        if (this.config?.backgrounds) {
+          for (const bg of this.config.backgrounds) {
+            const opt = document.createElement('option');
+            opt.value = bg.id;
+            opt.textContent = `${bg.id} (${bg.description || 'Параллакс'})`;
+            bgSelect.appendChild(opt);
+          }
+        }
+      }
+      modal.classList.add('open');
+      const idInput = document.getElementById('new-level-id') as HTMLInputElement;
+      idInput?.focus();
+    });
+
+    btnCancel?.addEventListener('click', () => {
+      modal.classList.remove('open');
+      form.reset();
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('open');
+        form.reset();
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const idInput = document.getElementById('new-level-id') as HTMLInputElement;
+      const nameInput = document.getElementById('new-level-name') as HTMLInputElement;
+      const widthInput = document.getElementById('new-level-width') as HTMLInputElement;
+      const heightInput = document.getElementById('new-level-height') as HTMLInputElement;
+      const borderCheck = document.getElementById('new-level-border') as HTMLInputElement;
+
+      const rawId = (idInput?.value || '').trim();
+      const levelId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+      const displayName = (nameInput?.value || '').trim() || levelId;
+      const w = Math.max(10, Math.min(300, parseInt(widthInput?.value || '40', 10)));
+      const h = Math.max(8, Math.min(200, parseInt(heightInput?.value || '20', 10)));
+      const bgId = bgSelect?.value || undefined;
+      const withBorder = borderCheck?.checked ?? true;
+
+      if (!levelId) {
+        alert('Укажите корректный ID карты');
+        return;
+      }
+
+      const rows: string[] = [];
+      for (let y = 0; y < h; y++) {
+        let row = '';
+        for (let x = 0; x < w; x++) {
+          if (withBorder && (x === 0 || x === w - 1 || y === 0 || y === h - 1)) {
+            row += '#';
+          } else {
+            row += '.';
+          }
+        }
+        rows.push(row);
+      }
+
+      const newLevel: LevelDef = {
+        $schema: '../schemas/level.schema.json',
+        id: levelId,
+        display_name: displayName,
+        background_id: bgId,
+        tile_size: 32,
+        width: w,
+        height: h,
+        legend: {
+          '#': 'platform_block',
+          '.': null
+        },
+        rows,
+        player_spawn: {
+          x: Math.min(4, w - 2),
+          y: Math.max(1, h - 2)
+        },
+        enemies: [],
+        rooms: [],
+        spawn_zones: [],
+        cables: [],
+        transitions: []
+      };
+
+      const filename = `${levelId}.json`;
+
+      try {
+        const res = await fetch('/api/ld60/level/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename, level: newLevel })
+        });
+
+        if (!res.ok) throw new Error(`Ошибка HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Ошибка сохранения');
+
+        if (!this.config) {
+          this.config = { ld60Path: '', tiles: null, sprites: null, enemies: [], bosses: [], world: null, backgrounds: [], levels: [] };
+        }
+
+        const existingIdx = this.config.levels.findIndex(l => l.filename === filename);
+        if (existingIdx !== -1) {
+          this.config.levels[existingIdx] = { filename, data: newLevel };
+        } else {
+          this.config.levels.push({ filename, data: newLevel });
+        }
+
+        this.populateLevelDropdown();
+        this.populateTransitionTargetLevels();
+        this.loadLevel(filename, newLevel);
+
+        this.setStatus(`Создана новая карта: "${displayName}" (${w}×${h} тайлов, ${filename})`);
+        modal.classList.remove('open');
+        form.reset();
+      } catch (err: any) {
+        alert(`Ошибка создания карты: ${err.message}`);
       }
     });
   }

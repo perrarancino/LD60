@@ -22,6 +22,7 @@
         <select id="editor-level-select" class="select-input" style="background: #0f172a; color: #fff; border: 1px solid #334155; padding: 3px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 600;">
           <!-- Заполняется динамически -->
         </select>
+        <button id="btn-new-level" type="button" class="btn" style="padding: 2px 8px; font-size: 11px; color: #4ade80; border-color: #166534;" title="Создать новую отдельную карту/локацию">+ Новая карта</button>
       </div>
       <button id="btn-auto-fit-bounds" class="btn btn-primary" title="Умная оптимизация и подгонка границ мира под все комнаты">
         📐 Подогнать границы
@@ -624,6 +625,48 @@
         <div class="modal-footer">
           <button type="button" id="modal-tile-cancel-btn" class="btn">Отмена</button>
           <button type="submit" class="btn btn-primary">Сохранить тайл</button>
+        </div>
+      </form>
+    </div>
+  <!-- Модальное окно создания новой карты/уровня -->
+  <div id="new-level-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">Создать новую карту (прототип локации)</div>
+      <form id="new-level-form">
+        <div class="form-group">
+          <label class="form-label">ID Уровня (англ., имя файла)</label>
+          <input id="new-level-id" type="text" class="text-input" style="width: 100%;" required placeholder="loc_power_supply" />
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Файл будет сохранён как data/levels/&lt;id&gt;.json</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Отображаемое название карты</label>
+          <input id="new-level-name" type="text" class="text-input" style="width: 100%;" required placeholder="Блок питания (Прототип)" />
+        </div>
+        <div class="form-row" style="gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Ширина (тайлов)</label>
+            <input id="new-level-width" type="number" min="10" max="300" value="40" class="text-input" style="width: 100%;" required />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Высота (тайлов)</label>
+            <input id="new-level-height" type="number" min="8" max="200" value="20" class="text-input" style="width: 100%;" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Параллакс-фон</label>
+          <select id="new-level-bg" class="select-input" style="width: 100%;">
+            <!-- Заполняется динамически -->
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-level-border" type="checkbox" checked />
+            <span>Создать стартовый пол и границы стен</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="modal-level-cancel-btn" class="btn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Создать карту</button>
         </div>
       </form>
     </div>
