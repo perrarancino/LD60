@@ -67,6 +67,12 @@ export class LootSystem {
       else drops.push('discParts');
     }
 
+    // Бонусный дроп материалов при дисковой голове
+    const head = CraftingSystem.get().activeParts.head;
+    if (head.type === 'disc' && Math.random() < head.level * 0.2) {
+      drops.push(Math.random() < 0.5 ? 'discParts' : 'scrap');
+    }
+
     for (const mat of drops) {
       this.spawnItem(x + (Math.random() * 12 - 6), y - 8 + (Math.random() * 8 - 4), mat);
     }
@@ -108,8 +114,11 @@ export class LootSystem {
       const dy = py - it.y;
       const dist = Math.hypot(dx, dy);
 
+      const head = crafting.activeParts.head;
+      const effectiveMagnetDist = head.type === 'disc' ? MAGNET_DIST * (1 + head.level * 0.8) : MAGNET_DIST;
+
       // Магнит к игроку
-      if (dist < MAGNET_DIST || it.magnetized) {
+      if (dist < effectiveMagnetDist || it.magnetized) {
         it.magnetized = true;
         const magSpeed = MAGNET_SPEED * (1 + it.lifetime * 0.5);
         it.vx += (dx / Math.max(1, dist)) * magSpeed * dt * 4;

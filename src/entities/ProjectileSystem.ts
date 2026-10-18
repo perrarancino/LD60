@@ -88,6 +88,8 @@ export class ProjectileSystem {
     const dirX = dx / len;
     const dirY = dy / len;
 
+    const cdMult = crafting.getAttackSpeedMultiplier();
+
     if (armType === 'standard') {
       // Стандартная рука: бросок шестеренки bullet1
       // ур1: 1 шт, ур2: 2 шт подряд, ур3: 3 шт подряд
@@ -97,7 +99,7 @@ export class ProjectileSystem {
         this.burstTimer = this.burstInterval;
         this.burstOrigin = { x: fromX, y: fromY, dirX, dirY };
       }
-      this.cooldown = 0.35;
+      this.cooldown = 0.35 * cdMult;
       return true;
     }
 
@@ -109,15 +111,15 @@ export class ProjectileSystem {
       const maxDist = armLevel === 1 ? 150 : armLevel === 2 ? 240 : 340;
       const maxBounces = armLevel - 1;
       this.fireShock(fromX, fromY, dirX, dirY, maxDist, maxBounces, hittables, level);
-      this.cooldown = 0.45;
+      this.cooldown = 0.45 * cdMult;
       return true;
     }
 
     if (armType === 'disc') {
-      // Вентиляторная рука: вихрь
+      // Дисковая рука: дисковый вихрь
       // ур1: притягивает и слегка режет
       // ур2: сильнее притягивает, режет и отталкивает
-      // ур3: мощный вихрь, сильная резка и взрывное отталкивание с уроном
+      // ур3: мощный дисковый вихрь, сильная резка и взрывное отталкивание с уроном
       this.vortex = {
         x: fromX,
         y: fromY,
@@ -129,7 +131,7 @@ export class ProjectileSystem {
         level: armLevel,
         tickTimer: 0
       };
-      this.cooldown = 0.7;
+      this.cooldown = 0.7 * cdMult;
       return true;
     }
 
@@ -310,7 +312,7 @@ export class ProjectileSystem {
       }
     }
 
-    // Обновление вентиляторного вихря
+    // Обновление дискового вихря
     if (this.vortex) {
       const v = this.vortex;
       v.x = playerPos.x;
@@ -405,7 +407,7 @@ export class ProjectileSystem {
       g.stroke();
     }
 
-    // Отрисовка вихря вентиляторной руки
+    // Отрисовка вихря дисковой руки
     if (this.vortex) {
       const v = this.vortex;
       const progress = 1 - v.life / v.maxLife;

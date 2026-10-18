@@ -267,27 +267,13 @@ export class RebirthUI {
         `;
       }
 
-      // Описание активного эффекта/атаки
-      let effectDesc = '';
-      if (slot === 'arms') {
-        const currentType = part.level > 0 ? part.type : 'standard';
-        const currentLvl = Math.max(1, part.level);
-        effectDesc = `<div style="font-size: 11px; color: #f59e0b; margin-top: 4px;">
-          ⚔️ ПКМ Атака: ${crafting.getArmAbilityDescription(currentType, currentLvl)}
-        </div>`;
-      } else if (slot === 'head') {
-        effectDesc = `<div style="font-size: 11px; color: #a5b4fc; margin-top: 4px;">
-          👁️ Сенсоры: увеличение шанса крита и радиуса обнаружения
-        </div>`;
-      } else if (slot === 'torso') {
-        effectDesc = `<div style="font-size: 11px; color: #6ee7b7; margin-top: 4px;">
-          🛡️ Корпус: запас прочности HP и замедление деградации энергоядра
-        </div>`;
-      } else if (slot === 'legs') {
-        effectDesc = `<div style="font-size: 11px; color: #93c5fd; margin-top: 4px;">
-          🏃 Шасси: увеличение скорости бега, дальности прыжков и маневренности
-        </div>`;
-      }
+      // Описание способности текущей собранной детали
+      const currentType = part.level > 0 ? part.type : 'standard';
+      const currentLvl = Math.max(1, part.level);
+      const icon = slot === 'arms' ? '⚔️' : slot === 'head' ? '👁️' : slot === 'torso' ? '🛡️' : '🏃';
+      const effectDesc = `<div style="font-size: 11px; color: #38bdf8; margin-top: 4px; line-height: 1.3;">
+        ${icon} <b>${MODULE_NAMES[currentType]}</b>: ${crafting.getPartDescription(slot, currentType, currentLvl)}
+      </div>`;
 
       const statusBadge = part.level > 0
         ? `<span style="color: #4ade80; font-weight: bold;">ГОТОВО (УР.${part.level})</span>`

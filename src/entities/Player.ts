@@ -115,6 +115,7 @@ export class Player {
   private wasGrounded = true;
   private doll: Ragdoll | null = null; // регдолл (создаётся при первом падении)
   private downed = false; // лежит регдоллом или встаёт
+  private extraJumps = 0; // двойной прыжок (проводные ноги)
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
@@ -211,6 +212,11 @@ export class Player {
     const b = this.body;
     if (this.wasGrounded || !b.grounded || this.downed) return;
     const fall = b.y - this.peakY;
+    const legs = CraftingSystem.get().activeParts.legs;
+    if ((legs.type === 'standard' && legs.level >= 2) || (legs.type === 'disc' && legs.level >= 1)) {
+      if (fall >= LAND_DUST_HEIGHT) this.onLanding?.(b.x, b.bottom, Math.min(1, (fall - LAND_DUST_HEIGHT) / (FALL_HEIGHT - LAND_DUST_HEIGHT)));
+      return; // Мягкое приземление без регдолла и потери управления
+    }
     if (fall < FALL_HEIGHT) {
       if (fall >= LAND_DUST_HEIGHT) this.onLanding?.(b.x, b.bottom, (fall - LAND_DUST_HEIGHT) / (FALL_HEIGHT - LAND_DUST_HEIGHT));
       return;
@@ -269,7 +275,8 @@ export class Player {
     // сторона рига: рука на экране справа от героя (мир) — side -1 при взгляде вправо, и наоборот
     this.punchArm = (dx >= 0 ? -this.facing : this.facing) as 1 | -1;
     this.punchT = 0;
-    this.punchCd = PUNCH_COOLDOWN;
+    const cdMult = CraftingSystem.get().getAttackSpeedMultiplier();
+    this.punchCd = PUNCH_COOLDOWN * cdMult;
     this.punchBuffer = 0;
     this.punchId++;
   }
@@ -294,8 +301,7 @@ export class Player {
     this.wallJumpCd -= dt;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    const legs = CraftingSystem.get().activeParts.legs;
-    const speedMult = legs.type === 'standard' ? 1 + legs.level * 0.12 : 1;
+    const speedMult = CraftingSystem.get().getSpeedMultiplier();
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED * speedMult;
     if (this.downed) {
       b.vx = 0; // лежит: хитбокс двигает регдолл (updateDowned)
@@ -311,8 +317,13 @@ export class Player {
     this.coyote = b.grounded ? GAME_CONFIG.COYOTE_TIME_SEC : this.coyote - dt;
     this.jumpBuffer = input.jumpPressed ? GAME_CONFIG.JUMP_BUFFER_SEC : this.jumpBuffer - dt;
 
+    if (b.grounded) {
+      this.extraJumps = CraftingSystem.get().getAirJumpsCount();
+    }
+
     if (this.jumpBuffer > 0 && this.coyote > 0) {
-      b.vy = GAME_CONFIG.JUMP_FORCE;
+      const jumpBoost = CraftingSystem.get().getJumpForceMultiplier();
+      b.vy = GAME_CONFIG.JUMP_FORCE * jumpBoost;
       this.jumpBuffer = this.coyote = 0;
     } else if (this.jumpBuffer > 0 && !b.grounded && this.wallCoyote > 0 && this.wallDir !== 0) {
       // Прыжок у стены: если можно залезть — лезем, иначе прыжок от стены
@@ -323,6 +334,12 @@ export class Player {
         return;
       }
       if (this.wallJumpCd <= 0) this.wallJump(input.horizontal, level);
+    } else if (this.jumpBuffer > 0 && !b.grounded && this.extraJumps > 0) {
+      // Двойной / тройной электро-прыжок в воздухе (проводные ноги)
+      b.vy = GAME_CONFIG.JUMP_FORCE * 0.95;
+      this.extraJumps--;
+      this.jumpBuffer = 0;
+      this.onWallKick?.(b.x, b.y - 4, this.facing, false);
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
     if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4) {

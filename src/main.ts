@@ -115,6 +115,7 @@ class GameApp {
   private loot!: LootSystem;
   private projectiles!: ProjectileSystem;
   private rebirthUI!: RebirthUI;
+  private speedCollisionTimer = 0;
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -130,8 +131,9 @@ class GameApp {
   constructor() {
     this.app = new Application();
     this.input = InputManager.get();
+    const initialTimer = CraftingSystem.get().getAgingTimerSeconds();
     this.aging = new AgingSystem(
-      playerData.aging_system.time_limit_seconds,
+      initialTimer,
       playerData.aging_system.warning_threshold_seconds,
       playerData.aging_system.critical_threshold_seconds
     );
@@ -140,7 +142,7 @@ class GameApp {
 
     // Обработка перерождения робота в новую копию
     EventBus.get().on('crafting:rebuild_completed', () => {
-      this.aging.reset();
+      this.aging.reset(CraftingSystem.get().getAgingTimerSeconds());
       if (this.player) {
         this.fx.burst(this.player.body.x, this.player.body.y - 28, {
           count: 28,
@@ -163,7 +165,7 @@ class GameApp {
       } else {
         this.rebirthUI.showRebirthAlert('⚠️ ЭНЕРГОЯДРО ИСТОЩЕНО! Копия не была собрана. Аварийная перезагрузка...');
         setTimeout(() => {
-          this.aging.reset(180);
+          this.aging.reset(CraftingSystem.get().getAgingTimerSeconds());
         }, 3000);
       }
     });
@@ -529,8 +531,7 @@ class GameApp {
     const byParts = isPartDamageable(target);
     if (!mob && !byParts) return;
     const [lo, hi] = this.combat.punch_damage;
-    const head = CraftingSystem.get().activeParts.head;
-    const extraCrit = head.type === 'standard' ? head.level * 0.1 : 0;
+    const extraCrit = CraftingSystem.get().getCritChanceBonus();
     const crit = Math.random() < ((this.combat.crit_chance ?? 0) + extraCrit);
     let dmg = customDmg !== undefined ? customDmg : lo + Math.floor(Math.random() * (hi - lo + 1));
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
@@ -572,6 +573,39 @@ class GameApp {
     this.mobs.delete(target);
     mob.remove();
     mob.view.destroy({ children: true });
+  }
+
+  /** Столкновение с врагами на высокой скорости (дисковые ноги ур3) */
+  private checkSpeedCollision(dt: number): void {
+    if (!CraftingSystem.get().hasSpeedCollisionDamage()) return;
+    const b = this.player.body;
+    if (Math.abs(b.vx) < 170) {
+      this.speedCollisionTimer = Math.max(0, this.speedCollisionTimer - dt);
+      return;
+    }
+    this.speedCollisionTimer -= dt;
+    if (this.speedCollisionTimer > 0) return;
+
+    for (const target of this.hittables()) {
+      for (const circle of target.hitCircles()) {
+        const dist = Math.hypot(circle.x - b.x, circle.y - (b.y - 16));
+        if (dist < circle.r + 14) {
+          const dirX = Math.sign(b.vx) || 1;
+          target.onHit(dirX * 120, -40, circle.part);
+          this.damage(target, circle.x, circle.y, dirX, circle.part, 25);
+          this.fx.burst(circle.x, circle.y, {
+            count: 10,
+            colors: [0x38bdf8, 0xffffff, 0xf59e0b],
+            speed: [60, 160],
+            spread: Math.PI * 2,
+            life: [0.15, 0.35],
+            size: [1, 2]
+          });
+          this.speedCollisionTimer = 0.25;
+          return;
+        }
+      }
+    }
   }
 
   /** Приземление с высоты: пыль разлетается по земле из-под ног, сильнее — гуще и дальше, при сильном — лёгкая тряска. */
@@ -708,10 +742,8 @@ class GameApp {
       return;
     }
 
-    // 1. Обновление таймера старения с учетом модификации корпуса (проводной торс замедляет распад)
-    const torso = CraftingSystem.get().activeParts.torso;
-    const agingRate = torso.type === 'wire' ? Math.max(0.4, 1 - torso.level * 0.18) : 1;
-    this.aging.update(dt * agingRate);
+    // 1. Обновление таймера старения
+    this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
     const input = this.input.poll();
@@ -742,6 +774,7 @@ class GameApp {
     for (const mother of this.mothers) mother.update(dt);
     for (const boss of this.bosses) boss.update(dt);
     this.resolveStrike();
+    this.checkSpeedCollision(dt);
     this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });
     this.loot.update(dt, this.level, this.player);
     this.fx.update(dt);
