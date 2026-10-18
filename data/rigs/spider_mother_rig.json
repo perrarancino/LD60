@@ -13,8 +13,8 @@
   "wobbler": {
     "sprite_id": "enemy_spider_mother",
     "mouth": {
-      "x": 29,
-      "y": 33
+      "x": 30.5,
+      "y": 47
     },
     "limbs": [
       {
