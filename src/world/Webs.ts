@@ -17,7 +17,11 @@ const VINE_RETURN = 16; // 1/с²: пружина возврата к верти
 const VINE_MAX_SWING = 0.62; // макс. смещение узла от вертикали: доля расстояния от корня до узла (≈ 38°)
 const VINE_ITERATIONS = 3;
 const VINE_SUBSTEPS = 2;
-const ACTOR_PAD = 2; // px: герой задевает лиану чуть раньше края хитбокса
+const ACTOR_PAD = 4; // px: герой задевает лиану чуть раньше края хитбокса
+const PUSH = 1500; // px/с²: сила, с которой герой отодвигает узлы лианы (плавно спадает к краям хитбокса — без рывков)
+const PUSH_MIN = 0.3; // доля силы у самого края хитбокса
+const DRAG_ALONG = 0.6; // 1/с·с: насколько узлы увлекаются скоростью героя (лиана «цепляется» и тянется за ним)
+const MOVING = 25; // px/с: быстрее — толкаем по ходу героя, медленнее — в сторону, где узел
 const VIEW_MARGIN = 40; // px: за краем обзора декор не обновляется
 const VINE_TINTS = [0xffffff, 0xe3f1ff, 0xcfe6ff];
 const SKY_CLEARANCE = 8; // px: нитка с неба обрывается чуть выше первой платформы под ней, а не проходит сквозь неё
@@ -169,8 +173,26 @@ class Vine {
         const vy = (this.y[i] - this.py[i]) * damp;
         this.px[i] = this.x[i];
         this.py[i] = this.y[i];
-        // пружина возврата к вертикали под корнем + ветер + тяжесть
-        this.x[i] += vx + (wind - VINE_RETURN * (this.x[i] - rx)) * h * h;
+        // герой не «выталкивает» узел рывком, а толкает его силой, плавно растущей к центру хитбокса, и увлекает за собой скоростью:
+        // лиана раздвигается и перетекает, а не телепортируется
+        let push = 0;
+        let pull = 0;
+        for (const a of actors) {
+          if (a.right < this.minX || a.left > this.maxX) continue;
+          const y = this.y[i];
+          if (y < a.top || y > a.bottom) continue;
+          const cx = (a.left + a.right) / 2;
+          const half = (a.right - a.left) / 2 + ACTOR_PAD;
+          const off = this.x[i] - cx;
+          const w = 1 - Math.abs(off) / half;
+          if (w <= 0) continue;
+          const dir = Math.abs(a.vx) > MOVING ? Math.sign(a.vx) : off < 0 ? -1 : 1; // идёт — толкаем по ходу, стоит — от центра
+          const f = PUSH_MIN + (1 - PUSH_MIN) * w;
+          push += dir * PUSH * f;
+          pull += a.vx * DRAG_ALONG * w;
+        }
+        // пружина возврата к вертикали под корнем + ветер + толчок героя + тяжесть
+        this.x[i] += vx + pull * h + (wind + push - VINE_RETURN * (this.x[i] - rx)) * h * h;
         this.y[i] += vy + VINE_GRAVITY * h * h;
       }
       for (let it = 0; it < VINE_ITERATIONS; it++) {
@@ -188,17 +210,6 @@ class Vine {
             this.x[i + 1] -= dx * diff * 0.5;
             this.y[i + 1] -= dy * diff * 0.5;
           }
-        }
-      }
-      for (const a of actors) {
-        if (a.right < this.minX || a.left > this.maxX) continue;
-        const cx = (a.left + a.right) / 2;
-        for (let i = 1; i <= n; i++) {
-          const x = this.x[i];
-          const y = this.y[i];
-          if (x < a.left - ACTOR_PAD || x > a.right + ACTOR_PAD || y < a.top || y > a.bottom) continue;
-          // звено внутри героя: выталкиваем в сторону, где оно было ближе (проход сквозь лиану раздвигает её)
-          this.x[i] = x < cx ? a.left - ACTOR_PAD : a.right + ACTOR_PAD;
         }
       }
       // предел отклонения от вертикали: узел не может уйти далеко от корня (скорость при этом гасится)
