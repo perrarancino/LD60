@@ -1194,6 +1194,123 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "tile_tile1",
+      "category": "tiles",
+      "image": "tiles/tile1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_door_loc1",
+      "category": "decor",
+      "image": "decor/door_loc1.png",
+      "frame_width": 32,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_password",
+      "category": "decor",
+      "image": "decor/password.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_batterystand",
+      "category": "decor",
+      "image": "decor/batterystand.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "item_battery",
+      "category": "items",
+      "image": "items/battery.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "fx_step",
+      "category": "effects",
+      "image": "effects/step.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "fx_blood_trail",
+      "category": "effects",
+      "image": "effects/sledi_krovi.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "ui_cursor",
+      "category": "ui",
+      "image": "ui/cursor.png",
+      "frame_width": 16,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "ui_question_mark",
+      "category": "ui",
+      "image": "ui/question_mark.png",
+      "frame_width": 16,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
     }
   ]
 }

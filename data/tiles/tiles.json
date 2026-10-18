@@ -71,6 +71,13 @@
       "solid": true,
       "one_way": false,
       "slope": "ceil_left"
+    },
+    {
+      "id": "tile1",
+      "display_name": "Блок платформы (tile1)",
+      "sprite_id": "tile_tile1",
+      "solid": true,
+      "one_way": false
     }
   ]
 }
