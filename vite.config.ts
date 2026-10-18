@@ -163,6 +163,41 @@ function editorApiPlugin(): Plugin {
           return;
         }
 
+        // 5. API: Сохранение параллакс-фона
+        if (url === '/api/ld60/background/save' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const payload = JSON.parse(body);
+              const bg = payload.background;
+              if (!bg || !bg.id) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'Missing background or background.id' }));
+              }
+
+              const backgroundsDir = path.join(__dirname, 'data', 'backgrounds');
+              if (!fs.existsSync(backgroundsDir)) {
+                fs.mkdirSync(backgroundsDir, { recursive: true });
+              }
+
+              const filePath = path.join(backgroundsDir, `${bg.id}.json`);
+              if (!bg.$schema) {
+                bg.$schema = '../schemas/background.schema.json';
+              }
+
+              fs.writeFileSync(filePath, JSON.stringify(bg, null, 2) + '\n', 'utf-8');
+
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ ok: true, filename: `${bg.id}.json`, path: filePath, background: bg }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              return res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
         next();
       });
     }

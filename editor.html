@@ -60,7 +60,7 @@
       <button class="tool-btn active" data-tool="brush" title="Кисть тайлов (B)">
         🖌️<span class="hotkey">B</span>
       </button>
-      <button class="tool-btn" data-tool="eraser" title="Ластик (E или ПКМ)">
+      <button class="tool-btn" data-tool="eraser" title="Ластик (E)">
         🧽<span class="hotkey">E</span>
       </button>
       <button class="tool-btn" data-tool="fill" title="Заливка области (G)">
@@ -99,7 +99,8 @@
       <nav class="sidebar-tabs">
         <button id="tab-tiles-btn" class="tab-btn active">ТАЙЛЫ</button>
         <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
-        <button id="tab-decor-btn" class="tab-btn">ДЕКОР & ДВЕРИ</button>
+        <button id="tab-decor-btn" class="tab-btn">ДЕКОР</button>
+        <button id="tab-bg-btn" class="tab-btn">ФОН</button>
         <button id="tab-settings-btn" class="tab-btn">ПАРАМЕТРЫ</button>
       </nav>
 
@@ -221,6 +222,92 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Вкладка: Настройка фона (Parallax Background Engine) -->
+      <div id="tab-bg" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">ПРЕСЕТ ФОНА</span>
+          <button id="btn-new-bg" class="btn" style="padding: 3px 8px; font-size: 11px;">+ Новый фон</button>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <select id="bg-select" class="select-input" style="width: 100%;">
+            <!-- Заполняется списком доступных фонов из data/backgrounds/ -->
+          </select>
+        </div>
+
+        <button id="btn-apply-bg-to-level" type="button" class="btn" style="width: 100%; font-size: 11px; margin-bottom: 12px; border-left: 3px solid #38bdf8;">
+          🖼️ Привязать этот фон к текущему уровню
+        </button>
+
+        <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+
+        <!-- Основные параметры фона -->
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПАРАМЕТРЫ ФОНА</div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label class="form-label" style="font-size: 11px;">ID фона</label>
+          <input id="bg-id" type="text" class="text-input" style="width: 100%;" placeholder="например, bg_textalite" />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label class="form-label" style="font-size: 11px;">Описание</label>
+          <input id="bg-description" type="text" class="text-input" style="width: 100%;" placeholder="Краткое описание фона" />
+        </div>
+
+        <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Цвет неба (Sky)</label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input id="bg-sky-color" type="color" value="#120a36" style="width: 32px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;" />
+              <input id="bg-sky-color-hex" type="text" class="text-input" value="#120a36" style="flex: 1; font-family: monospace; font-size: 11px;" />
+            </div>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Цвет земли (Ground)</label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input id="bg-ground-color" type="color" value="#1f1a38" style="width: 32px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;" />
+              <input id="bg-ground-color-hex" type="text" class="text-input" value="#1f1a38" style="flex: 1; font-family: monospace; font-size: 11px;" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Масштаб (Scale)</label>
+            <input id="bg-scale" type="number" min="1" max="8" value="1" class="text-input" style="width: 100%;" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" style="font-size: 11px;">Смещение (Offset)</label>
+              <span id="label-bg-ground-offset" style="font-size: 11px; color: var(--text-muted);">32px</span>
+            </div>
+            <input id="bg-ground-offset" type="number" min="0" max="500" value="32" class="text-input" style="width: 100%;" />
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Управление слоями -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">СЛОИ ПАРАЛЛАКСА</span>
+          <button id="btn-add-bg-layer" type="button" class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--accent);">
+            + Добавить слой
+          </button>
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 8px;">
+          Слои снизу вверх (от дальнего к ближнему).
+        </div>
+
+        <div id="bg-layers-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+          <!-- Карточки слоёв генерируются динамически -->
+        </div>
+
+        <!-- Сохранение фона в проект -->
+        <button id="btn-save-bg" type="button" class="btn btn-primary" style="width: 100%; font-size: 12px; padding: 10px;">
+          💾 Сохранить фон в проект (JSON)
+        </button>
       </div>
 
       <!-- Вкладка: Параметры уровня -->

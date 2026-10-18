@@ -100,13 +100,20 @@ export interface BackgroundLayerDef {
   name: string;
   sprite_id: string;
   parallax_x: number;
-  parallax_y: number;
+  parallax_y?: number;
+  crop_left?: number;
+  mirror?: boolean;
+  visible?: boolean;
 }
 
 export interface BackgroundDef {
+  $schema?: string;
   id: string;
+  description?: string;
   sky_color: string;
   scale: number;
+  ground_offset?: number;
+  ground_color?: string;
   layers: BackgroundLayerDef[];
 }
 

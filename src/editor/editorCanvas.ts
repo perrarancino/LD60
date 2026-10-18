@@ -414,13 +414,24 @@ export class EditorCanvas {
         }
       }
 
-      // Панорамирование: средняя кнопка, зажатый Space или Alt+ЛКМ
-      if (e.button === 1 || (e.button === 0 && this.isSpaceDown)) {
+      // Панорамирование: ПКМ (e.button === 2), средняя кнопка (e.button === 1), зажатый Space или Alt+ЛКМ
+      if (e.button === 2 || e.button === 1 || (e.button === 0 && this.isSpaceDown)) {
+        if (this.activeTool === 'cable' && this.currentCableStart && e.button === 2) {
+          this.currentCableStart = null;
+          this.callbacks.onStatusMessage?.('Протягивание кабеля отменено');
+          this.render();
+        }
         this.isPanning = true;
+        this.canvas.style.cursor = 'grabbing';
         return;
       }
       if (e.altKey && e.button === 0) {
         this.pickTileUnderCursor();
+        return;
+      }
+
+      // Все остальные действия (выделение, рисование, перемещение) — строго по левой кнопке мыши (ЛКМ)
+      if (e.button !== 0) {
         return;
       }
 
@@ -584,7 +595,7 @@ export class EditorCanvas {
       }
 
       this.isMouseDown = true;
-      this.handleDrawAction(e.button === 2);
+      this.handleDrawAction();
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -644,7 +655,7 @@ export class EditorCanvas {
         this.hoveredTileY = tileY;
         this.callbacks.onHoverTile?.(tileX, tileY);
         if (this.isMouseDown) {
-          this.handleDrawAction(e.buttons === 2);
+          this.handleDrawAction();
         }
         this.render();
       }
@@ -675,11 +686,16 @@ export class EditorCanvas {
         return;
       }
 
+      if (this.isPanning) {
+        this.isPanning = false;
+        this.canvas.style.cursor = 'default';
+        this.render();
+      }
+
       if (this.isMouseDown) {
         this.saveStateToHistory();
       }
       this.isMouseDown = false;
-      this.isPanning = false;
     });
 
     this.canvas.addEventListener('wheel', (e) => {
@@ -965,14 +981,14 @@ export class EditorCanvas {
   }
 
   // --- Логика инструментов ---
-  public handleDrawAction(isRightClick: boolean) {
+  public handleDrawAction() {
     if (!this.level) return;
     const x = this.hoveredTileX;
     const y = this.hoveredTileY;
 
     if (x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) return;
 
-    if (isRightClick || this.activeTool === 'eraser') {
+    if (this.activeTool === 'eraser') {
       this.setTile(x, y, null);
       this.render();
       return;
@@ -1247,19 +1263,44 @@ export class EditorCanvas {
       ctx.fillRect(0, 0, levelPixelW, levelPixelH);
 
       if (bgDef && bgDef.layers) {
+        const groundOffset = bgDef.ground_offset ?? 0;
+        const scale = bgDef.scale || 1;
+
+        // Слои параллакса (от дальнего к ближнему)
         for (const layer of bgDef.layers) {
+          if (layer.visible === false) continue;
           const spriteDef = this.assets.getSpriteDef(layer.sprite_id);
           if (spriteDef) {
             const img = this.assets.getImage(spriteDef.image);
             if (img) {
-              const bgH = spriteDef.frame_height * (bgDef.scale || 1);
-              const bgW = spriteDef.frame_width * (bgDef.scale || 1);
-              const bgY = levelPixelH - bgH;
-              for (let bx = 0; bx < levelPixelW; bx += bgW) {
-                ctx.drawImage(img, 0, 0, spriteDef.frame_width, spriteDef.frame_height, bx, bgY, bgW, bgH);
+              const cropLeft = layer.crop_left ?? 0;
+              const srcW = Math.max(1, spriteDef.frame_width - cropLeft);
+              const srcH = spriteDef.frame_height;
+              const bgW = srcW * scale;
+              const bgH = srcH * scale;
+              const bgY = levelPixelH - groundOffset - bgH;
+
+              let step = 0;
+              for (let bx = 0; bx < levelPixelW; bx += bgW, step++) {
+                const isFlipped = Boolean(layer.mirror && (step % 2 === 1));
+                if (isFlipped) {
+                  ctx.save();
+                  ctx.translate(bx + bgW, 0);
+                  ctx.scale(-1, 1);
+                  ctx.drawImage(img, cropLeft, 0, srcW, srcH, 0, bgY, bgW, bgH);
+                  ctx.restore();
+                } else {
+                  ctx.drawImage(img, cropLeft, 0, srcW, srcH, bx, bgY, bgW, bgH);
+                }
               }
             }
           }
+        }
+
+        // Заливка под нижним краем слоев фона до самого низа уровня
+        if (groundOffset > 0 && bgDef.ground_color) {
+          ctx.fillStyle = bgDef.ground_color;
+          ctx.fillRect(0, levelPixelH - groundOffset, levelPixelW, groundOffset);
         }
       }
     } else {

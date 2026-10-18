@@ -246,12 +246,12 @@ canvas#editor-canvas {
 
 .tab-btn {
   flex: 1;
-  padding: 10px 4px;
+  padding: 10px 2px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   text-align: center;
@@ -477,3 +477,56 @@ canvas#editor-canvas {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* Стили карточек слоев параллакса */
+.bg-layer-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+
+.bg-layer-card:hover {
+  border-color: #38bdf8;
+}
+
+.bg-layer-card.layer-disabled {
+  opacity: 0.5;
+  filter: grayscale(0.6);
+}
+
+.bg-layer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 4px;
+}
+
+.bg-layer-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.bg-layer-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-layer-actions button:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.1);
+}
+

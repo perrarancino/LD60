@@ -1,6 +1,6 @@
 import { AssetManager } from './assetManager';
 import { EditorCanvas } from './editorCanvas';
-import type { CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, TileDef, ToolType } from './types';
+import type { BackgroundDef, CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, TileDef, ToolType } from './types';
 import { WorldGraphModal } from './worldGraph';
 
 class EditorApp {
@@ -8,6 +8,7 @@ class EditorApp {
   private canvas!: EditorCanvas;
   private config: EditorConfigResponse | null = null;
   private currentFilename: string = '';
+  private currentBackgroundId: string = '';
   private worldGraphModal = new WorldGraphModal();
 
   public async init() {
@@ -103,23 +104,253 @@ class EditorApp {
   private populateBackgroundDropdowns() {
     const settingBg = document.getElementById('setting-level-bg') as HTMLSelectElement;
     const newBg = document.getElementById('new-level-bg') as HTMLSelectElement;
+    const bgSelect = document.getElementById('bg-select') as HTMLSelectElement;
 
-    settingBg.innerHTML = '<option value="">Без фона</option>';
-    newBg.innerHTML = '<option value="">Без фона</option>';
+    if (settingBg) settingBg.innerHTML = '<option value="">Без фона</option>';
+    if (newBg) newBg.innerHTML = '<option value="">Без фона</option>';
+    if (bgSelect) bgSelect.innerHTML = '';
 
-    if (this.config?.backgrounds) {
-      for (const bg of this.config.backgrounds) {
+    for (const [id, bg] of this.canvas.backgroundsById.entries()) {
+      if (settingBg) {
         const opt1 = document.createElement('option');
-        opt1.value = bg.id;
-        opt1.textContent = bg.id;
+        opt1.value = id;
+        opt1.textContent = id;
         settingBg.appendChild(opt1);
+      }
 
+      if (newBg) {
         const opt2 = document.createElement('option');
-        opt2.value = bg.id;
-        opt2.textContent = bg.id;
+        opt2.value = id;
+        opt2.textContent = id;
         newBg.appendChild(opt2);
       }
+
+      if (bgSelect) {
+        const opt3 = document.createElement('option');
+        opt3.value = id;
+        opt3.textContent = `${id} (${bg.layers?.length || 0} сл.)`;
+        bgSelect.appendChild(opt3);
+      }
     }
+
+    // Выбираем первый фон или текущий
+    const initialBgId = this.canvas.level?.background_id || (this.canvas.backgroundsById.keys().next().value ?? '');
+    if (initialBgId && this.canvas.backgroundsById.has(initialBgId)) {
+      this.selectBackground(initialBgId, false);
+    }
+  }
+
+  private selectBackground(bgId: string, applyToLevel: boolean = false) {
+    if (!bgId) return;
+    const bg = this.canvas.backgroundsById.get(bgId);
+    if (!bg) return;
+
+    this.currentBackgroundId = bgId;
+
+    const bgSelect = document.getElementById('bg-select') as HTMLSelectElement;
+    if (bgSelect && bgSelect.value !== bgId) {
+      bgSelect.value = bgId;
+    }
+
+    // Заполняем поля формы фона
+    const idInput = document.getElementById('bg-id') as HTMLInputElement;
+    if (idInput) idInput.value = bg.id;
+
+    const descInput = document.getElementById('bg-description') as HTMLInputElement;
+    if (descInput) descInput.value = bg.description || '';
+
+    const skyColorPicker = document.getElementById('bg-sky-color') as HTMLInputElement;
+    const skyColorHex = document.getElementById('bg-sky-color-hex') as HTMLInputElement;
+    if (skyColorPicker) skyColorPicker.value = bg.sky_color;
+    if (skyColorHex) skyColorHex.value = bg.sky_color;
+
+    const groundColorPicker = document.getElementById('bg-ground-color') as HTMLInputElement;
+    const groundColorHex = document.getElementById('bg-ground-color-hex') as HTMLInputElement;
+    const groundCol = bg.ground_color || '#1f1a38';
+    if (groundColorPicker) groundColorPicker.value = groundCol;
+    if (groundColorHex) groundColorHex.value = groundCol;
+
+    const scaleInput = document.getElementById('bg-scale') as HTMLInputElement;
+    if (scaleInput) scaleInput.value = (bg.scale || 1).toString();
+
+    const offsetInput = document.getElementById('bg-ground-offset') as HTMLInputElement;
+    const offsetLabel = document.getElementById('label-bg-ground-offset');
+    const offsetVal = bg.ground_offset ?? 0;
+    if (offsetInput) offsetInput.value = offsetVal.toString();
+    if (offsetLabel) offsetLabel.textContent = `${offsetVal}px`;
+
+    this.renderLayersList(bg);
+
+    if (applyToLevel && this.canvas.level) {
+      this.canvas.level.background_id = bgId;
+      const settingBg = document.getElementById('setting-level-bg') as HTMLSelectElement;
+      if (settingBg) settingBg.value = bgId;
+      this.canvas.saveStateToHistory();
+      this.canvas.render();
+    }
+  }
+
+  private renderLayersList(bg: BackgroundDef) {
+    const container = document.getElementById('bg-layers-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!bg.layers || bg.layers.length === 0) {
+      container.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px; background: var(--bg-main); border-radius: 6px;">В этом фоне пока нет слоёв. Нажмите «+ Добавить слой».</div>';
+      return;
+    }
+
+    const allSprites = this.assets.getAllSprites();
+    const isBgSprite = (s: any) => s.id.startsWith('bg_') || (s.image && s.image.includes('background'));
+    const bgSprites = allSprites.filter(isBgSprite);
+    const otherSprites = allSprites.filter(s => !isBgSprite(s));
+
+    bg.layers.forEach((layer, idx) => {
+      const card = document.createElement('div');
+      const isVisible = layer.visible !== false;
+      card.className = `bg-layer-card ${!isVisible ? 'layer-disabled' : ''}`;
+
+      card.innerHTML = `
+        <div class="bg-layer-header">
+          <span style="font-weight: 700; font-size: 11px; color: #38bdf8;">
+            #${idx + 1} ${layer.name || 'Слой'}
+          </span>
+          <div class="bg-layer-actions">
+            <button type="button" class="btn-layer-vis" title="Вкл/Выкл видимость">${isVisible ? '👁️' : '🚫'}</button>
+            <button type="button" class="btn-layer-up" title="Поднять слой (дальше)" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>🔼</button>
+            <button type="button" class="btn-layer-down" title="Опустить слой (ближе)" ${idx === bg.layers.length - 1 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>🔽</button>
+            <button type="button" class="btn-layer-del" title="Удалить слой" style="color: var(--danger);">🗑️</button>
+          </div>
+        </div>
+
+        <div class="form-row" style="gap: 6px; margin-bottom: 4px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 10px;">Имя слоя</label>
+            <input type="text" class="text-input layer-input-name" value="${layer.name || ''}" style="width: 100%; font-size: 11px;" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 10px;">Спрайт слоя</label>
+            <select class="select-input layer-select-sprite" style="width: 100%; font-size: 11px;"></select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 4px;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">
+            <span>Параллакс X (0 = статика, 1 = мир):</span>
+            <span class="layer-parallax-label">${(layer.parallax_x || 0).toFixed(2)}x</span>
+          </div>
+          <input type="range" min="0" max="1" step="0.01" value="${layer.parallax_x || 0}" class="layer-input-parallax" style="width: 100%; accent-color: var(--accent);" />
+        </div>
+
+        <div class="form-row" style="gap: 6px; align-items: center;">
+          <label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-muted); cursor: pointer; flex: 1;">
+            <input type="checkbox" class="layer-input-mirror" ${layer.mirror ? 'checked' : ''} />
+            <span>Зеркалить (без шва)</span>
+          </label>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 10px; color: var(--text-muted);">Срез слева:</span>
+            <input type="number" min="0" max="32" value="${layer.crop_left ?? 0}" class="text-input layer-input-crop" style="width: 44px; font-size: 10px; padding: 2px 4px;" />
+            <span style="font-size: 10px; color: var(--text-muted);">px</span>
+          </div>
+        </div>
+      `;
+
+      // Заполняем спрайты
+      const spriteSelect = card.querySelector('.layer-select-sprite') as HTMLSelectElement;
+      if (bgSprites.length > 0) {
+        const bgGroup = document.createElement('optgroup');
+        bgGroup.label = 'Фоновые спрайты (Backgrounds)';
+        for (const s of bgSprites) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.id} (${s.frame_width}x${s.frame_height})`;
+          bgGroup.appendChild(opt);
+        }
+        spriteSelect.appendChild(bgGroup);
+      }
+      if (otherSprites.length > 0) {
+        const otherGroup = document.createElement('optgroup');
+        otherGroup.label = 'Остальные спрайты';
+        for (const s of otherSprites) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.id;
+          otherGroup.appendChild(opt);
+        }
+        spriteSelect.appendChild(otherGroup);
+      }
+      spriteSelect.value = layer.sprite_id;
+
+      // Привязка событий карточки
+      const nameInput = card.querySelector('.layer-input-name') as HTMLInputElement;
+      nameInput.addEventListener('input', () => {
+        layer.name = nameInput.value;
+        const titleSpan = card.querySelector('.bg-layer-header span');
+        if (titleSpan) titleSpan.textContent = `#${idx + 1} ${layer.name}`;
+      });
+
+      spriteSelect.addEventListener('change', () => {
+        layer.sprite_id = spriteSelect.value;
+        this.canvas.render();
+      });
+
+      const parallaxInput = card.querySelector('.layer-input-parallax') as HTMLInputElement;
+      const parallaxLabel = card.querySelector('.layer-parallax-label')!;
+      parallaxInput.addEventListener('input', () => {
+        layer.parallax_x = parseFloat(parallaxInput.value);
+        parallaxLabel.textContent = `${layer.parallax_x.toFixed(2)}x`;
+        this.canvas.render();
+      });
+
+      const mirrorCheckbox = card.querySelector('.layer-input-mirror') as HTMLInputElement;
+      mirrorCheckbox.addEventListener('change', () => {
+        layer.mirror = mirrorCheckbox.checked;
+        this.canvas.render();
+      });
+
+      const cropInput = card.querySelector('.layer-input-crop') as HTMLInputElement;
+      cropInput.addEventListener('input', () => {
+        layer.crop_left = parseInt(cropInput.value, 10) || 0;
+        this.canvas.render();
+      });
+
+      card.querySelector('.btn-layer-vis')?.addEventListener('click', () => {
+        layer.visible = isVisible ? false : true;
+        this.renderLayersList(bg);
+        this.canvas.render();
+      });
+
+      card.querySelector('.btn-layer-up')?.addEventListener('click', () => {
+        if (idx > 0) {
+          const tmp = bg.layers[idx];
+          bg.layers[idx] = bg.layers[idx - 1];
+          bg.layers[idx - 1] = tmp;
+          this.renderLayersList(bg);
+          this.canvas.render();
+        }
+      });
+
+      card.querySelector('.btn-layer-down')?.addEventListener('click', () => {
+        if (idx < bg.layers.length - 1) {
+          const tmp = bg.layers[idx];
+          bg.layers[idx] = bg.layers[idx + 1];
+          bg.layers[idx + 1] = tmp;
+          this.renderLayersList(bg);
+          this.canvas.render();
+        }
+      });
+
+      card.querySelector('.btn-layer-del')?.addEventListener('click', () => {
+        if (confirm(`Удалить слой #${idx + 1} (${layer.name})?`)) {
+          bg.layers.splice(idx, 1);
+          this.renderLayersList(bg);
+          this.canvas.render();
+          this.setStatus(`Слой "${layer.name}" удалён`);
+        }
+      });
+
+      container.appendChild(card);
+    });
   }
 
   private populateWorldRegions() {
@@ -299,7 +530,13 @@ class EditorApp {
     (document.getElementById('setting-level-width') as HTMLInputElement).value = lvl.width.toString();
     (document.getElementById('setting-level-height') as HTMLInputElement).value = lvl.height.toString();
     (document.getElementById('setting-level-tilesize') as HTMLInputElement).value = lvl.tile_size.toString();
-    (document.getElementById('setting-level-bg') as HTMLSelectElement).value = lvl.background_id || '';
+    const bgSelect = document.getElementById('setting-level-bg') as HTMLSelectElement;
+    if (bgSelect) {
+      bgSelect.value = lvl.background_id || '';
+    }
+    if (lvl.background_id && this.canvas.backgroundsById.has(lvl.background_id)) {
+      this.selectBackground(lvl.background_id, false);
+    }
   }
 
   private populateTilePalette() {
@@ -614,6 +851,7 @@ class EditorApp {
       'tab-tiles-btn': 'tab-tiles',
       'tab-enemies-btn': 'tab-enemies',
       'tab-decor-btn': 'tab-decor',
+      'tab-bg-btn': 'tab-bg',
       'tab-settings-btn': 'tab-settings'
     };
 
@@ -625,6 +863,15 @@ class EditorApp {
         document.getElementById(contentId)?.classList.add('active');
       });
     }
+
+    (document.getElementById('setting-level-bg') as HTMLSelectElement)?.addEventListener('change', (e) => {
+      const val = (e.target as HTMLSelectElement).value;
+      if (val && this.canvas.backgroundsById.has(val)) {
+        this.selectBackground(val, false);
+      }
+    });
+
+    this.setupBackgroundCustomizer();
 
     // Верхняя панель: Instant Playtest & World Graph
     document.getElementById('btn-playtest')?.addEventListener('click', () => {
@@ -887,6 +1134,202 @@ class EditorApp {
       this.loadLevel(filename, newLevel);
       modal.classList.remove('open');
       this.saveCurrentLevel();
+    });
+  }
+
+  private setupBackgroundCustomizer() {
+    const bgSelect = document.getElementById('bg-select') as HTMLSelectElement;
+    bgSelect?.addEventListener('change', () => {
+      this.selectBackground(bgSelect.value);
+    });
+
+    const skyColorPicker = document.getElementById('bg-sky-color') as HTMLInputElement;
+    const skyColorHex = document.getElementById('bg-sky-color-hex') as HTMLInputElement;
+    skyColorPicker?.addEventListener('input', () => {
+      skyColorHex.value = skyColorPicker.value;
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (bg) {
+        bg.sky_color = skyColorPicker.value;
+        this.canvas.render();
+      }
+    });
+    skyColorHex?.addEventListener('input', () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(skyColorHex.value)) {
+        skyColorPicker.value = skyColorHex.value;
+        const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+        if (bg) {
+          bg.sky_color = skyColorHex.value;
+          this.canvas.render();
+        }
+      }
+    });
+
+    const groundColorPicker = document.getElementById('bg-ground-color') as HTMLInputElement;
+    const groundColorHex = document.getElementById('bg-ground-color-hex') as HTMLInputElement;
+    groundColorPicker?.addEventListener('input', () => {
+      groundColorHex.value = groundColorPicker.value;
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (bg) {
+        bg.ground_color = groundColorPicker.value;
+        this.canvas.render();
+      }
+    });
+    groundColorHex?.addEventListener('input', () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(groundColorHex.value)) {
+        groundColorPicker.value = groundColorHex.value;
+        const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+        if (bg) {
+          bg.ground_color = groundColorHex.value;
+          this.canvas.render();
+        }
+      }
+    });
+
+    const scaleInput = document.getElementById('bg-scale') as HTMLInputElement;
+    scaleInput?.addEventListener('input', () => {
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (bg) {
+        bg.scale = Math.max(1, parseInt(scaleInput.value, 10) || 1);
+        this.canvas.render();
+      }
+    });
+
+    const offsetInput = document.getElementById('bg-ground-offset') as HTMLInputElement;
+    const offsetLabel = document.getElementById('label-bg-ground-offset');
+    offsetInput?.addEventListener('input', () => {
+      const val = Math.max(0, parseInt(offsetInput.value, 10) || 0);
+      if (offsetLabel) offsetLabel.textContent = `${val}px`;
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (bg) {
+        bg.ground_offset = val;
+        this.canvas.render();
+      }
+    });
+
+    const descInput = document.getElementById('bg-description') as HTMLInputElement;
+    descInput?.addEventListener('input', () => {
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (bg) {
+        bg.description = descInput.value;
+      }
+    });
+
+    const idInput = document.getElementById('bg-id') as HTMLInputElement;
+    idInput?.addEventListener('change', () => {
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      const newId = idInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      if (bg && newId && newId !== this.currentBackgroundId) {
+        if (this.canvas.backgroundsById.has(newId)) {
+          alert(`Фон с ID "${newId}" уже существует!`);
+          idInput.value = this.currentBackgroundId;
+          return;
+        }
+        this.canvas.backgroundsById.delete(this.currentBackgroundId);
+        bg.id = newId;
+        this.canvas.backgroundsById.set(newId, bg);
+        if (this.canvas.level?.background_id === this.currentBackgroundId) {
+          this.canvas.level.background_id = newId;
+        }
+        this.currentBackgroundId = newId;
+        this.populateBackgroundDropdowns();
+        this.selectBackground(newId);
+      }
+    });
+
+    document.getElementById('btn-add-bg-layer')?.addEventListener('click', () => {
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (!bg) return;
+      const allSprites = this.assets.getAllSprites();
+      const isBg = (s: any) => s.id.startsWith('bg_') || (s.image && s.image.includes('background'));
+      const bgSprites = allSprites.filter(isBg);
+      const defaultSprite = bgSprites.length > 0 ? bgSprites[0].id : (allSprites[0]?.id || 'bg_textalite_layer1');
+
+      bg.layers = bg.layers || [];
+      bg.layers.push({
+        name: `layer_${bg.layers.length + 1}`,
+        sprite_id: defaultSprite,
+        parallax_x: Math.min(1, Math.round(bg.layers.length * 0.1 * 100) / 100),
+        mirror: true,
+        crop_left: 0,
+        visible: true
+      });
+      this.renderLayersList(bg);
+      this.canvas.render();
+      this.setStatus(`Добавлен новый слой в фон "${bg.id}"`);
+    });
+
+    document.getElementById('btn-new-bg')?.addEventListener('click', () => {
+      const newId = prompt('Введите ID нового фона (например: bg_subway):', `bg_${Date.now().toString().slice(-4)}`);
+      if (!newId) return;
+      const cleanId = newId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      if (this.canvas.backgroundsById.has(cleanId)) {
+        alert('Фон с таким ID уже существует!');
+        return;
+      }
+
+      const allSprites = this.assets.getAllSprites();
+      const isBg = (s: any) => s.id.startsWith('bg_') || (s.image && s.image.includes('background'));
+      const bgSprites = allSprites.filter(isBg);
+      const defaultSprite = bgSprites[0]?.id || allSprites[0]?.id || 'bg_textalite_layer1';
+
+      const newBg: BackgroundDef = {
+        $schema: '../schemas/background.schema.json',
+        id: cleanId,
+        description: 'Новый параллакс-фон',
+        sky_color: '#120a36',
+        ground_color: '#1f1a38',
+        scale: 1,
+        ground_offset: 32,
+        layers: [
+          { name: 'distant_sky', sprite_id: defaultSprite, parallax_x: 0, mirror: true },
+          { name: 'foreground_details', sprite_id: bgSprites[1]?.id || defaultSprite, parallax_x: 0.2 }
+        ]
+      };
+      this.canvas.backgroundsById.set(cleanId, newBg);
+      if (this.config) {
+        this.config.backgrounds = this.config.backgrounds || [];
+        this.config.backgrounds.push(newBg);
+      }
+      this.populateBackgroundDropdowns();
+      this.selectBackground(cleanId, true);
+      this.setStatus(`Создан новый фон: "${cleanId}"`);
+    });
+
+    document.getElementById('btn-apply-bg-to-level')?.addEventListener('click', () => {
+      if (!this.canvas.level || !this.currentBackgroundId) return;
+      this.canvas.level.background_id = this.currentBackgroundId;
+      const settingBg = document.getElementById('setting-level-bg') as HTMLSelectElement;
+      if (settingBg) settingBg.value = this.currentBackgroundId;
+      this.canvas.saveStateToHistory();
+      this.canvas.render();
+      this.setStatus(`Фон "${this.currentBackgroundId}" привязан к текущему уровню`);
+    });
+
+    document.getElementById('btn-save-bg')?.addEventListener('click', async () => {
+      const bg = this.canvas.backgroundsById.get(this.currentBackgroundId);
+      if (!bg) {
+        alert('Не выбран фон для сохранения');
+        return;
+      }
+      const btn = document.getElementById('btn-save-bg')!;
+      const originalText = btn.textContent;
+      try {
+        btn.textContent = '⏳ Сохраняю фон...';
+        const res = await fetch('/api/ld60/background/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ background: bg })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        btn.textContent = '✅ Сохранено в проект!';
+        setTimeout(() => { btn.textContent = originalText; }, 2000);
+        this.setStatus(`Фон "${bg.id}" успешно сохранён в data/backgrounds/${bg.id}.json`);
+      } catch (err: any) {
+        console.error('Failed to save background:', err);
+        btn.textContent = originalText;
+        alert(`Ошибка сохранения фона: ${err.message}`);
+        this.setStatus(`Ошибка сохранения фона: ${err.message}`, true);
+      }
     });
   }
 }
