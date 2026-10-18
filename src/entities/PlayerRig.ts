@@ -44,6 +44,13 @@ export interface Fist {
   y2: number;
 }
 
+/** Потеря равновесия после падения с высоты: t — прогресс 0..1 (удар -> падение -> лежит -> встаёт), dir — вперёд (+1) или назад (-1). */
+export interface StumblePose {
+  t: number;
+  dir: 1 | -1;
+  power: number; // 0..1: сила падения
+}
+
 /** Состояние героя, из которого рисуется поза. Все координаты — мировые. */
 export interface RigPose {
   bodyX: number;
@@ -56,9 +63,11 @@ export interface RigPose {
   aimY: number;
   climb: ClimbPose | null;
   kick: number | null; // прогресс «отталкивания от стены» 0..1 (поза прыжка от стены), null — нет
+  kickAlong?: boolean; // отскок вдоль стены (рывок вверх по ней, лицом к стене), а не от неё
   wall: -1 | 0 | 1; // скольжение по стене: сторона стены (мир, -1 слева / 1 справа), 0 — нет
   wallX: number; // x поверхности стены (мир)
   punch?: PunchPose | null; // идёт удар: ближайшая к цели рука резко выбрасывается вперёд
+  stumble?: StumblePose | null; // упал с высоты: теряет равновесие и встаёт
 }
 
 interface Part {
@@ -91,6 +100,9 @@ const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
 const STEP_AHEAD = 0.55; // стопа приземляется впереди таза на эту долю досягаемости
 const STEP_LIFT = 3.5; // высота подъёма стопы в махе, px
+const LAND_DIP = 7; // px: на сколько проседает таз при жёстком приземлении (без потери равновесия)
+const STUMBLE_TILT = 1.25; // рад: наклон всего тела, когда герой упал
+const STUMBLE_LOWER = 17; // px: на сколько опускается тело (лежит на земле)
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const approach = (cur: number, target: number, rate: number, dt: number) =>
@@ -113,6 +125,10 @@ export class PlayerRig {
   /** Внутренний контейнер: наклоняется всем телом (вокруг центра тела) при отталкивании от стены. */
   private readonly tilt = new Container();
   private tiltRot = 0;
+  private tiltDown = 0; // px: опускание всего тела (упал)
+  private landDip = 0; // px: просадка таза после приземления, затухает
+  private airVy = 0; // скорость падения в последнем кадре в воздухе
+  private wasGrounded = true;
 
   private parts: Part[] = [];
   private torso: Part;
@@ -215,9 +231,21 @@ export class PlayerRig {
     const gain = Math.min(1, dist / 24); // у самой головы курсор не дёргает её
     const nx = (dx / dist) * gain;
 
+    // ---- Приземление: таз проседает по силе удара о землю и пружинит обратно
+    if (s.grounded && !this.wasGrounded && !climb && !s.stumble) this.landDip = LAND_DIP * clamp((this.airVy - 150) / 450, 0, 1);
+    if (!s.grounded) this.airVy = s.vy;
+    this.wasGrounded = s.grounded;
+    this.landDip = approach(this.landDip, 0, 9, dt);
+
+    // ---- Потеря равновесия: удар (присед) -> падение (всё тело наклоняется и опускается) -> лежит -> встаёт
+    const st = !climb && s.stumble ? s.stumble : null;
+    const fallAmt = st ? smoothstep(0.1, 0.32, st.t) * (1 - smoothstep(0.6, 0.97, st.t)) : 0;
+    const impact = st && st.t < 0.14 ? (5 + 3 * st.power) * Math.sin((Math.PI * st.t) / 0.14) : 0;
+    const bounce = st ? 2 * Math.sin(Math.PI * clamp((st.t - 0.3) / 0.12, 0, 1)) : 0; // отскок тела при ударе о землю
+
     // ---- Ноги: шаговый контроллер -> просадка таза
-    const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s);
-    this.pelvisDrop = approach(this.pelvisDrop, drop, 40, dt);
+    const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s, fallAmt);
+    this.pelvisDrop = approach(this.pelvisDrop, drop + this.landDip + impact, 40, dt);
 
     // ---- Торс и голова
     let torsoTarget = this.prevTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
@@ -234,7 +262,19 @@ export class PlayerRig {
     }
     const kick = s.kick;
     let tiltTarget = 0;
-    if (kick !== null && !climb) {
+    if (st) {
+      // упал: всё тело заваливается вперёд или назад, голова — к земле; встаёт с лёгким перевесом в другую сторону
+      const recover = Math.sin(Math.PI * clamp((st.t - 0.75) / 0.25, 0, 1));
+      tiltTarget = st.dir * (STUMBLE_TILT + 0.2 * st.power) * fallAmt - st.dir * 0.12 * recover;
+      torsoTarget = st.dir * 0.25 * fallAmt;
+      headTarget = -st.dir * 0.35 * fallAmt;
+    } else if (kick !== null && !climb && s.kickAlong) {
+      // рывок вверх вдоль стены: тело чуть к стене, грудь вверх, голова смотрит вверх
+      const arc = Math.sin(Math.PI * Math.min(1, kick));
+      tiltTarget = 0.12 * arc;
+      torsoTarget = -0.12 * arc;
+      headTarget = -0.3 * arc;
+    } else if (kick !== null && !climb) {
       // Отталкивание от стены: всё тело наклоняется вперёд по ходу прыжка, торс и голова поворачиваются следом
       const arc = Math.sin(Math.PI * Math.min(1, kick / 0.85));
       tiltTarget = 0.38 * arc;
@@ -247,8 +287,10 @@ export class PlayerRig {
       const arc = Math.sin(Math.PI * clamp(punch.time / PUNCH_DURATION, 0, 1));
       torsoTarget += PUNCH_LEAN * clamp(punch.dirX * f, -1, 1) * arc;
     }
-    this.tiltRot = approach(this.tiltRot, tiltTarget, 20, dt);
+    this.tiltRot = approach(this.tiltRot, tiltTarget, st ? 16 : 20, dt);
     this.tilt.rotation = this.tiltRot;
+    this.tiltDown = approach(this.tiltDown, st ? STUMBLE_LOWER * fallAmt - bounce : 0, 18, dt);
+    this.tilt.position.y = -28 + this.tiltDown;
     this.torsoRot = approach(this.torsoRot, torsoTarget, 14, dt);
 
     const breathe = Math.sin(this.time * 2.4) * 0.4;
@@ -385,6 +427,14 @@ export class PlayerRig {
         continue;
       }
 
+      if (s.kick !== null && !s.grounded && s.kickAlong) {
+        // Рывок вверх по стене: руки перехватывают стену выше — по очереди, ладони на стене
+        const k = s.kick;
+        const high = side === 1 ? 0.95 - 0.3 * smoothstep(0.3, 1, k) : 0.6 + 0.35 * smoothstep(0, 0.6, k);
+        limb.setKinematic(dt, rootX, rootY, s.wallX - f * (side === 1 ? 3 : 1), rootY - reachLen * high, bend, frame);
+        continue;
+      }
+
       if (s.kick !== null && !s.grounded && s.kick < 0.85) {
         // Отталкивание от стены: руки упираются в стену позади, затем взмахивают вверх-вперёд (дуга, без физики)
         const locBack = { x: rootX + f * -0.95 * reachLen * 0.92, y: rootY + 0.1 * reachLen * 0.92 };
@@ -405,7 +455,10 @@ export class PlayerRig {
 
 
       let rest = Math.sin(this.time * 1.3 + side) * 0.03; // лёгкое покачивание в покое
-      if (s.grounded) {
+      if (st) {
+        // падение: руки взлетают и машут, потом выставляются вперёд по ходу падения — упереться в землю
+        rest += -st.dir * 1.3 * fallAmt + side * 0.6 * Math.sin(this.time * 13 + side) * (1 - fallAmt) * (st.t < 0.35 ? 1 : 0);
+      } else if (s.grounded) {
         rest += -stepSin * side * 0.3 * speed; // руки качаются против ног
       } else {
         rest += side * 0.5 * clamp(s.vy / 400, -0.3, 1); // в падении руки уходят вверх-в стороны
@@ -444,7 +497,7 @@ export class PlayerRig {
   /**
    * Физичные ноги. Возвращает, насколько надо опустить таз (px), чтобы стоящая нога доставала до земли.
    */
-  private updateLegs(dt: number, s: RigPose): number {
+  private updateLegs(dt: number, s: RigPose, fallAmt = 0): number {
     const f = s.facing;
     const speedL = s.vx * f;
     const moving = Math.abs(speedL) > 8;
@@ -454,6 +507,27 @@ export class PlayerRig {
       const L = foot.length;
       const reach = L * Math.sin(LEG_MAX_ANGLE);
       const hipX = this.hipWorldX(foot, s);
+
+      if (s.stumble) {
+        // упал: ноги разъезжаются и подгибаются (тело наклонено целиком); когда встанет — стопы заново встанут под таз
+        foot.air = true;
+        foot.swing = false;
+        const st = s.stumble;
+        foot.angle = approach(foot.angle, foot.side * (0.15 + 0.35 * fallAmt) - st.dir * 0.45 * fallAmt, 16, dt);
+        foot.lift = approach(foot.lift, 2 * fallAmt, 16, dt);
+        continue;
+      }
+
+      if (!s.grounded && s.kick !== null && s.kickAlong) {
+        // Рывок вверх по стене: стопы сначала упираются в стену ниже, отталкиваются вниз и подтягиваются
+        foot.air = true;
+        foot.swing = false;
+        const k = smoothstep(0.15, 0.6, s.kick);
+        const target = (-0.65 + foot.side * 0.1) * (1 - k) + (-0.15 + foot.side * 0.2) * k;
+        foot.angle = approach(foot.angle, target, 26, dt);
+        foot.lift = approach(foot.lift, 4 * k, 22, dt);
+        continue;
+      }
 
       if (!s.grounded && s.kick !== null) {
         // Отталкивание: сначала стопы упираются в стену (она сзади), затем подтягиваются

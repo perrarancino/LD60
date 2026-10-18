@@ -6,13 +6,17 @@ import type { RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
 import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION } from './PlayerRig.ts';
-import type { ClimbPhase, ClimbPose, PunchPose } from './PlayerRig.ts';
+import type { ClimbPhase, ClimbPose, PunchPose, StumblePose } from './PlayerRig.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
 const WALL_SLIDE_SPEED = 70; // макс. скорость падения при скольжении по стене, px/с
-const WALL_JUMP_PUSH = 170; // начальный толчок от стены по горизонтали, px/с (чуть быстрее бега — плавный «вынос» вперёд)
+const WALL_JUMP_PUSH = 170; // прыжок от стены без направления: толчок от стены по горизонтали, px/с
+const WALL_JUMP_PUSH_AWAY = 215; // прыжок от стены с направлением от неё — сильнее и дальше
 const WALL_JUMP_VY = 0.95; // доля силы обычного прыжка
+const WALL_CLIMB_PUSH = 40; // прыжок вдоль стены (направление к стене): лёгкий отскок, герой остаётся у стены и лезет вверх
+const WALL_CLIMB_VY = 0.9;
+const KICK_ALONG_DURATION = 0.34; // с: поза рывка вверх по стене
 const WALL_JUMP_COOLDOWN = 0.28; // с: пауза между прыжками от стены (не чаще)
 const KICK_DURATION = 0.45; // с: длительность позы отталкивания от стены
 const WALL_COYOTE = 0.1; // с: прыжок от стены возможен сразу после потери контакта с ней
@@ -26,6 +30,11 @@ const WALL_KICK_FX_HEIGHT = 26; // на какой высоте над нога�
 const PUNCH_COOLDOWN = 0.26; // с: пауза между ударами (от начала предыдущего)
 const PUNCH_BUFFER = 0.12; // с: нажатие чуть раньше конца паузы не теряется
 const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: от них считается направление удара
+// Падение с большой высоты: герой теряет равновесие — падает (вперёд, если бежал, иначе назад) и встаёт; управление на это время отключено
+const STUMBLE_HEIGHT = 150; // px (≈ 4.5 тайла): с такой высоты и выше
+const STUMBLE_FULL = 360; // px: с такой — самое сильное падение (дольше лежит)
+const STUMBLE_TIME: [number, number] = [0.95, 1.45]; // с: от слабого до сильного
+const STUMBLE_SLIDE = 7; // 1/с: торможение проскальзывания по земле при падении
 
 /** Удар в мире: от плеча к кулаку; id растёт с каждым ударом (чтобы один удар засчитывался врагу один раз). */
 export interface Strike {
@@ -69,7 +78,9 @@ export class Player {
   public readonly sprite: Container;
   public readonly body = new Body();
   /** Вызывается при прыжке от стены: точка касания стены (мир) и сторона стены — для эффекта дыма. */
-  public onWallKick: ((x: number, y: number, wallDir: -1 | 1) => void) | null = null;
+  public onWallKick: ((x: number, y: number, wallDir: -1 | 1, along: boolean) => void) | null = null;
+  /** Вызывается, когда герой приземлился с большой высоты и теряет равновесие: точка у ног и сила 0..1. */
+  public onHardLanding: ((x: number, y: number, power: number) => void) | null = null;
 
   private readonly rig: PlayerRig;
   private readonly spriteDef;
@@ -91,6 +102,10 @@ export class Player {
   private punchId = 0;
   private punchDir = { x: 1, y: 0 };
   private punchArm: 1 | -1 = -1;
+  private kickAlong = false; // текущий отскок — вдоль стены (вверх по ней), а не от неё
+  private peakY = 0; // самая высокая точка с момента отрыва от земли (y ног)
+  private wasGrounded = true;
+  private stumble: { t: number; dur: number; dir: 1 | -1; power: number } | null = null;
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
@@ -111,18 +126,32 @@ export class Player {
     const b = this.body;
     this.climbCooldown -= dt;
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
+    // пока герой лежит и встаёт — управления нет
+    if (this.stumble) {
+      this.stumble.t += dt;
+      if (this.stumble.t >= this.stumble.dur) this.stumble = null;
+    }
+    const ctl: InputState = this.stumble
+      ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false }
+      : input;
 
     if (this.climb) {
       this.updateClimb(dt);
     } else {
-      this.updateMovement(dt, input, level);
-      if (!this.climb && this.climbCooldown <= 0 && input.horizontal !== 0 && b.blockedX === input.horizontal) {
-        const plan = this.planClimb(input.horizontal, level);
+      const vxBefore = b.vx;
+      this.updateMovement(dt, ctl, level);
+      this.checkHardLanding(vxBefore);
+      if (!this.climb && !this.stumble && this.climbCooldown <= 0 && ctl.horizontal !== 0 && b.blockedX === ctl.horizontal) {
+        const plan = this.planClimb(ctl.horizontal, level);
         if (plan) this.beginClimb(plan);
       }
     }
+    // высота падения считается от самой высокой точки; на земле, на стене и при залезании — сброс
+    if (b.grounded || this.sliding !== 0 || this.climb) this.peakY = b.y;
+    else this.peakY = Math.min(this.peakY, b.y);
+    this.wasGrounded = b.grounded || !!this.climb;
 
-    this.updatePunch(dt, input, aim);
+    this.updatePunch(dt, ctl, aim);
 
     const headY = b.y - 40;
     this.rig.update(dt, {
@@ -135,10 +164,12 @@ export class Player {
       aimX: aim ? aim.x : b.x + this.facing * 100,
       aimY: aim ? aim.y : headY,
       climb: this.climb ? this.climbPose(this.climb) : null,
-      kick: this.kickT > 0 ? 1 - this.kickT / KICK_DURATION : null,
+      kick: this.kickT > 0 ? 1 - this.kickT / (this.kickAlong ? KICK_ALONG_DURATION : KICK_DURATION) : null,
+      kickAlong: this.kickAlong,
       wall: this.sliding,
       wallX: this.wallX,
-      punch: this.punchT >= 0 ? this.punchPose() : null
+      punch: this.punchT >= 0 ? this.punchPose() : null,
+      stumble: this.stumblePose()
     });
     this.sprite.position.set(b.x, b.y);
   }
@@ -151,6 +182,28 @@ export class Player {
     const f = this.rig.fist;
     if (this.punchT < 0 || !f.active) return null;
     return { id: this.punchId, x1: f.x1, y1: f.y1, x2: f.x2, y2: f.y2, dirX: this.punchDir.x, dirY: this.punchDir.y };
+  }
+
+  private stumblePose(): StumblePose | null {
+    const s = this.stumble;
+    return s ? { t: Math.min(1, s.t / s.dur), dir: s.dir, power: s.power } : null;
+  }
+
+  /** Приземление после падения с большой высоты: герой теряет равновесие (вперёд — если бежал по взгляду, иначе назад). */
+  private checkHardLanding(vxBefore: number): void {
+    const b = this.body;
+    if (this.wasGrounded || !b.grounded || this.stumble) return;
+    const fall = b.y - this.peakY;
+    if (fall < STUMBLE_HEIGHT) return;
+    const power = Math.min(1, (fall - STUMBLE_HEIGHT) / (STUMBLE_FULL - STUMBLE_HEIGHT));
+    const forward = Math.abs(vxBefore) > 30 && Math.sign(vxBefore) === this.facing;
+    this.stumble = {
+      t: 0, dur: STUMBLE_TIME[0] + (STUMBLE_TIME[1] - STUMBLE_TIME[0]) * power, dir: forward ? 1 : -1, power
+    };
+    b.vx = vxBefore * 0.6; // по инерции немного проскальзывает
+    this.punchT = -1;
+    this.kickT = 0;
+    this.onHardLanding?.(b.x, b.bottom, power);
   }
 
   private punchPose(): PunchPose {
@@ -202,7 +255,9 @@ export class Player {
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED;
-    if (this.airSteer && !b.grounded) {
+    if (this.stumble) {
+      b.vx *= Math.exp(-STUMBLE_SLIDE * dt); // упал — проскальзывает и останавливается
+    } else if (this.airSteer && !b.grounded) {
       // Скорость плавно подстраивается под ввод: после прыжка от стены героя можно вести в любую сторону
       const accel = (input.horizontal !== 0 ? AIR_ACCEL : AIR_DRAG) * dt;
       b.vx += Math.max(-accel, Math.min(accel, targetVx - b.vx));
@@ -225,7 +280,7 @@ export class Player {
         this.jumpBuffer = 0;
         return;
       }
-      if (this.wallJumpCd <= 0) this.wallJump();
+      if (this.wallJumpCd <= 0) this.wallJump(input.horizontal, level);
     }
     // Короткий прыжок: отпустили кнопку на подъёме — гасим скорость
     if (!input.jumpHeld && b.vy < GAME_CONFIG.JUMP_FORCE * 0.4) {
@@ -298,19 +353,34 @@ export class Player {
   }
 
   /**
-   * Прыжок от стены: полноценный прыжок вверх с лёгким толчком от стены; дальше герой управляется как в обычном прыжке
-   * (скорость по X плавно подстраивается под ввод). Прыжки от стены можно повторять, но не чаще WALL_JUMP_COOLDOWN.
+   * Прыжок у стены, два вида:
+   *  - вдоль стены (направление к стене): рывок вверх по ней — лёгкий отскок, герой остаётся лицом к стене, руки перехватывают
+   *    стену выше, стопы отталкиваются вниз; дым уходит вниз по стене. Так можно взбираться по стене серией рывков;
+   *  - от стены (без направления или от неё): разворот и прыжок от стены, с направлением — сильнее и дальше; дым веером от стены.
+   * Дальше герой управляется как в обычном прыжке (скорость по X плавно подстраивается под ввод). Не чаще WALL_JUMP_COOLDOWN.
    */
-  private wallJump(): void {
+  private wallJump(horizontal: number, level: Level): void {
     const b = this.body;
-    const away = -this.wallDir as -1 | 1;
-    if (this.wallDir !== 0) this.onWallKick?.(this.wallDir > 0 ? b.right + 1 : b.left - 1, b.y - WALL_KICK_FX_HEIGHT, this.wallDir);
-    b.vy = GAME_CONFIG.JUMP_FORCE * WALL_JUMP_VY;
-    b.vx = away * WALL_JUMP_PUSH;
-    this.face(away);
+    const wall = this.wallDir as -1 | 1;
+    const away = -wall as -1 | 1;
+    const along = horizontal === wall;
+    const ts = level.tileSize;
+    this.wallX = wall > 0 ? Math.floor((b.right + 0.6) / ts) * ts : (Math.floor((b.left - 0.6) / ts) + 1) * ts;
+    this.onWallKick?.(wall > 0 ? b.right + 1 : b.left - 1, along ? b.y - 4 : b.y - WALL_KICK_FX_HEIGHT, wall, along);
+    if (along) {
+      b.vy = GAME_CONFIG.JUMP_FORCE * WALL_CLIMB_VY;
+      b.vx = away * WALL_CLIMB_PUSH;
+      this.face(wall);
+      this.kickT = KICK_ALONG_DURATION;
+    } else {
+      b.vy = GAME_CONFIG.JUMP_FORCE * WALL_JUMP_VY;
+      b.vx = away * (horizontal === away ? WALL_JUMP_PUSH_AWAY : WALL_JUMP_PUSH);
+      this.face(away);
+      this.kickT = KICK_DURATION;
+    }
+    this.kickAlong = along;
     this.airSteer = true;
     this.wallJumpCd = WALL_JUMP_COOLDOWN;
-    this.kickT = KICK_DURATION;
     this.jumpBuffer = this.wallCoyote = 0;
     this.wallDir = 0;
     this.sliding = 0;

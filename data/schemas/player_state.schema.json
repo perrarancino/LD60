@@ -33,6 +33,17 @@
       "type": "string",
       "description": "Отображаемое имя робота"
     },
+    "combat": {
+      "type": "object",
+      "description": "Бой героя: урон удара кулаком",
+      "required": ["punch_damage"],
+      "properties": {
+        "punch_damage": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2, "description": "Урон удара: [мин, макс], случайное целое" },
+        "crit_chance": { "type": "number", "minimum": 0, "maximum": 1, "description": "Шанс критического удара" },
+        "crit_multiplier": { "type": "number", "minimum": 1, "description": "Множитель урона критического удара" },
+        "description": { "type": "string" }
+      }
+    },
     "health": {
       "type": "object",
       "required": ["current", "max", "is_invulnerable"],

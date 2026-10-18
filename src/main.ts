@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Application, Container, Graphics } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
 import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
@@ -17,7 +17,7 @@ import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
-import { EventBus } from './core/EventBus.ts';
+import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -39,6 +39,34 @@ const BACKGROUNDS = Object.values(
 const FIST_RADIUS = 6; // px: «толщина» кулака при проверке попаданий
 const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
+const HIT_STOP = 0.045; // с: стоп-кадр при попадании (удар «вязнет» во враге)
+const CRIT_HIT_STOP = 0.07;
+const KILL_HIT_STOP = 0.1;
+const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
+const CRIT_SHAKE = 2.5;
+const KILL_SHAKE = 3.5;
+const SHAKE_DECAY = 18; // 1/с: как быстро тряска затухает
+const DEATH_SWELL = 0.12; // с: убитый враг белеет и раздувается, потом лопается
+const DEATH_COLORS = [0xc095fc, 0x9667f2, 0x56f436, 0xb9ff97, 0xffffff]; // брызги при смерти жука
+const LAND_DUST = [0x9fb4c8, 0x6f8296, 0xdbe9f7]; // пыль при тяжёлом приземлении героя
+
+/** Здоровье врага: сколько осталось, из скольких; view — что рисуется (убирается при смерти); remove — вычеркнуть из списков игры. */
+interface Mob {
+  hp: number;
+  max: number;
+  view: Container;
+  remove: () => void;
+}
+
+/** Убитый враг: белый силуэт раздувается DEATH_SWELL секунд и лопается брызгами. */
+interface Dying {
+  view: Container;
+  t: number;
+  sx: number; // исходный масштаб
+  sy: number;
+  x: number; // центр (мир) — оттуда брызги
+  y: number;
+}
 
 // Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
 const CAMERA_REST_Y = 0.64; // доля высоты экрана, на которой камера старается держать ноги героя
@@ -55,8 +83,6 @@ class GameApp {
   private aging: AgingSystem;
 
   private gameContainer: HTMLElement;
-  private hudText!: Text;
-  private timerText!: Text;
   private sprites = new SpriteLibrary();
   private worldLayer!: Container;
   private level!: Level;
@@ -72,6 +98,13 @@ class GameApp {
   private spriteFx!: SpriteEffects; // покадровые эффекты: удар по врагу, дым отскока от стены
   private punchHits = new Set<Hittable>(); // кого уже задел текущий удар (один удар — одно попадание)
   private punchHitId = 0;
+  private readonly mobs = new Map<Hittable, Mob>(); // здоровье врагов
+  private readonly dying: Dying[] = [];
+  private readonly numbers = new DamageNumbers(); // цифры урона (поверх цветокоррекции, под ним ничего нет)
+  private hitStop = 0; // с: оставшийся стоп-кадр
+  private shake = 0; // px арта: текущая сила тряски камеры
+  private readonly combat = (playerData as unknown as { combat?: { punch_damage: [number, number]; crit_chance?: number; crit_multiplier?: number } }).combat
+    ?? { punch_damage: [5, 8] as [number, number] };
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -117,8 +150,8 @@ class GameApp {
       }
     });
 
+    await loadDamageFont();
     await this.setupScene();
-    this.setupHUD();
 
     // Запуск основного игрового цикла (Pixi ticker)
     this.app.ticker.add((ticker) => {
@@ -147,9 +180,6 @@ class GameApp {
     const canvas = this.app.canvas;
     canvas.style.width = `${physW / dpr}px`;
     canvas.style.height = `${physH / dpr}px`;
-
-    // Текст рисуем в родном разрешении, а не растягиваем
-    for (const t of [this.timerText, this.hudText]) if (t) t.resolution = this.scale;
 
     this.drawGrid();
     this.lighting?.resize(physW, physH, this.scale);
@@ -223,7 +253,13 @@ class GameApp {
 
     // Камера выровнена по физическим пикселям: тайлы остаются чёткими, герой и камера не дрожат друг относительно друга
     const snap = (v: number) => Math.round(v * this.scale) / this.scale;
-    this.worldLayer.position.set(-snap(camX), -snap(camY));
+    // тряска: случайный сдвиг на целые пиксели арта, затухает
+    this.shake *= Math.exp(-SHAKE_DECAY * dt);
+    if (this.shake < 0.3) this.shake = 0;
+    const sx = this.shake ? Math.round((Math.random() * 2 - 1) * this.shake) : 0;
+    const sy = this.shake ? Math.round((Math.random() * 2 - 1) * this.shake) : 0;
+    this.worldLayer.position.set(-snap(camX) + sx, -snap(camY) + sy);
+    this.numbers.container.position.copyFrom(this.worldLayer.position);
     this.background?.update(snap(camX), snap(camY), lh, this.scale);
   }
 
@@ -284,6 +320,7 @@ class GameApp {
         const spider = new Spider(def, spawn, this.level, rig, this.sprites);
         this.spiders.push(spider);
         this.worldLayer.addChild(spider.container);
+        this.trackSpider(spider, def.stats.max_health);
         continue;
       }
       if (def.behavior_type === 'spawner') {
@@ -294,6 +331,7 @@ class GameApp {
           (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
         this.mothers.push(mother);
         this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
+        this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
         continue;
       }
       if (def.behavior_type === 'burrower') {
@@ -303,11 +341,13 @@ class GameApp {
         const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
+        this.track(worm, def.stats.max_health, worm.container, () => this.worms.splice(this.worms.indexOf(worm), 1));
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
+      this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
     }
 
     this.player = new Player(playerData.sprite_id, rigDef, this.sprites);
@@ -317,7 +357,9 @@ class GameApp {
     this.spriteFx = new SpriteEffects(this.sprites);
     this.worldLayer.addChild(this.spriteFx.container);
     // Отскок от стены: клуб дыма у стены на уровне корпуса
-    this.player.onWallKick = (x, y, wallDir) => this.wallKickSmoke(x, y, wallDir);
+    this.player.onWallKick = (x, y, wallDir, along) => this.wallKickSmoke(x, y, wallDir, along);
+    // Тяжёлое приземление (герой теряет равновесие): пыль в обе стороны и тряска
+    this.player.onHardLanding = (x, y, power) => this.hardLanding(x, y, power);
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
@@ -327,52 +369,13 @@ class GameApp {
     this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
     this.sceneLayer.addChild(this.lighting.container);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
+    this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
     if (levelDef.grade) {
       this.grade = new ColorGrade(levelDef.grade);
       this.grade.apply(this.sceneLayer);
     }
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
-  }
-
-  /**
-   * Настройка интерфейса (HUD): таймер старения и счетчики деталей
-   */
-  private setupHUD(): void {
-    const hudLayer = new Container();
-    this.app.stage.addChild(hudLayer);
-
-    const style = new TextStyle({
-      fontFamily: 'Courier New',
-      fontSize: 10,
-      fill: GAME_CONFIG.TEXT_COLOR,
-      stroke: { color: 0x000000, width: 2 }
-    });
-
-    this.timerText = new Text({ text: 'РЕАКТОР: 05:00', style });
-    this.timerText.position.set(10, 8);
-    hudLayer.addChild(this.timerText);
-
-    this.hudText = new Text({
-      text: `HP: 100/100 | ДЕТАЛИ: 0/5 | РЕЗИСТОРЫ: 0/3`,
-      style
-    });
-    this.hudText.position.set(10, 22);
-    hudLayer.addChild(this.hudText);
-    this.timerText.resolution = this.hudText.resolution = this.scale;
-
-    // Слушатель тиков подсистемы старения
-    EventBus.get().on('aging:tick', (state) => {
-      const minutes = Math.floor(state.timeRemaining / 60).toString().padStart(2, '0');
-      const seconds = Math.floor(state.timeRemaining % 60).toString().padStart(2, '0');
-      this.timerText.text = `РЕАКТОР: ${minutes}:${seconds}`;
-
-      if (state.isCritical) {
-        this.timerText.style.fill = GAME_CONFIG.ACCENT_RED;
-      } else if (state.isWarning) {
-        this.timerText.style.fill = GAME_CONFIG.ACCENT_AMBER;
-      }
-    });
   }
 
   /** Всё, по чему можно ударить. */
@@ -403,7 +406,86 @@ class GameApp {
       this.punchHits.add(target);
       target.onHit(strike.dirX, strike.dirY);
       this.landPunch(contact.x, contact.y, strike);
+      this.damage(target, contact.x, contact.y, strike.dirX);
     }
+  }
+
+  /** Регистрирует врага: здоровье, что рисуется и как вычеркнуть его из списков игры. */
+  private track(target: Hittable, maxHp: number, view: Container, remove: () => void): void {
+    this.mobs.set(target, { hp: maxHp, max: maxHp, view, remove });
+  }
+
+  private trackSpider(spider: Spider, maxHp: number): void {
+    this.track(spider, maxHp, spider.container, () => {
+      this.spiders.splice(this.spiders.indexOf(spider), 1);
+      spider.expired = true; // матка считает живых паучков по этому флагу
+    });
+  }
+
+  /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона, стоп-кадр и тряска; при нуле — смерть. */
+  private damage(target: Hittable, x: number, y: number, dirX: number): void {
+    const mob = this.mobs.get(target);
+    if (!mob) return;
+    const [lo, hi] = this.combat.punch_damage;
+    const crit = Math.random() < (this.combat.crit_chance ?? 0);
+    let dmg = lo + Math.floor(Math.random() * (hi - lo + 1));
+    if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
+    mob.hp -= dmg;
+    this.numbers.spawn(x, y - 6, dmg, crit, dirX);
+    this.hitStop = Math.max(this.hitStop, crit ? CRIT_HIT_STOP : HIT_STOP);
+    this.shake = Math.max(this.shake, crit ? CRIT_SHAKE : HIT_SHAKE);
+    if (mob.hp <= 0) this.kill(target, mob);
+  }
+
+  /** Смерть врага: он сразу выходит из игры (не двигается, не бьётся), белый силуэт раздувается и лопается брызгами. */
+  private kill(target: Hittable, mob: Mob): void {
+    this.mobs.delete(target);
+    mob.remove();
+    const circles = target.hitCircles();
+    const cx = circles.reduce((a, c) => a + c.x, 0) / Math.max(1, circles.length);
+    const cy = circles.reduce((a, c) => a + c.y, 0) / Math.max(1, circles.length);
+    this.dying.push({ view: mob.view, t: 0, sx: mob.view.scale.x, sy: mob.view.scale.y, x: cx, y: cy });
+    this.hitStop = Math.max(this.hitStop, KILL_HIT_STOP);
+    this.shake = Math.max(this.shake, KILL_SHAKE);
+  }
+
+  /** Убитые враги: раздуваются, затем лопаются — брызги, клубы дыма, вспышка удара. */
+  private updateDying(dt: number): void {
+    for (let i = this.dying.length - 1; i >= 0; i--) {
+      const d = this.dying[i];
+      d.t += dt;
+      const k = Math.min(1, d.t / DEATH_SWELL);
+      const swell = 1 + 0.3 * k * k;
+      d.view.scale.set(d.sx * swell, d.sy * swell);
+      if (d.t < DEATH_SWELL) continue;
+      this.fx.burst(d.x, d.y, {
+        count: 26, colors: DEATH_COLORS, speed: [70, 230], life: [0.3, 0.7], size: [1, 3], gravity: 320, drag: 1.5
+      });
+      for (let j = 0; j < 3; j++) {
+        const a = Math.random() * Math.PI * 2;
+        this.spriteFx.spawn(SMOKE_FX, d.x, d.y, {
+          angle: Math.random() * Math.PI * 2, scale: 0.6 + Math.random() * 0.5,
+          vx: Math.cos(a) * 60, vy: Math.sin(a) * 60 - 20, speed: 0.9 + Math.random() * 0.3
+        });
+      }
+      this.spriteFx.spawn(PUNCH_FX, d.x, d.y, { angle: Math.random() * Math.PI * 2, scale: 1.4 });
+      d.view.destroy({ children: true });
+      this.dying.splice(i, 1);
+    }
+  }
+
+  /** Тяжёлое приземление героя: пыль разлетается по земле в обе стороны, камеру трясёт по силе удара. */
+  private hardLanding(x: number, y: number, power: number): void {
+    for (const side of [-1, 1]) {
+      this.fx.burst(x + side * 4, y - 1, {
+        count: 8 + Math.round(6 * power), colors: LAND_DUST, speed: [40, 130], angle: side > 0 ? -0.25 : Math.PI + 0.25, spread: 0.35,
+        life: [0.25, 0.55], size: [1, 2], gravity: 120, drag: 3
+      });
+      this.spriteFx.spawn(SMOKE_FX, x + side * 8, y - 4, {
+        angle: Math.random() * Math.PI * 2, scale: 0.5 + 0.3 * power, vx: side * (50 + 30 * power), vy: -12, speed: 1
+      });
+    }
+    this.shake = Math.max(this.shake, 1.5 + 2.5 * power);
   }
 
   /** Точка касания кулака с ближайшим кругом цели (null — не достал). */
@@ -431,10 +513,12 @@ class GameApp {
    * Отскок от стены: 3–4 клуба дыма разного размера веером разлетаются от стены в разные стороны. Крупный — по центру веера и медленный,
    * мелкие улетают дальше и быстрее по краям.
    */
-  private wallKickSmoke(x: number, y: number, wallDir: -1 | 1): void {
+  private wallKickSmoke(x: number, y: number, wallDir: -1 | 1, along = false): void {
     const count = 3 + Math.floor(Math.random() * 2);
-    const base = wallDir > 0 ? Math.PI : 0; // направление от стены
-    const fan = 2.3; // рад: ширина веера
+    const away = wallDir > 0 ? Math.PI : 0; // направление от стены
+    // вдоль стены (герой лезет вверх по ней) — дым уходит вниз и чуть от стены; от стены — веером от неё
+    const base = along ? Math.PI / 2 + (wallDir > 0 ? 0.35 : -0.35) : away;
+    const fan = along ? 1.4 : 2.3; // рад: ширина веера
     const middle = Math.floor((count - 1) / 2);
     for (let i = 0; i < count; i++) {
       const big = i === middle;
@@ -474,6 +558,7 @@ class GameApp {
     const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds, fx: this.fx });
     baby.launch(x, y, vx, vy);
     this.spiders.push(baby); // слой выбирает матка: сначала ниже себя, потом передний
+    this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))));
     return baby;
   }
 
@@ -501,6 +586,15 @@ class GameApp {
   private update(dt: number): void {
     dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
 
+    // Стоп-кадр при попадании: мир замирает на мгновение, камера трясётся, цифры живут
+    if (this.hitStop > 0) {
+      this.hitStop -= dt;
+      this.numbers.update(dt);
+      this.updateCamera(dt);
+      this.lighting?.update();
+      return;
+    }
+
     // 1. Обновление таймера старения
     this.aging.update(dt);
 
@@ -513,8 +607,10 @@ class GameApp {
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
     this.resolveStrike();
+    this.updateDying(dt);
     this.fx.update(dt);
     this.spriteFx.update(dt);
+    this.numbers.update(dt);
     // Выплюнутые паучки живут ограниченное время
     for (let i = this.spiders.length - 1; i >= 0; i--) {
       if (!this.spiders[i].expired) continue;

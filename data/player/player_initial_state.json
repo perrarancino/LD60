@@ -10,6 +10,15 @@
     "max": 100,
     "is_invulnerable": false
   },
+  "combat": {
+    "punch_damage": [
+      5,
+      8
+    ],
+    "crit_chance": 0.15,
+    "crit_multiplier": 2.0,
+    "description": "Удар кулаком: урон — случайное целое в диапазоне punch_damage; с шансом crit_chance удар критический (урон × crit_multiplier, крупные цифры)."
+  },
   "aging_system": {
     "time_limit_seconds": 300.0,
     "current_time_remaining_seconds": 300.0,
