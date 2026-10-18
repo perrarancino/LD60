@@ -98,7 +98,7 @@
       "enemy_id": "spider_mother",
       "sprite_id": "enemy_spider_mother",
       "x": 12,
-      "y": 5,
+      "y": 8,
       "anchor_y": -2
     }
   ]
