@@ -62,9 +62,11 @@ void main(void) {
 `;
 
 /**
- * Итоговый свет. Воздух (где в мире пусто) освещается мягко: плавное свечение мобов. Объекты (тайлы, мобы, герой, декор) — чётко, по пикселям арта:
- * пиксели арта считаются по сетке камеры, свечение на объект ложится ступенями, зелёный свет от фона — контровая кромка в 1–2 пикселя
- * на гранях, обращённых вверх и в стороны, и ровные полосы общего света, сильнее к низу.
+ * Итоговый свет. Воздух (где в мире пусто) освещается мягко: небольшое свечение у ярких фиолетовых деталей мобов. На объектах (тайлы, мобы, герой,
+ * декор) свет лежит только на крайних пикселях спрайта — на 1–2 пикселя арта от его края, а не на всём теле: зелёная контровая кромка от фона
+ * на гранях вверх и в стороны, фиолетовое свечение ступенями и ровные полосы общего света, сильнее к низу. Края ищутся по самой картинке мира
+ * (смещениями в один пиксель арта от каждого пикселя экрана), поэтому кромка идёт точно по пикселям спрайта, даже когда он повёрнут или
+ * стоит не на сетке камеры.
  */
 const COMPOSITE_FRAGMENT = `
 in vec2 vTextureCoord;
@@ -74,40 +76,44 @@ uniform sampler2D uGlow;    // свечение мобов (пиксели ар�
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
 uniform vec2 uGlowSize;
 uniform float uScale;       // физических пикселей на пиксель арта
-uniform vec2 uOrigin;       // сдвиг сетки арта относительно экрана, физ. px
+uniform vec2 uOrigin;       // сдвиг сетки свечения относительно экрана, физ. px
 uniform vec3 uColor;
 uniform float uRim;
 uniform float uAmbient;
 uniform float uLevels;
-float alphaAt(vec2 center, vec2 o) {
-  return texture(uTexture, (center + o * uScale) * uInputSize.zw).a;
+float solidAt(vec2 o) {
+  return texture(uTexture, vTextureCoord + o * uScale * uInputSize.zw).a;
 }
 void main(void) {
+  float a = texture(uTexture, vTextureCoord).a;
   vec2 frag = vTextureCoord * uInputSize.xy;
-  vec2 art = floor((frag - uOrigin) / uScale);          // пиксель арта, в котором этот фрагмент
-  vec2 center = (art + 0.5) * uScale + uOrigin;
-  float a = texture(uTexture, center * uInputSize.zw).a;
+  vec3 glow = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb;
   if (a < 0.5) {
-    vec3 g = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb; // воздух: плавное свечение
-    finalColor = vec4(g, max(g.r, max(g.g, g.b)));
+    finalColor = vec4(glow, max(glow.r, max(glow.g, glow.b))); // воздух: мягкое свечение
     return;
   }
-  vec3 g = texture(uGlow, (art + 0.5) / uGlowSize).rgb;
-  float gl = max(g.r, max(g.g, g.b));
-  if (gl > 0.0) g *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение на объекте — чёткими ступенями
-  float up1 = 1.0 - alphaAt(center, vec2(0.0, -1.0));
-  float up2 = 1.0 - alphaAt(center, vec2(0.0, -2.0));
-  float side = 1.0 - min(alphaAt(center, vec2(-1.0, 0.0)), alphaAt(center, vec2(1.0, 0.0)));
-  float rim = up1 > 0.5 ? 1.0 : (up2 > 0.5 ? 0.5 : (side > 0.5 ? 0.4 : 0.0)); // кромка: 1-й пиксель ярко, 2-й вполсилы
-  float band = floor((0.25 + 0.75 * center.y * uInputSize.w) * 3.0) / 3.0;     // общий свет тремя ровными полосами
-  float l = rim * uRim + uAmbient * band;
-  vec3 c = uColor * l + g;
+  float up1 = 1.0 - solidAt(vec2(0.0, -1.0));
+  float dn1 = 1.0 - solidAt(vec2(0.0, 1.0));
+  float lf1 = 1.0 - solidAt(vec2(-1.0, 0.0));
+  float rt1 = 1.0 - solidAt(vec2(1.0, 0.0));
+  float up2 = 1.0 - solidAt(vec2(0.0, -2.0));
+  float dn2 = 1.0 - solidAt(vec2(0.0, 2.0));
+  float lf2 = 1.0 - solidAt(vec2(-2.0, 0.0));
+  float rt2 = 1.0 - solidAt(vec2(2.0, 0.0));
+  float edge1 = max(max(up1, dn1), max(lf1, rt1));
+  float edge2 = max(max(up2, dn2), max(lf2, rt2));
+  float edge = edge1 > 0.5 ? 1.0 : (edge2 > 0.5 ? 0.5 : 0.0); // 1-й пиксель от края — полностью, 2-й — вполсилы, глубже — ничего
+  if (edge == 0.0) { finalColor = vec4(0.0); return; }
+  float gl = max(glow.r, max(glow.g, glow.b));
+  if (gl > 0.0) glow *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение на краю — чёткими ступенями
+  float rim = up1 > 0.5 ? 1.0 : (up2 > 0.5 ? 0.5 : ((lf1 + rt1) > 0.5 ? 0.4 : 0.0)); // кромка сверху ярче, по бокам слабее
+  float band = floor((0.25 + 0.75 * vTextureCoord.y) * 3.0) / 3.0;                  // общий свет тремя ровными полосами
+  vec3 c = uColor * (rim * uRim + uAmbient * band * edge) + glow * edge;
   finalColor = vec4(c, max(c.r, max(c.g, c.b)));
 }
 `;
 
 const PURPLE_CORE = [0.8, 0.5, 1.0];
-const PURPLE_HALO = [0.55, 0.22, 0.95];
 const GREEN = [0.2, 1.0, 0.55];
 
 function makeFilter(
@@ -163,11 +169,8 @@ export class Lighting {
   constructor(private readonly renderer: Renderer, private readonly world: Container) {
     this.compSprite.blendMode = 'add';
 
-    // ---- свечение: два слоя — яркое ядро и широкое гало
-    const layers = [
-      { blur: 12, color: PURPLE_HALO, gain: 3.4 },
-      { blur: 4, color: PURPLE_CORE, gain: 2.4 }
-    ];
+    // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
+    const layers = [{ blur: 3.5, color: PURPLE_CORE, gain: 1.9 }];
     for (const l of layers) {
       const sprite = new Sprite();
       sprite.filters = [
