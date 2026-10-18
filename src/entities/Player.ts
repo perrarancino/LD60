@@ -35,6 +35,7 @@ const PUNCH_CHEST = 31; // на сколько выше ног плечи, px: �
 // и он валится назад), сталкивается с тайлами, улёгшись — встаёт; управление на это время отключено
 const FALL_HEIGHT = 7 * 32; // px (7 тайлов): с такой высоты и выше
 const FALL_FULL = 12 * 32; // px: с такой — самый сильный удар
+const LAND_DUST_HEIGHT = 2 * 32; // px: с такой высоты приземление поднимает пыль (сильнее к FALL_HEIGHT)
 const FALL_TOPPLE: [number, number] = [70, 130]; // px/с: толчок груди назад, если герой не бежал (от слабого до сильного удара)
 const GETUP_MIN = 0.55; // с: подъём не короче
 const GETUP_MAX = 1.1; // с: и не дольше
@@ -85,6 +86,8 @@ export class Player {
   public onWallKick: ((x: number, y: number, wallDir: -1 | 1, along: boolean) => void) | null = null;
   /** Вызывается, когда герой приземлился с большой высоты и теряет равновесие: точка у ног и сила 0..1. */
   public onHardLanding: ((x: number, y: number, power: number) => void) | null = null;
+  /** Обычное приземление с заметной высоты (до регдолла): точка у ног и сила 0..1 — для пыли. */
+  public onLanding: ((x: number, y: number, power: number) => void) | null = null;
 
   private readonly rig: PlayerRig;
   private readonly spriteDef;
@@ -196,7 +199,10 @@ export class Player {
     const b = this.body;
     if (this.wasGrounded || !b.grounded || this.downed) return;
     const fall = b.y - this.peakY;
-    if (fall < FALL_HEIGHT) return;
+    if (fall < FALL_HEIGHT) {
+      if (fall >= LAND_DUST_HEIGHT) this.onLanding?.(b.x, b.bottom, (fall - LAND_DUST_HEIGHT) / (FALL_HEIGHT - LAND_DUST_HEIGHT));
+      return;
+    }
     const power = Math.min(1, (fall - FALL_HEIGHT) / (FALL_FULL - FALL_HEIGHT));
     const running = Math.abs(vxBefore) > 30;
     const topple = running ? 0 : -this.facing * (FALL_TOPPLE[0] + (FALL_TOPPLE[1] - FALL_TOPPLE[0]) * power);

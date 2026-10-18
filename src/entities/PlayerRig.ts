@@ -94,7 +94,15 @@ const LEG_MAX_ANGLE = 1.0; // максимальный разворот ноги
 const STEP_TRIGGER = 0.6; // шаг, когда стопа отстала от таза на эту долю досягаемости
 const STEP_AHEAD = 0.55; // стопа приземляется впереди таза на эту долю досягаемости
 const STEP_LIFT = 3.5; // высота подъёма стопы в махе, px
-const LAND_DIP = 7; // px: на сколько проседает таз при жёстком приземлении (без потери равновесия)
+// Приземление — пружина в ногах: удар о землю задаёт скорость сжатия, таз проседает, ноги разъезжаются наружу ровно настолько,
+// чтобы стопы оставались на земле (ноги — одна кость), корпус кивает вперёд; затем пружина распрямляется с лёгким отскоком
+const LAND_SPEED_MIN = 200; // px/с: удар о землю медленнее — ноги не пружинят
+const LAND_GAIN = 1.0; // доля скорости падения, которая уходит в сжатие ног
+const LAND_STIFF = 380; // 1/с²: жёсткость ног
+const LAND_DAMPING = 0.55; // доля критического затухания (меньше 1 — с лёгким отскоком)
+const LAND_MAX = 12; // px: глубже таз не проседает
+const LAND_LEAN = 0.03; // рад на px сжатия: кивок корпуса вперёд
+const LAND_STEP = 1 / 240; // с: фиксированный шаг пружины
 const RAGDOLL_ARM_STIFF = 0.12; // руки регдолла почти не держат позу — болтаются и падают под весом
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -118,7 +126,9 @@ export class PlayerRig {
   /** Внутренний контейнер: наклоняется всем телом (вокруг центра тела) при отталкивании от стены. */
   private readonly tilt = new Container();
   private tiltRot = 0;
-  private landDip = 0; // px: просадка таза после приземления, затухает
+  private landC = 0; // px: сжатие ног после приземления
+  private landV = 0; // px/с: скорость сжатия
+  private landAcc = 0;
   private airVy = 0; // скорость падения в последнем кадре в воздухе
   private wasGrounded = true;
 
@@ -227,18 +237,18 @@ export class PlayerRig {
     const gain = Math.min(1, dist / 24); // у самой головы курсор не дёргает её
     const nx = (dx / dist) * gain;
 
-    // ---- Приземление: таз проседает по силе удара о землю и пружинит обратно
-    if (s.grounded && !this.wasGrounded && !climb) this.landDip = LAND_DIP * clamp((this.airVy - 150) / 450, 0, 1);
+    // ---- Приземление: пружина в ногах (сжатие задаёт удар о землю)
+    if (s.grounded && !this.wasGrounded && !climb) this.landV += Math.max(0, this.airVy - LAND_SPEED_MIN) * LAND_GAIN;
     if (!s.grounded) this.airVy = s.vy;
     this.wasGrounded = s.grounded;
-    this.landDip = approach(this.landDip, 0, 9, dt);
+    this.updateLandSpring(dt, s.grounded && !climb);
 
-    // ---- Ноги: шаговый контроллер -> просадка таза
+    // ---- Ноги: шаговый контроллер (+ разведение при сжатии) -> просадка таза
     const drop = climb ? this.updateLegsClimb(dt, climb) : this.updateLegs(dt, s);
-    this.pelvisDrop = approach(this.pelvisDrop, drop + this.landDip, 40, dt);
+    this.pelvisDrop = approach(this.pelvisDrop, drop, 60, dt);
 
     // ---- Торс и голова
-    let torsoTarget = this.prevTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1);
+    let torsoTarget = this.prevTilt * TORSO_FOLLOW + 0.04 * clamp(speedL / GAME_CONFIG.PLAYER_SPEED, -1, 1) + LAND_LEAN * this.landC;
     // Поворот головы относительно торса: null — головой управляет курсор (считается ниже, от шеи); число — поза (залезание/отскок)
     let headTarget: number | null = null;
     let torsoLift = 0;
@@ -448,6 +458,24 @@ export class PlayerRig {
     this.wasClimbing = !!climb;
   }
 
+  /** Пружина ног: затухающие колебания сжатия (фиксированный шаг — одинаково при любом dt). В воздухе ноги распрямляются. */
+  private updateLandSpring(dt: number, active: boolean): void {
+    if (!active) {
+      this.landC = approach(this.landC, 0, 20, dt);
+      this.landV = 0;
+      return;
+    }
+    const c = 2 * LAND_DAMPING * Math.sqrt(LAND_STIFF);
+    this.landAcc = Math.min(this.landAcc + Math.min(dt, 1 / 30), LAND_STEP * 12);
+    while (this.landAcc >= LAND_STEP) {
+      this.landAcc -= LAND_STEP;
+      this.landV += (-LAND_STIFF * this.landC - c * this.landV) * LAND_STEP;
+      this.landC += this.landV * LAND_STEP;
+      if (this.landC > LAND_MAX) { this.landC = LAND_MAX; this.landV = Math.min(this.landV, 0); }
+      if (this.landC < -1.5) { this.landC = -1.5; this.landV = Math.max(this.landV, 0); } // распрямляясь, чуть «подпрыгивает» не выше 1.5 px
+    }
+  }
+
   /** Геометрия тела для регдолла: таз, шея, центр головы, бёдра и длины ног — в координатах холста. */
   public ragdollGeometry(): RagdollGeometry {
     return {
@@ -491,7 +519,7 @@ export class PlayerRig {
     this.torsoRot = torsoRot;
     this.headRot = headAbs - torsoRot;
     this.pelvisDrop = 0;
-    this.landDip = 0;
+    this.landC = this.landV = 0;
     this.prevTilt = 0;
     place(this.torso, P.x, P.y, torsoRot);
     const headPos = onTorso(neck);
@@ -637,8 +665,12 @@ export class PlayerRig {
       // Угол ноги: стопа в точке rel (в пределах максимального разворота)
       const sinA = clamp(rel / L, -Math.sin(LEG_MAX_ANGLE), Math.sin(LEG_MAX_ANGLE));
       const a = Math.asin(sinA);
-      foot.angle = approach(foot.angle, -a, 45, dt); // вращение по часовой уводит стопу влево, поэтому знак минус
-      if (!foot.swing) drop = Math.min(drop, L * (1 - Math.cos(a)));
+      // сжатие после приземления: нога разворачивается наружу (от центра таза) так, чтобы таз опустился на landC, а стопа осталась на земле
+      const out = Math.sign(foot.part.def.pivot.x - this.torso.def.pivot.x) || foot.side;
+      const splay = this.landC > 0 ? Math.acos(clamp(1 - this.landC / L, 0, 1)) : 0;
+      const ang = -a - out * splay; // вращение по часовой уводит стопу влево, поэтому знак минус
+      foot.angle = approach(foot.angle, ang, 45, dt);
+      if (!foot.swing) drop = Math.min(drop, L * (1 - Math.cos(ang)));
     }
     return Number.isFinite(drop) ? drop : 0;
   }

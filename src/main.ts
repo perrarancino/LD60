@@ -345,6 +345,8 @@ class GameApp {
     this.player.onWallKick = (x, y, wallDir, along) => this.wallKickSmoke(x, y, wallDir, along);
     // Тяжёлое приземление (герой теряет равновесие): пыль в обе стороны и тряска
     this.player.onHardLanding = (x, y, power) => this.hardLanding(x, y, power);
+    // Обычное приземление с высоты: пыль из-под ног по силе удара
+    this.player.onLanding = (x, y, power) => this.landingDust(x, y, power);
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
@@ -427,6 +429,17 @@ class GameApp {
     this.mobs.delete(target);
     mob.remove();
     mob.view.destroy({ children: true });
+  }
+
+  /** Приземление с высоты: пыль разлетается по земле из-под ног, сильнее — гуще и дальше, при сильном — лёгкая тряска. */
+  private landingDust(x: number, y: number, power: number): void {
+    for (const side of [-1, 1]) {
+      this.fx.burst(x + side * 3, y - 1, {
+        count: 3 + Math.round(5 * power), colors: LAND_DUST, speed: [25, 60 + 60 * power], angle: side > 0 ? -0.2 : Math.PI + 0.2, spread: 0.3,
+        life: [0.2, 0.4], size: [1, 2], gravity: 120, drag: 4
+      });
+    }
+    if (power > 0.5) this.shake = Math.max(this.shake, 1.2 * power);
   }
 
   /** Тяжёлое приземление героя: пыль разлетается по земле в обе стороны, камеру трясёт по силе удара. */
