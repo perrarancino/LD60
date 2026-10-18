@@ -13,7 +13,6 @@ const EDGE = pal('cobalt', 3); // контур-свечение
 const BODY = pal('cobalt', 5); // тело молнии
 const HOT = pal('cobalt', 7); // раскалённая жила
 const SPARK = [pal('cobalt', 6), pal('cobalt', 7), pal('electric', 7)];
-const LASH_ANGLE = -Math.PI + 0.2; // хлёст: вперёд (−x холста) и чуть вверх
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const ease = (v: number) => v * v * (3 - 2 * v);
@@ -25,7 +24,8 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
  * Цвета — рампа cobalt палитры проекта (src/core/Palette.ts). Координаты — холст рига зверька (рисунок смотрит влево, хвост уходит в +x).
  *
  * Позы: покой (поднят над спиной, качается волной; на бегу вытягивается назад), замах (wind — хвост взвивается дугой над спиной и загибается вперёд)
- * и хлёст (lash — выпрямляется вперёд бегущей волной от корня к кончику и вытягивается до lashLength, как разряд).
+ * и хлёст (lash — хвост проносится дугой вперёд и вниз и ложится на землю: корень уже бьёт вниз, а кончик ещё догоняет — петля, как у кнута;
+ * вытягивается до lashLength, как разряд). Ниже земли (groundY) хвост не опускается.
  */
 export class LightningTail {
   public readonly graphics = new Graphics();
@@ -38,6 +38,7 @@ export class LightningTail {
   private readonly length: number;
   private readonly n: number;
   private readonly lashLength: number;
+  private readonly groundY: number;
   private readonly jag: number[];
   private readonly jagTarget: number[];
   private readonly grid = new Map<number, number>(); // пиксель -> слой (1 контур, 2 тело, 3 жила)
@@ -46,7 +47,8 @@ export class LightningTail {
   private flash = 0;
   private lastLash = 0;
 
-  constructor(def: CritterTailDef, lashLength: number) {
+  constructor(def: CritterTailDef, lashLength: number, groundY: number) {
+    this.groundY = groundY;
     this.root = { x: def.root.x, y: def.root.y };
     this.length = def.length;
     this.n = def.nodes ?? 11;
@@ -95,8 +97,9 @@ export class LightningTail {
       // замах: дуга над спиной, кончик загибается вперёд
       const windA = -0.95 - u * 2.3 + Math.sin(this.time * 9 - u * 6) * 0.07;
       // хлёст: волна выпрямления бежит от корня к кончику
-      const e = ease(clamp01(lash * 1.45 - 0.45 * u));
-      let ang = lerp(lerp(idle, windA, wind), LASH_ANGLE, e);
+      const e = ease(clamp01(lash * 1.6 - 0.6 * u));
+      const lashA = -Math.PI - 0.55 * Math.pow(1 - u, 1.6); // вперёд и вниз к земле, у кончика — вдоль земли
+      let ang = lerp(lerp(idle, windA, wind), lashA, e);
       // углы соседних узлов не рвутся (плавная кривая под зубцами)
       if (i > 1) ang = prevAng + Math.max(-1.2, Math.min(1.2, ang - prevAng));
       prevAng = ang;
@@ -106,7 +109,7 @@ export class LightningTail {
       const env = Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.08)), 0.7) * amp;
       const off = this.jag[i] * env;
       this.nodes[i].x = x - Math.sin(ang) * off;
-      this.nodes[i].y = y + Math.cos(ang) * off;
+      this.nodes[i].y = Math.min(y + Math.cos(ang) * off, this.groundY - 0.5); // по земле — не под неё
     }
     this.draw(wind, lash);
     return this.cracked;

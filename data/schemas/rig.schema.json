@@ -95,7 +95,7 @@
                   "type": "object",
                   "required": ["type", "amp"],
                   "properties": {
-                    "type": { "type": "string", "enum": ["step", "swing", "wag", "bob", "bounce", "flap", "squash", "track", "peck"] },
+                    "type": { "type": "string", "enum": ["step", "swing", "wag", "bob", "bounce", "flap", "squash", "track", "peck", "tuck"] },
                     "amp": { "type": "number" },
                     "rate": { "type": "number" },
                     "phase": { "type": "number" },

@@ -183,11 +183,11 @@ export interface AttachmentDef {
 
 /** Анимация детали существа-«сборки» (Critter): все детали вращаются/сдвигаются вокруг своей точки pivot на холсте рига. */
 export interface CritterAnimDef {
-  type: 'step' | 'swing' | 'wag' | 'bob' | 'bounce' | 'flap' | 'squash' | 'track' | 'peck';
-  amp: number; // step — размах по x, px; swing/wag/flap/track/peck — угол, рад; bob/bounce — px; squash — доля
+  type: 'step' | 'swing' | 'wag' | 'bob' | 'bounce' | 'flap' | 'squash' | 'track' | 'peck' | 'tuck';
+  amp: number; // step — размах по x, px; swing/wag/flap/track/peck — угол, рад; bob/bounce — px; squash — доля; tuck — доля длины, на которую деталь втягивается (по вертикали)
   rate?: number; // частота колебаний, рад/с (для step/swing/bounce — по фазе шага)
   phase?: number; // сдвиг фазы, рад
-  lift?: number; // step: подъём в махе, px
+  lift?: number; // step: подъём в махе, px; tuck: на сколько px деталь ещё поднимается при втягивании
   always?: boolean; // swing: качается и на месте (иначе — только в движении)
 }
 

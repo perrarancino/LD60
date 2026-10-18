@@ -22,6 +22,7 @@ const FLIP_RATE = 15; // 1/с: плавный разворот (рисунок �
 const AIR_RATE = 10; // 1/с: плавный переход «на земле» ↔ «в воздухе» (взмахи крыла не включаются щелчком)
 const SQUASH_K = 190; // 1/с²: пружина сжатия/растяжения тела на прыжке и приземлении
 const SQUASH_D = 17; // 1/с: её затухание
+const TUCK_OPEN_SPEED = 200; // px/с: на такой скорости падения ноги прыгуна уже полностью раскрыты
 const WHIP_MARGIN = 12; // px: хлестать начинает, подойдя ближе reach на столько
 const WHIP_HIT_R = 11; // px: на таком расстоянии от хвоста герой считается задетым
 const WHIP_GIVE_UP = 5; // с: гонится за героем так долго и не дотянулся — отстаёт на время
@@ -113,7 +114,7 @@ export class Critter implements Hittable {
     }
     if (cfg.tail) {
       // хвост-молния: поверх деталей; хлёст дотягивается на reach px вперёд от точки привязки
-      this.tail = new LightningTail(cfg.tail, cfg.tail.root.x - this.anchor.x + (cfg.tail.whip?.reach ?? 0));
+      this.tail = new LightningTail(cfg.tail, cfg.tail.root.x - this.anchor.x + (cfg.tail.whip?.reach ?? 0), this.anchor.y);
       this.node.addChild(this.tail.graphics);
     }
     this.node.pivot.set(this.anchor.x, this.anchor.y);
@@ -238,7 +239,7 @@ export class Critter implements Hittable {
         this.wT += dt;
         this.wind = 1;
         this.lash = clamp(this.wT / whip.lash, 0, 1);
-        if (!this.whipHitDone && this.lash > 0.3 && hero && this.tailTouches(hero)) {
+        if (!this.whipHitDone && this.lash > 0.45 && hero && this.tailTouches(hero)) {
           const dirX = hero.x >= b.x ? 1 : -1;
           this.whipHitDone = true;
           const tip = this.tail!.tip;
@@ -261,16 +262,16 @@ export class Critter implements Hittable {
     }
   }
 
-  /** Задел ли хвост героя (грудь и ноги — два круга) в этот момент. */
+  /** Задел ли хвост героя в этот момент: хлыст бьёт по земле, поэтому считаются только ноги (два круга у пола) — прыжком его можно перепрыгнуть. */
   private tailTouches(hero: Vec): boolean {
     const tail = this.tail;
     if (!tail) return false;
     const p = this.position;
     const sx = this.mirrored() ? -1 : 1;
     const local = (wy: number) => ({ x: (hero.x - p.x) * sx + this.anchor.x, y: wy - p.y + this.anchor.y });
-    const chest = local(hero.y - 22);
-    const legs = local(hero.y - 8);
-    return tail.distanceTo(chest.x, chest.y) < WHIP_HIT_R + 3 || tail.distanceTo(legs.x, legs.y) < WHIP_HIT_R;
+    const shins = local(hero.y - 5);
+    const knees = local(hero.y - 15);
+    return tail.distanceTo(shins.x, shins.y) < WHIP_HIT_R || tail.distanceTo(knees.x, knees.y) < WHIP_HIT_R - 2;
   }
 
   /** Пружина тела: на взлёте тянется вверх по скорости, на приземлении сплющивается и пружинит назад. */
@@ -408,6 +409,8 @@ export class Critter implements Hittable {
     this.airT += ((this.air ? 1 : 0) - this.airT) * (dt > 0 ? 1 - Math.exp(-AIR_RATE * dt) : 1);
     const airT = this.airT;
     const k = dt > 0 ? 1 - Math.exp(-PART_SMOOTH * dt) : 1;
+    // подбор ног: в воздухе подтянуты, на спуске раскрываются навстречу земле (готовятся к приземлению)
+    const tuck = this.cfg.kind === 'hopper' ? airT * clamp(1 - Math.max(0, this.body.vy) / TUCK_OPEN_SPEED, 0, 1) : 0;
     for (const part of this.parts) {
       let dx = 0;
       let dy = 0;
@@ -435,6 +438,7 @@ export class Critter implements Hittable {
             break;
           }
           case 'track': rot += this.lookX * a.amp; break;
+          case 'tuck': sy *= 1 - tuck * a.amp; dy -= (a.lift ?? 0) * tuck; break; // ноги вжимаются в тело (на прыжке)
           case 'peck': rot += Math.pow(Math.max(0, Math.sin(this.t * rate + ph + this.seed)), 3) * a.amp * (1 - airT); break;
         }
       }
