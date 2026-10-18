@@ -61,37 +61,48 @@ void main(void) {
 }
 `;
 
-/** Зелёный свет от фона: контровая подсветка граней (мягкий спад ~4 px арта) + общий свет, сильнее к низу. */
-const RIM_FRAGMENT = `
+/**
+ * Итоговый свет. Воздух (где в мире пусто) освещается мягко: плавное свечение мобов. Объекты (тайлы, мобы, герой, декор) — чётко, по пикселям арта:
+ * пиксели арта считаются по сетке камеры, свечение на объект ложится ступенями, зелёный свет от фона — контровая кромка в 1–2 пикселя
+ * на гранях, обращённых вверх и в стороны, и ровные полосы общего света, сильнее к низу.
+ */
+const COMPOSITE_FRAGMENT = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
-uniform sampler2D uTexture;
+uniform sampler2D uTexture; // мир (физические пиксели)
+uniform sampler2D uGlow;    // свечение мобов (пиксели арта)
 uniform highp vec4 uInputSize; // точность как в вершинном шейдере, иначе программа не линкуется
-uniform float uStep;
+uniform vec2 uGlowSize;
+uniform float uScale;       // физических пикселей на пиксель арта
+uniform vec2 uOrigin;       // сдвиг сетки арта относительно экрана, физ. px
 uniform vec3 uColor;
 uniform float uRim;
 uniform float uAmbient;
-float alphaAt(vec2 o) {
-  return texture(uTexture, vTextureCoord + o * uInputSize.zw * uStep).a;
+uniform float uLevels;
+float alphaAt(vec2 center, vec2 o) {
+  return texture(uTexture, (center + o * uScale) * uInputSize.zw).a;
 }
 void main(void) {
-  float a = texture(uTexture, vTextureCoord).a;
-  if (a < 0.5) { finalColor = vec4(0.0); return; }
-  // «открытость» к свету: сверху и по бокам (взвешено), чем больше свободного места рядом — тем сильнее подсветка
-  float o = 0.0;
-  o += 1.0 * (1.0 - alphaAt(vec2( 0.0, -1.5)));
-  o += 1.0 * (1.0 - alphaAt(vec2( 0.0, -3.5)));
-  o += 0.8 * (1.0 - alphaAt(vec2(-1.1, -1.1)));
-  o += 0.8 * (1.0 - alphaAt(vec2( 1.1, -1.1)));
-  o += 0.8 * (1.0 - alphaAt(vec2(-2.5, -2.5)));
-  o += 0.8 * (1.0 - alphaAt(vec2( 2.5, -2.5)));
-  o += 0.5 * (1.0 - alphaAt(vec2(-1.5,  0.0)));
-  o += 0.5 * (1.0 - alphaAt(vec2( 1.5,  0.0)));
-  o += 0.5 * (1.0 - alphaAt(vec2(-3.5,  0.0)));
-  o += 0.5 * (1.0 - alphaAt(vec2( 3.5,  0.0)));
-  o /= 7.2;
-  float l = pow(o, 1.3) * uRim + uAmbient * (0.25 + 0.75 * vTextureCoord.y);
-  finalColor = vec4(uColor * l, l);
+  vec2 frag = vTextureCoord * uInputSize.xy;
+  vec2 art = floor((frag - uOrigin) / uScale);          // пиксель арта, в котором этот фрагмент
+  vec2 center = (art + 0.5) * uScale + uOrigin;
+  float a = texture(uTexture, center * uInputSize.zw).a;
+  if (a < 0.5) {
+    vec3 g = texture(uGlow, (frag - uOrigin) / uScale / uGlowSize).rgb; // воздух: плавное свечение
+    finalColor = vec4(g, max(g.r, max(g.g, g.b)));
+    return;
+  }
+  vec3 g = texture(uGlow, (art + 0.5) / uGlowSize).rgb;
+  float gl = max(g.r, max(g.g, g.b));
+  if (gl > 0.0) g *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение на объекте — чёткими ступенями
+  float up1 = 1.0 - alphaAt(center, vec2(0.0, -1.0));
+  float up2 = 1.0 - alphaAt(center, vec2(0.0, -2.0));
+  float side = 1.0 - min(alphaAt(center, vec2(-1.0, 0.0)), alphaAt(center, vec2(1.0, 0.0)));
+  float rim = up1 > 0.5 ? 1.0 : (up2 > 0.5 ? 0.5 : (side > 0.5 ? 0.4 : 0.0)); // кромка: 1-й пиксель ярко, 2-й вполсилы
+  float band = floor((0.25 + 0.75 * center.y * uInputSize.w) * 3.0) / 3.0;     // общий свет тремя ровными полосами
+  float l = rim * uRim + uAmbient * band;
+  vec3 c = uColor * l + g;
+  finalColor = vec4(c, max(c.r, max(c.g, c.b)));
 }
 `;
 
@@ -99,10 +110,12 @@ const PURPLE_CORE = [0.8, 0.5, 1.0];
 const PURPLE_HALO = [0.55, 0.22, 0.95];
 const GREEN = [0.2, 1.0, 0.55];
 
-function makeFilter(fragment: string, name: string, uniforms: Record<string, { value: unknown; type: string }>): Filter {
+function makeFilter(
+  fragment: string, name: string, uniforms: Record<string, { value: unknown; type: string }>, extra: Record<string, unknown> = {}
+): Filter {
   return new Filter({
     glProgram: GlProgram.from({ vertex: VERTEX, fragment, name }),
-    resources: { u: uniforms }
+    resources: { u: uniforms, ...extra }
   });
 }
 
@@ -139,9 +152,8 @@ export class Lighting {
   private glowRT: RenderTexture | null = null;
   private readonly glowRoot = new Container(); // источники для рендера свечения в низком разрешении
   private readonly glowSprites: Sprite[] = [];
-  private readonly rimSprite = new Sprite();
-  private readonly glowDisplay = new Sprite();
-  private readonly rimFilter: Filter;
+  private readonly compSprite = new Sprite(); // итоговый свет: фильтр читает мир и свечение
+  private comp: Filter | null = null;
   private readonly fog = new Sprite();
   private scale = 1;
   private viewW = 480;
@@ -149,15 +161,7 @@ export class Lighting {
   private readonly matrix = new Matrix();
 
   constructor(private readonly renderer: Renderer, private readonly world: Container) {
-    // ---- подсветка граней и общий зелёный свет
-    this.rimFilter = makeFilter(RIM_FRAGMENT, 'rim', {
-      uStep: { value: 1, type: 'f32' },
-      uColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' },
-      uRim: { value: 0.7, type: 'f32' },
-      uAmbient: { value: 0.09, type: 'f32' }
-    });
-    this.rimSprite.filters = [this.rimFilter];
-    this.rimSprite.blendMode = 'add';
+    this.compSprite.blendMode = 'add';
 
     // ---- свечение: два слоя — яркое ядро и широкое гало
     const layers = [
@@ -178,7 +182,6 @@ export class Lighting {
       this.glowRoot.addChild(sprite);
       this.glowSprites.push(sprite);
     }
-    this.glowDisplay.blendMode = 'add';
 
     // туман у земли: зелёное свечение из глубины, снизу вверх
     this.fog.texture = makeTexture(4, 128, (_u, v) => Math.pow(smoothstep(0.3, 1.0, v), 1.6));
@@ -187,7 +190,7 @@ export class Lighting {
     this.fog.blendMode = 'add';
     this.backContainer.addChild(this.fog);
 
-    this.container.addChild(this.rimSprite, this.glowDisplay);
+    this.container.addChild(this.compSprite);
   }
 
   /** physW/physH — размер холста в физических пикселях, scale — физических пикселей на пиксель арта. */
@@ -203,14 +206,23 @@ export class Lighting {
     const gh = Math.ceil(this.viewH) + 2;
     this.glowRT = RenderTexture.create({ width: gw, height: gh, resolution: 1, scaleMode: 'linear' });
 
-    this.rimSprite.texture = this.worldRT;
-    this.rimSprite.scale.set(1 / scale); // сцена масштабируется на scale: на экране текстура 1:1
-    this.rimFilter.resources.u.uniforms.uStep = scale; // шаг в физических пикселях = один пиксель арта
+    this.compSprite.texture = this.worldRT;
+    this.compSprite.scale.set(1 / scale); // сцена масштабируется на scale: на экране текстура 1:1
+    // фильтр пересоздаётся вместе с текстурой свечения (она передаётся ему вторым ресурсом)
+    this.comp = makeFilter(COMPOSITE_FRAGMENT, 'composite', {
+      uGlowSize: { value: new Float32Array([gw, gh]), type: 'vec2<f32>' },
+      uScale: { value: scale, type: 'f32' },
+      uOrigin: { value: new Float32Array(2), type: 'vec2<f32>' },
+      uColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' },
+      uRim: { value: 0.7, type: 'f32' },
+      uAmbient: { value: 0.09, type: 'f32' },
+      uLevels: { value: 5, type: 'f32' }
+    }, { uGlow: this.glowRT.source });
+    this.compSprite.filters = [this.comp];
     for (const s of this.glowSprites) {
       s.texture = this.worldRT;
       s.scale.set(1 / scale);
     }
-    this.glowDisplay.texture = this.glowRT;
     this.fog.width = this.viewW;
     this.fog.height = this.viewH;
   }
@@ -233,6 +245,6 @@ export class Lighting {
     const fy = wy - Math.floor(wy);
     for (const sp of this.glowSprites) sp.position.set(-fx, -fy);
     this.renderer.render({ container: this.glowRoot, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] });
-    this.glowDisplay.position.set(fx, fy);
+    this.comp!.resources.u.uniforms.uOrigin = new Float32Array([fx * s, fy * s]); // сетка арта относительно экрана
   }
 }
