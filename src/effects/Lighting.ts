@@ -93,6 +93,8 @@ void main(void) {
  * Тайлы заслоняют свет: от пикселя к источнику идёт луч, по пути считается, сколько пикселей арта он прошёл внутри тайлов;
  * первые uPen пикселей свет ещё проходит (освещённая грань тайла светится на глубину нескольких пикселей и плавно гаснет),
  * дальше — тень (за платформой, под полом). Яркость мягко насыщается к 1 без смены оттенка (у самого источника фиолетовый не выгорает в белый).
+ * В прозрачность пишется ореол: сколько светящихся пикселей рядом (окно ±3 пикселя арта, гауссов вес) — от него светятся края
+ * кристаллов, глаз и меток по самой их форме (свечение у пикселей, а не у центра группы).
  */
 const LIGHT_FRAGMENT = `
 in vec2 vTextureCoord;
@@ -104,8 +106,19 @@ uniform vec4 uColors[16];   // цвет света
 uniform float uCount;
 uniform float uCore;
 uniform float uPen;
+uniform sampler2D uWorld;   // мир (физические пиксели): где светящиеся пиксели
+uniform vec2 uView;         // размер экрана, пиксели арта
+uniform vec3 uE0;
+uniform vec3 uE1;
+uniform vec3 uE2;
 float solid(vec2 p) {
   return texture(uTexture, p * uInputSize.zw).a;
+}
+float emitAt(vec2 p) {
+  vec4 w = texture(uWorld, p / uView);
+  if (w.a < 0.5) return 0.0;
+  vec3 o = w.rgb / w.a;
+  return 1.0 - step(0.04, min(distance(o, uE0), min(distance(o, uE1), distance(o, uE2))));
 }
 void main(void) {
   vec2 p = floor(vTextureCoord * uInputSize.xy) + 0.5; // центр пикселя арта
@@ -132,7 +145,16 @@ void main(void) {
   }
   float m = max(sum.r, max(sum.g, sum.b));
   sum *= m > 0.0 ? (1.0 - exp(-1.3 * m)) / m : 1.0; // мягкое насыщение: цвет уменьшается целиком, без ухода в белый
-  finalColor = vec4(sum, 1.0);
+  // ореол светящихся пикселей
+  float glow = 0.0;
+  for (int y = -3; y <= 3; y++) {
+    for (int x = -3; x <= 3; x++) {
+      float d2 = float(x * x + y * y);
+      if (d2 > 10.0) continue;
+      glow += emitAt(p + vec2(float(x), float(y))) * exp(-d2 / 3.0);
+    }
+  }
+  finalColor = vec4(sum, 1.0 - exp(-0.45 * glow));
 }
 `;
 
@@ -173,6 +195,8 @@ uniform float uOnCaster;    // множитель света на самих с�
 uniform float uAir;         // свет на фоне и в воздухе
 uniform float uBloom;       // сила блума
 uniform float uBloomR;      // радиус блума, пиксели арта
+uniform float uHalo;        // сила ореола у светящихся пикселей
+uniform vec3 uHaloColor;
 bool onCaster = false;
 bool onTile = false;
 float solidAt(vec2 o) {
@@ -249,6 +273,8 @@ void main(void) {
     b += uColors[i].rgb * uLights[i].w * exp(-dot(d, d) / (uBloomR * uBloomR));
   }
   c += b * uBloom * pulse;
+  // ореол: свечение вокруг самих светящихся пикселей (по форме кристаллов, глаз, меток), плавно
+  c += uHaloColor * texture(uLight, art / uLightSize).a * uHalo * pulse;
   finalColor = vec4(c, 0.0);
 }
 `;
@@ -355,7 +381,7 @@ const LIGHT_RADIUS = 84; // px арта: дальше свет не достаё
 const LIGHT_BASE = 0.55; // сила света группы светящихся пикселей...
 const LIGHT_PER_PIXEL = 0.09; // ...плюс за каждый её пиксель
 const LIGHT_MAX = 1.5;
-const ROOT_MAX = 2.4; // общая сила всех источников одного моба (у паучихи и червяка их много — делят её между собой, а не засвечивают всё вокруг)
+const ROOT_MAX = 1.8; // общая сила источников одного моба на один источник; у моба с многими источниками (паучиха, червяк) — × корень из их числа: длинный червяк светит заметно, но не засвечивает всё вокруг
 const MERGE_DIST = 10; // px арта: источники ближе этого сливаются в один (меньше источников — дешевле, и они не «перескакивают»)
 const LIGHT_CORE = 17; // px арта: ядро спада (ближе — почти ровно ярко, дальше — как обратный квадрат)
 const LIGHT_PEN = 5; // px арта: на сколько свет заходит в тайл с освещённой стороны
@@ -363,11 +389,13 @@ const CLUSTER_DIST = 5; // px рисунка: светящиеся пиксел�
 const CLUSTERS_PER_SPRITE = 6;
 const DIFFUSE = 0.5; // заливка предмета (слабая, главное — кромка): цвет предмета × свет...
 const FLAT = 0.12; // ...плюс немного чистого цвета света (окрашивание)
-const ON_CASTER = 0.3; // на самих светящихся мобах свет слабее (жук не заливается и не обводится своим же светом)
+const ON_CASTER = 0.6; // на самих светящихся мобах свет слабее (жук не заливается своим же светом, но его тело вокруг светящихся мест подсвечено)
 const RIM = 1.5; // контровая кромка от света жуков на краях, повёрнутых к нему
 const EMITTER_MARK = 0.85; // прозрачность светящихся мобов (кроме пауков) в текстуре существ: отметка «свет на нём слабее»
 const AIR = 0.2; // свет на фоне и в воздухе
-const BLOOM = 0.3; // небольшой блум вокруг светящихся пикселей
+const BLOOM = 0.15; // небольшой блум вокруг источников (центров групп)
+const HALO = 0.6; // ореол вокруг самих светящихся пикселей
+const HALO_COLOR = [0.72, 0.42, 1.0];
 const BLOOM_RADIUS = 4.5; // px арта
 
 interface Cluster {
@@ -599,8 +627,12 @@ export class Lighting {
       uColors: { value: this.colorData, type: 'vec4<f32>', size: MAX_LIGHTS },
       uCount: { value: 0, type: 'f32' },
       uCore: { value: LIGHT_CORE, type: 'f32' },
-      uPen: { value: LIGHT_PEN, type: 'f32' }
-    });
+      uPen: { value: LIGHT_PEN, type: 'f32' },
+      uView: { value: new Float32Array([this.viewW, this.viewH]), type: 'vec2<f32>' },
+      uE0: { value: emissiveUniform(0), type: 'vec3<f32>' },
+      uE1: { value: emissiveUniform(1), type: 'vec3<f32>' },
+      uE2: { value: emissiveUniform(2), type: 'vec3<f32>' }
+    }, { uWorld: this.worldRT.source });
     this.lightSprite.filters = [this.lightPass];
 
     // итог поверх кадра
@@ -624,7 +656,9 @@ export class Lighting {
       uOnCaster: { value: ON_CASTER, type: 'f32' },
       uAir: { value: AIR, type: 'f32' },
       uBloom: { value: BLOOM, type: 'f32' },
-      uBloomR: { value: BLOOM_RADIUS, type: 'f32' }
+      uBloomR: { value: BLOOM_RADIUS, type: 'f32' },
+      uHalo: { value: HALO, type: 'f32' },
+      uHaloColor: { value: new Float32Array(HALO_COLOR), type: 'vec3<f32>' }
     }, { uLight: this.lightRT.source, uCaster: this.casterRT.source, uGround: this.groundRT.source });
     this.glowSprite.filters = [this.glow];
 
@@ -678,9 +712,10 @@ export class Lighting {
     for (const e of this.emitters()) {
       lights.length = 0;
       visit(e);
-      // все источники одного моба вместе — не сильнее ROOT_MAX
+      // все источники одного моба вместе — не сильнее ROOT_MAX × √(число источников)
       const total = lights.reduce((sum, l) => sum + l.i, 0);
-      const k = total > ROOT_MAX ? ROOT_MAX / total : 1;
+      const cap = ROOT_MAX * Math.sqrt(Math.max(1, lights.length));
+      const k = total > cap ? cap / total : 1;
       for (const l of lights) all.push({ ...l, i: l.i * k });
     }
     // близкие источники сливаются в один (центр — средневзвешенный, сила — сумма)
@@ -751,7 +786,7 @@ export class Lighting {
     }
     this.glow!.resources.u.uniforms.uTime = t; // неон пульсирует
     f32Touch(this.lightPass!, this.glow!);
-    this.renderer.render({ container: this.lightRoot, target: this.lightRT, clear: true, clearColor: [0, 0, 0, 1] });
+    this.renderer.render({ container: this.lightRoot, target: this.lightRT, clear: true, clearColor: [0, 0, 0, 0] });
   }
 }
 
