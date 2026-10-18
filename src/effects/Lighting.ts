@@ -207,7 +207,7 @@ const SMALL_MARK = 0.55; // прозрачность мелких предмет
 const SHADOW_STRENGTH = 0.85; // насколько тень гасит пол под собой (включая свет)
 const SHADOW_COLOR = [0.0, 0.01, 0.04];
 
-const PURPLE_CORE = [0.8, 0.5, 1.0];
+const PURPLE_CORE = [0.85, 0.55, 1.0];
 const GREEN = [0.2, 1.0, 0.55];
 
 function makeFilter(
@@ -273,7 +273,7 @@ export class Lighting {
     this.compSprite.blendMode = 'add';
 
     // ---- свечение: небольшое, у самых ярких деталей (широкого гало нет)
-    const layers = [{ blur: 3.5, color: PURPLE_CORE, gain: 1.9 }];
+    const layers = [{ blur: 5, color: PURPLE_CORE, gain: 14 }];
     for (const l of layers) {
       const sprite = new Sprite();
       sprite.filters = [
