@@ -1,7 +1,8 @@
 import { Container, Matrix, Sprite, Texture } from 'pixi.js';
 
 // Настройки физики каната
-const SUBSTEPS = 3; // подшагов на кадр — устойчивость при больших dt
+const STEP = 1 / 240; // с: фиксированный шаг физики — при неровных кадрах (разный dt) цепочка не раскачивается и не трясётся
+const MAX_STEPS = 10; // шагов за кадр не больше (после лага)
 const ITERATIONS = 4; // итераций ограничений длины на подшаг
 const GRAVITY = 520; // px/с²
 const STIFFNESS_ROOT = 420; // сила возврата к позе покоя у плеча, 1/с²
@@ -59,6 +60,7 @@ export class RopeLimb {
   private lastFacing = 0;
   private stretch = 1; // во сколько раз рука сейчас длиннее нарисованной (удар): сегменты растягиваются вдоль своей оси
   private stretched = false;
+  private acc = 0; // накопленное время, ещё не прошедшее шагами физики
 
   /**
    * @param image пиксели слоя (холст целиком)
@@ -286,7 +288,8 @@ export class RopeLimb {
       this.kin = 0;
       const dxr = rootX - this.x[0];
       const dyr = rootY - this.y[0];
-      for (let i = 0; i <= this.n; i++) { this.px[i] = this.x[i] - dxr / SUBSTEPS; this.py[i] = this.y[i] - dyr / SUBSTEPS; }
+      const per = Math.max(1, Math.round(Math.min(dt, 1 / 30) / STEP)); // шагов за кадр — скорость плеча за шаг
+      for (let i = 0; i <= this.n; i++) { this.px[i] = this.x[i] - dxr / per; this.py[i] = this.y[i] - dyr / per; }
     }
     // Желаемое направление в мире: зеркалирование по X
     const wx = f * Math.cos(restAngle);
@@ -314,15 +317,27 @@ export class RopeLimb {
       pinY = rootY + dy;
     }
 
-    const h = Math.min(dt, 1 / 30) / SUBSTEPS;
+    // Фиксированный шаг: время копится, физика идёт целыми шагами STEP (одинаковыми при любом dt кадра)
+    this.acc = Math.min(this.acc + Math.min(dt, 1 / 30), STEP * MAX_STEPS);
+    const steps = Math.floor(this.acc / STEP);
+    this.acc -= steps * STEP;
+    if (steps === 0) {
+      // в этом кадре шага нет — цепочка просто едет вместе с плечом
+      const dx = rootX - this.x[0];
+      const dy = rootY - this.y[0];
+      for (let i = 0; i <= this.n; i++) { this.x[i] += dx; this.y[i] += dy; this.px[i] += dx; this.py[i] += dy; }
+      this.render(frame, Math.min(dt, 1 / 30));
+      return;
+    }
+    const h = STEP;
     const damp = Math.exp(-DAMPING * h);
     const maxStep = MAX_SPEED * h;
     const bend = Math.min(1, BEND_RATE * h);
-    const rootStepX = (rootX - this.x[0]) / SUBSTEPS;
-    const rootStepY = (rootY - this.y[0]) / SUBSTEPS;
+    const rootStepX = (rootX - this.x[0]) / steps;
+    const rootStepY = (rootY - this.y[0]) / steps;
     const tip = this.n;
 
-    for (let step = 0; step < SUBSTEPS; step++) {
+    for (let step = 0; step < steps; step++) {
       // Плечо закреплено и двигается вместе с телом
       this.x[0] += rootStepX;
       this.y[0] += rootStepY;
@@ -383,6 +398,9 @@ export class RopeLimb {
           if (!solid(this.px[i], this.y[i])) this.x[i] = this.px[i];
           else if (!solid(this.x[i], this.py[i])) this.y[i] = this.py[i];
           else { this.x[i] = this.px[i]; this.y[i] = this.py[i]; }
+          // упёрлась — скорость гасится (не пружинит обратно в тайл и не дрожит у поверхности)
+          this.px[i] = this.x[i];
+          this.py[i] = this.y[i];
         }
       }
     }

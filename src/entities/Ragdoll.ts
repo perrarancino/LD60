@@ -32,7 +32,8 @@ interface Link {
 
 // Физика
 const GRAVITY = 850; // px/с² — как у героя
-const SUBSTEPS = 5;
+const STEP = 1 / 300; // с: фиксированный шаг — одинаковая физика при любом dt кадра
+const MAX_STEPS = 12;
 const ITERATIONS = 6;
 const AIR_DRAG = 0.8; // 1/с
 const FRICTION = 0.35; // доля касательной скорости, теряемая при касании тайла (за подшаг)
@@ -62,6 +63,7 @@ export class Ragdoll {
   private time = 0;
   private calm = 0; // сколько секунд тело почти не движется
   private getUpT = -1; // < 0 — ещё не встаёт
+  private acc = 0;
 
   constructor(private readonly geo: RagdollGeometry) {
     const footOf = (h: { at: Vec; length: number }) => ({ x: h.at.x, y: h.at.y + h.length });
@@ -102,7 +104,7 @@ export class Ragdoll {
     const keepX = [0.6, 0.9, 1.0, 0.15, 0.15];
     const keepY = [0.35, 0.2, 0.1, 0, 0];
     const push = [0.3, 1.0, 1.25, -0.15, -0.15];
-    const h = 1 / 60 / SUBSTEPS;
+    const h = STEP;
     this.points.forEach((p, i) => {
       const k = Math.min(i, 4);
       const pvx = vx * keepX[k] + topple * push[k] + (Math.random() - 0.5) * 20;
@@ -143,12 +145,15 @@ export class Ragdoll {
     this.time += dt;
     if (this.getUpT >= 0) this.getUpT += dt;
     const pose = this.getUpT >= 0 ? this.standing(stand.bodyX, stand.bodyY, stand.facing) : null;
-    const h = dt / SUBSTEPS;
+    this.acc = Math.min(this.acc + dt, STEP * MAX_STEPS);
+    const steps = Math.floor(this.acc / STEP);
+    this.acc -= steps * STEP;
+    const h = STEP;
     const drag = Math.exp(-AIR_DRAG * h);
     const maxStep = MAX_SPEED * h;
     let fastest = 0;
 
-    for (let s = 0; s < SUBSTEPS; s++) {
+    for (let s = 0; s < steps; s++) {
       this.points.forEach((p, i) => {
         let vx = (p.x - p.px) * drag;
         let vy = (p.y - p.py) * drag;
@@ -178,7 +183,7 @@ export class Ragdoll {
         for (const p of this.points) this.collide(p);
       }
     }
-    this.calm = fastest < 14 ? this.calm + dt : 0;
+    if (steps > 0) this.calm = fastest < 14 ? this.calm + dt : 0;
   }
 
   private solve(l: Link): void {
