@@ -1,22 +1,21 @@
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SegmentDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
-import type { Hittable, HitCircle } from './Hittable.ts';
-import { HitReaction } from './HitReaction.ts';
+import type { HitCircle, PartDamageable, PartDamageResult } from './Hittable.ts';
+import { SegmentChain } from './SegmentChain.ts';
+import type { PartKind, Vec } from './SegmentChain.ts';
+import { applySolidMask } from './solidMask.ts';
 
 // ---- Ползание по поверхностям (как у паука, но тело толстое: центр головы идёт на радиусе от поверхности)
 const WALL_PROBE_HEIGHT = 4; // px над поверхностью, на которой проверяем стену впереди
 const EDGE_PROBE = 1.5; // px под поверхностью — проверка опоры под головой (внешний угол)
 const EDGE_WRAP_DEPTH = 1; // px: на сколько голова «сползает» по грани за край
 const FOLLOW_POS = 20; // 1/с: сглаживание видимой позиции головы (скругляет углы и стыки с туннелем)
-const TRAIL_STEP = 1.5; // px: шаг записи следа головы
 
 // ---- Походка: волна сжатия бежит от хвоста к голове
 const INCH_RATE = 1.1; // циклов в секунду
 const INCH_SPEED = 0.7; // амплитуда колебания скорости (0 — ровно)
-const SQUASH = 0.05; // амплитуда сжатия сегментов вдоль тела
-const SQUASH_LAG = 0.9; // сдвиг фазы между соседними сегментами, рад
 
 // ---- Поведение
 const CRAWL_TIME: [number, number] = [5, 11]; // сколько ползёт по поверхности перед тем, как зарыться
@@ -25,18 +24,6 @@ const STUCK_TIME = 0.5; // с: столько голова упирается в
 const DIG_SPEED = 2.2; // множитель скорости под землёй
 const TUNNEL_MIN = 2; // длина подземного хода в клетках (от входа до выхода)
 const TUNNEL_MAX = 14;
-
-interface Vec {
-  x: number;
-  y: number;
-}
-
-interface Segment {
-  sprite: Sprite;
-  dist: number; // расстояние от головы вдоль следа, px
-  center: Vec; // точка вращения в спрайте
-  lag: number; // сдвиг фазы волны сжатия
-}
 
 const AXES: Vec[] = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
 const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
@@ -48,11 +35,10 @@ const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
  * из другой поверхности. Часть тела внутри твёрдых клеток скрыта инвертированной маской (тела не просвечивают сквозь углы тайлов);
  * контейнер рисуется под тайлами.
  */
-export class Worm implements Hittable {
+export class Worm implements PartDamageable {
   public readonly container = new Container();
 
-  private readonly segments: Segment[] = [];
-  private readonly react: HitReaction;
+  private readonly chain: SegmentChain;
   private readonly radius: number; // половина толщины
   private readonly speed: number;
 
@@ -70,8 +56,6 @@ export class Worm implements Hittable {
   private exitDir: Vec = { x: 0, y: -1 };
 
   private vis: Vec = { x: 0, y: 0 }; // видимая (сглаженная) позиция головы
-  private trail: Vec[] = []; // след головы: новые точки в начале
-  private readonly trailLimit: number;
 
   private phase = Math.random() * Math.PI * 2;
   private stuck = 0; // сколько секунд голова упирается в чужое/своё тело
@@ -89,57 +73,25 @@ export class Worm implements Hittable {
     // Длина: голова + туловища + хвост, всего 3–5 (или как задано в спавне)
     const total = Math.max(seg.length_min, Math.min(seg.length_max, spawn.length ?? Math.round(rand([seg.length_min, seg.length_max]))));
     const bodies = total - 2;
-    const make = (d: SegmentDef, dist: number, lag: number): Segment => {
+    // здоровье частей: голова — своё (её гибель — гибель червя), у остальных — из рига (или как у головы)
+    const hp = seg.health ?? { body: def.stats.max_health, tail: def.stats.max_health };
+    const part = (d: SegmentDef, kind: PartKind, health: number) => {
       const sprite = sprites.createSprite(d.sprite_id);
       sprite.pivot.set(d.center.x, d.center.y);
-      return { sprite, dist, center: d.center, lag };
+      return { kind, node: sprite as Container, radius: this.radius, hp: health, scale: 1 };
     };
-    this.segments.push(make(seg.head, 0, 0));
-    let dist = 0;
-    for (let i = 0; i < bodies; i++) {
-      dist += i === 0 ? seg.head_to_body : seg.body_to_body;
-      this.segments.push(make(seg.body, dist, (i + 1) * SQUASH_LAG));
-    }
-    dist += bodies === 0 ? seg.head_to_body : seg.body_to_tail;
-    this.segments.push(make(seg.tail, dist, (bodies + 1) * SQUASH_LAG));
-    this.trailLimit = dist + 24;
-    this.react = new HitReaction(this.segments.map((s) => s.sprite));
-    // голова сверху: добавляем с хвоста
-    for (let i = this.segments.length - 1; i >= 0; i--) this.container.addChild(this.segments[i].sprite);
+    const parts = [part(seg.head, 'head', hp.head ?? def.stats.max_health)];
+    for (let i = 0; i < bodies; i++) parts.push(part(seg.body, 'body', hp.body));
+    parts.push(part(seg.tail, 'tail', hp.tail));
+    const gap = (prev: PartKind, kind: PartKind) =>
+      kind === 'tail' ? (prev === 'head' ? seg.head_to_body : seg.body_to_tail) : prev === 'head' ? seg.head_to_body : seg.body_to_body;
+    this.chain = new SegmentChain(this.container, parts, gap);
 
-    this.applySolidMask();
+    applySolidMask(this.container, level);
     this.placeOnSurface(spawn, level.tileSize);
     this.p = { x: this.s.x + this.n.x * this.radius, y: this.s.y + this.n.y * this.radius };
     this.vis = { ...this.p };
-    // след изначально — прямая за головой
-    for (let d = TRAIL_STEP; d <= this.trailLimit + 4; d += TRAIL_STEP) {
-      this.trail.push({ x: this.p.x - this.t.x * d, y: this.p.y - this.t.y * d });
-    }
-    this.layoutSegments(0);
-  }
-
-  /** Прячет всё, что оказалось в твёрдых клетках (и за границей уровня): инвертированная маска из прямоугольников. */
-  private applySolidMask(): void {
-    const ts = this.level.tileSize;
-    const W = this.level.widthTiles;
-    const H = this.level.heightTiles;
-    const big = 4096;
-    const mask = new Graphics();
-    // замкнутый мир: за границами уровня тоже «твёрдо»
-    mask.rect(-big, -big, W * ts + 2 * big, big).rect(-big, H * ts, W * ts + 2 * big, big);
-    mask.rect(-big, 0, big, H * ts).rect(W * ts, 0, big, H * ts);
-    for (let cy = 0; cy < H; cy++) {
-      for (let cx = 0; cx < W; cx++) {
-        if (!this.level.isSolid(cx, cy)) continue;
-        let run = 1; // клетки подряд в ряду — одним прямоугольником
-        while (cx + run < W && this.level.isSolid(cx + run, cy)) run++;
-        mask.rect(cx * ts, cy * ts, run * ts, ts);
-        cx += run - 1;
-      }
-    }
-    mask.fill(0xffffff);
-    this.container.addChild(mask);
-    this.container.setMask({ mask, inverse: true });
+    this.chain.reset(this.p, this.t); // след изначально — прямая за головой
   }
 
   /** Ставит червя на поверхность из спавна: пол (по умолчанию), потолок или стена слева/справа. */
@@ -213,26 +165,29 @@ export class Worm implements Hittable {
 
   // ---------- Обновление ----------
 
-  /** Круг на каждый сегмент; те, что сейчас внутри твёрдых клеток (червь в земле), не бьются. */
+  /** Круг на каждую часть тела; те, что сейчас внутри твёрдых клеток (червь в земле), не бьются. */
   public hitCircles(): HitCircle[] {
     const ts = this.level.tileSize;
-    const circles: HitCircle[] = [];
-    for (const seg of this.segments) {
-      const { x, y } = seg.sprite.position;
-      if (this.level.isSolid(Math.floor(x / ts), Math.floor(y / ts))) continue;
-      circles.push({ x, y, r: this.radius });
-    }
-    return circles;
+    return this.chain.circles((x, y) => this.level.isSolid(Math.floor(x / ts), Math.floor(y / ts)));
   }
 
-  /** Удар: белая вспышка. */
-  public onHit(dirX: number, dirY: number): void {
-    this.react.trigger(dirX, dirY);
+  /** Удар: белая вспышка той части, в которую попали. */
+  public onHit(dirX: number, dirY: number, part?: number): void {
+    if (part !== undefined) this.chain.flash(part, dirX, dirY);
+  }
+
+  /** Урон части. Выбитая часть исчезает, остальные смыкаются; выбита голова — червь погиб целиком. */
+  public damagePart(part: number, amount: number): PartDamageResult {
+    const seg = this.chain.find(part);
+    const result = this.chain.damage(part, amount);
+    if (result !== 'killed') return 'hit';
+    if (seg?.kind === 'head') return 'dead';
+    this.chain.remove(part);
+    return 'killed';
   }
 
   public update(dt: number): void {
     dt = Math.min(dt, 1 / 30);
-    this.react.update(dt);
     this.phase += Math.PI * 2 * INCH_RATE * dt;
 
     if (this.state === 'crawl') {
@@ -245,12 +200,7 @@ export class Worm implements Hittable {
     const kp = 1 - Math.exp(-FOLLOW_POS * dt);
     this.vis.x += (this.p.x - this.vis.x) * kp;
     this.vis.y += (this.p.y - this.vis.y) * kp;
-    const last = this.trail[0];
-    if (!last || Math.hypot(this.vis.x - last.x, this.vis.y - last.y) >= TRAIL_STEP) {
-      this.trail.unshift({ x: this.vis.x, y: this.vis.y });
-    }
-    this.trimTrail();
-    this.layoutSegments(this.phase);
+    this.chain.update(dt, this.vis, this.phase);
   }
 
   private updateCrawl(dt: number): void {
@@ -443,9 +393,9 @@ export class Worm implements Hittable {
     const pts: Array<Vec & { owner: Worm }> = [];
     for (const w of this.flock) {
       if (othersOnly && w === this) continue;
-      w.segments.forEach((seg, i) => {
+      w.chain.segments.forEach((seg, i) => {
         if (w === this && (i === 0 || (skipSelfNear && i === 1))) return;
-        pts.push({ x: seg.sprite.x, y: seg.sprite.y, owner: w });
+        pts.push({ x: seg.node.x, y: seg.node.y, owner: w });
       });
     }
     return pts;
@@ -481,50 +431,5 @@ export class Worm implements Hittable {
       if (Math.hypot(b.x - x, b.y - y) < r) return true;
     }
     return false;
-  }
-
-  // ---------- Тело по следу ----------
-
-  private trimTrail(): void {
-    let acc = 0;
-    let prev = this.vis;
-    for (let i = 0; i < this.trail.length; i++) {
-      acc += Math.hypot(this.trail[i].x - prev.x, this.trail[i].y - prev.y);
-      prev = this.trail[i];
-      if (acc > this.trailLimit + 12) {
-        this.trail.length = i + 1;
-        return;
-      }
-    }
-  }
-
-  /** Точка следа на расстоянии a от головы (вдоль ломаной). */
-  private pointAt(a: number): Vec {
-    let prev = this.vis;
-    let rest = Math.max(0, a);
-    for (const pt of this.trail) {
-      const seg = Math.hypot(pt.x - prev.x, pt.y - prev.y);
-      if (seg >= rest) {
-        const f = seg > 0 ? rest / seg : 0;
-        return { x: prev.x + (pt.x - prev.x) * f, y: prev.y + (pt.y - prev.y) * f };
-      }
-      rest -= seg;
-      prev = pt;
-    }
-    return prev;
-  }
-
-  private layoutSegments(phase: number): void {
-    for (const seg of this.segments) {
-      const centre = this.pointAt(seg.dist);
-      const front = this.pointAt(seg.dist - 6);
-      const back = this.pointAt(seg.dist + 6);
-      const fx = front.x - back.x;
-      const fy = front.y - back.y;
-      seg.sprite.position.set(centre.x, centre.y);
-      // рисунок смотрит «вверх» (−y): поворачиваем так, чтобы верх сегмента смотрел по ходу следа
-      if (Math.hypot(fx, fy) > 0.01) seg.sprite.rotation = Math.atan2(fx, -fy);
-      seg.sprite.scale.y = 1 + SQUASH * Math.sin(phase - seg.lag);
-    }
   }
 }

@@ -103,6 +103,8 @@ for rig in rigs.values():
     if seg:
         for key in ("head", "body", "tail"):
             check(seg[key]["sprite_id"] in sprites, f"риг {rig['id']}: сегмент {key}: нет спрайта {seg[key]['sprite_id']}")
+            for att in seg[key].get("under", []) + seg[key].get("over", []):
+                check(att["sprite_id"] in sprites, f"риг {rig['id']}: сегмент {key}: деталь: нет спрайта {att['sprite_id']}")
 
 backgrounds = {b["id"]: b for b in [load(f"backgrounds/{p.name}") for p in sorted((DATA / "backgrounds").glob("*.json"))]}
 for bg in backgrounds.values():

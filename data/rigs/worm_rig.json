@@ -37,7 +37,12 @@
     },
     "head_to_body": 28,
     "body_to_body": 27,
-    "body_to_tail": 23
+    "body_to_tail": 23,
+    "health": {
+      "head": 40,
+      "body": 24,
+      "tail": 18
+    }
   },
   "parts": []
 }

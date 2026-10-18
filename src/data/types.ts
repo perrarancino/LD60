@@ -139,9 +139,38 @@ export interface CrawlerDef {
   legs: CrawlerLegDef[];
 }
 
+/** Деталь, прикрепленная к части тела (щупальце головы босса): под рисунком части или поверх него, может качаться вокруг своей точки крепления. */
+export interface AttachmentDef {
+  sprite_id: string; // слой на полном холсте рига
+  pivot?: { x: number; y: number }; // точка крепления на холсте (вокруг неё качается); без неё деталь неподвижна
+  sway?: number; // амплитуда качания, рад
+  speed?: number; // скорость качания, рад/с
+  phase?: number; // сдвиг фазы, рад
+}
+
 export interface SegmentDef {
   sprite_id: string;
   center: { x: number; y: number }; // центр части на холсте
+  scale?: number; // масштаб рисунка (по умолчанию 1)
+  hit_radius?: number; // круг попадания, px (по умолчанию — половина толщины червя)
+  under?: AttachmentDef[]; // детали позади рисунка части
+  over?: AttachmentDef[]; // детали поверх рисунка части
+}
+
+/** Здоровье частей червя: голова (её гибель — гибель всего существа), туловище, хвост. */
+export interface SegmentHealthDef {
+  head?: number; // по умолчанию stats.max_health врага
+  body: number;
+  tail: number;
+}
+
+/** Полёт босса-червя: голова целится в героя, поворачивая не быстрее turn_rate, и проносится сквозь него широкими петлями. */
+export interface FlightDef {
+  turn_rate: number; // рад/с: как круто голова поворачивает
+  pass_distance: number; // px: ближе этого к цели голова перестаёт доворачивать и проносится мимо
+  pass_time: [number, number]; // с: сколько длится пролёт мимо
+  boost: number; // во сколько раз быстрее скорость при пролёте
+  wave: { amp: number; k: number }; // извивание тела: поперечная амплитуда px и фазовая скорость по телу рад/px
 }
 
 export interface SegmentedDef {
@@ -154,6 +183,8 @@ export interface SegmentedDef {
   head_to_body: number;
   body_to_body: number;
   body_to_tail: number;
+  health?: SegmentHealthDef;
+  flight?: FlightDef; // есть — босс: летает, иначе ползает по поверхностям
 }
 
 export interface WobblerLimbDef {

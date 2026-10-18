@@ -75,6 +75,7 @@
         "bouncing_projectile",
         "crawler",
         "burrower",
+        "flying_worm",
         "spawner"
       ],
       "description": "Базовый тип передвижения и поиска целей"

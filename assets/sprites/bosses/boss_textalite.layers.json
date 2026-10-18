@@ -1,0 +1,213 @@
+{
+  "source": "boss_textalite.aseprite",
+  "canvasWidth": 128,
+  "canvasHeight": 384,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Layer 2",
+      "file": "boss_textalite_layers/Layer_2.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        8,
+        170,
+        120,
+        334
+      ]
+    },
+    {
+      "name": "Tent_L_base",
+      "file": "boss_textalite_layers/Tent_L_base.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        29,
+        177,
+        55,
+        214
+      ]
+    },
+    {
+      "name": "Tent_R_base",
+      "file": "boss_textalite_layers/Tent_R_base.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        72,
+        178,
+        99,
+        215
+      ]
+    },
+    {
+      "name": "Tent_L",
+      "file": "boss_textalite_layers/Tent_L.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        9,
+        127,
+        39,
+        210
+      ]
+    },
+    {
+      "name": "Tent_R",
+      "file": "boss_textalite_layers/Tent_R.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        89,
+        127,
+        119,
+        211
+      ]
+    },
+    {
+      "name": "Tent_L1",
+      "file": "boss_textalite_layers/Tent_L1.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        23,
+        157,
+        37,
+        184
+      ]
+    },
+    {
+      "name": "Tent_R1",
+      "file": "boss_textalite_layers/Tent_R1.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        90,
+        157,
+        105,
+        185
+      ]
+    },
+    {
+      "name": "Tent_L2",
+      "file": "boss_textalite_layers/Tent_L2.png",
+      "z": 7,
+      "visible": true,
+      "bbox": [
+        20,
+        138,
+        45,
+        184
+      ]
+    },
+    {
+      "name": "Tent_R2",
+      "file": "boss_textalite_layers/Tent_R2.png",
+      "z": 8,
+      "visible": true,
+      "bbox": [
+        83,
+        138,
+        108,
+        184
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "boss_textalite_layers/Head.png",
+      "z": 9,
+      "visible": true,
+      "bbox": [
+        0,
+        3,
+        128,
+        204
+      ]
+    },
+    {
+      "name": "Tent_mid_up",
+      "file": "boss_textalite_layers/Tent_mid_up.png",
+      "z": 10,
+      "visible": true,
+      "bbox": [
+        54,
+        157,
+        74,
+        175
+      ]
+    },
+    {
+      "name": "Tent_L_up",
+      "file": "boss_textalite_layers/Tent_L_up.png",
+      "z": 11,
+      "visible": true,
+      "bbox": [
+        10,
+        126,
+        26,
+        135
+      ]
+    },
+    {
+      "name": "Tent_R_up",
+      "file": "boss_textalite_layers/Tent_R_up.png",
+      "z": 12,
+      "visible": true,
+      "bbox": [
+        102,
+        126,
+        118,
+        135
+      ]
+    },
+    {
+      "name": "Tent_L1_up",
+      "file": "boss_textalite_layers/Tent_L1_up.png",
+      "z": 13,
+      "visible": true,
+      "bbox": [
+        23,
+        154,
+        36,
+        164
+      ]
+    },
+    {
+      "name": "Tent_R1_up",
+      "file": "boss_textalite_layers/Tent_R1_up.png",
+      "z": 14,
+      "visible": true,
+      "bbox": [
+        92,
+        154,
+        105,
+        164
+      ]
+    },
+    {
+      "name": "Tent_L2_up",
+      "file": "boss_textalite_layers/Tent_L2_up.png",
+      "z": 15,
+      "visible": true,
+      "bbox": [
+        19,
+        135,
+        39,
+        154
+      ]
+    },
+    {
+      "name": "Tent_R2_up",
+      "file": "boss_textalite_layers/Tent_R2_up.png",
+      "z": 16,
+      "visible": true,
+      "bbox": [
+        89,
+        135,
+        109,
+        154
+      ]
+    }
+  ]
+}

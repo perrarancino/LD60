@@ -93,7 +93,37 @@
         "tail": { "$ref": "#/$defs/segment" },
         "head_to_body": { "type": "number", "description": "Расстояние между центрами головы и первого туловища вдоль следа, px" },
         "body_to_body": { "type": "number" },
-        "body_to_tail": { "type": "number" }
+        "body_to_tail": { "type": "number" },
+        "health": {
+          "type": "object",
+          "required": ["body", "tail"],
+          "description": "Здоровье частей: у каждой своё; выбитая часть исчезает, гибель головы — гибель существа",
+          "properties": {
+            "head": { "type": "number", "minimum": 1, "description": "По умолчанию stats.max_health врага" },
+            "body": { "type": "number", "minimum": 1 },
+            "tail": { "type": "number", "minimum": 1 }
+          }
+        },
+        "flight": {
+          "type": "object",
+          "description": "Босс-червь летает: голова доворачивает к герою, проносится мимо и делает петли",
+          "required": ["turn_rate", "pass_distance", "pass_time", "boost", "wave"],
+          "properties": {
+            "turn_rate": { "type": "number", "minimum": 0.1, "description": "Скорость поворота головы, рад/с (меньше — шире петли)" },
+            "pass_distance": { "type": "number", "minimum": 1, "description": "Ближе этого к герою голова перестаёт доворачивать и проносится мимо, px" },
+            "pass_time": { "type": "array", "items": { "type": "number", "minimum": 0.1 }, "minItems": 2, "maxItems": 2, "description": "Сколько длится пролёт, с: [от, до]" },
+            "boost": { "type": "number", "minimum": 1, "description": "Во сколько раз быстрее при пролёте" },
+            "wave": {
+              "type": "object",
+              "required": ["amp", "k"],
+              "description": "Извивание тела",
+              "properties": {
+                "amp": { "type": "number", "minimum": 0, "description": "Поперечная амплитуда, px" },
+                "k": { "type": "number", "minimum": 0, "description": "Фазовая скорость вдоль тела, рад/px" }
+              }
+            }
+          }
+        }
       }
     },
     "parts": {
@@ -155,7 +185,23 @@
       "required": ["sprite_id", "center"],
       "properties": {
         "sprite_id": { "type": "string", "description": "Слой-часть (полный холст); рисунок смотрит «вверх» = вперёд" },
-        "center": { "type": "object", "required": ["x", "y"], "description": "Центр части на холсте (px) — точка вращения и позиции на следе", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+        "center": { "type": "object", "required": ["x", "y"], "description": "Центр части на холсте (px) — точка вращения и позиции на следе", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "scale": { "type": "number", "minimum": 0.05, "description": "Масштаб рисунка части (по умолчанию 1)" },
+        "hit_radius": { "type": "number", "minimum": 1, "description": "Круг попадания, px (по умолчанию — половина толщины)" },
+        "under": { "type": "array", "items": { "$ref": "#/$defs/attachment" }, "description": "Детали позади рисунка части (щупальца головы)" },
+        "over": { "type": "array", "items": { "$ref": "#/$defs/attachment" }, "description": "Детали поверх рисунка части (прячут стык щупалец)" }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "required": ["sprite_id"],
+      "description": "Слой-деталь на полном холсте рига, едет вместе с частью; с pivot и sway качается вокруг точки крепления",
+      "properties": {
+        "sprite_id": { "type": "string" },
+        "pivot": { "type": "object", "required": ["x", "y"], "description": "Точка крепления на холсте", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "sway": { "type": "number", "minimum": 0, "description": "Амплитуда качания, рад" },
+        "speed": { "type": "number", "description": "Скорость качания, рад/с" },
+        "phase": { "type": "number", "description": "Сдвиг фазы, рад" }
       }
     }
   }

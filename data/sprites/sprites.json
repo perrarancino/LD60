@@ -973,6 +973,227 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "boss_worm_head",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Head.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_body",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Layer_2.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l_base",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L_base.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r_base",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R_base.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l1",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L1.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r1",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R1.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l2",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L2.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r2",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R2.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_mid_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_mid_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l1_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L1_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r1_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R1_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_l2_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_L2_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_worm_tent_r2_up",
+      "category": "bosses",
+      "image": "bosses/boss_textalite_layers/Tent_R2_up.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

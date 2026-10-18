@@ -1,0 +1,158 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "worm_boss_rig",
+  "description": "Босс-червь из слоёв boss_textalite.aseprite (холст 128x384, части нарисованы вертикально: верх = вперёд): голова с рогами (Head), звено тела (Layer 2; хвост — то же звено поменьше), щупальца головы (Tent_*: качаются вокруг точки крепления, лежат позади головы) и их «шапки» (Tent_*_up: поверх головы, прячут стык). Голова = рисунок + щупальца на общем холсте; центр головы и звена — точки, вокруг которых они вращаются по следу. Длина: голова + звенья + хвост. Летает (блок flight), у каждой части своё здоровье (блок health).",
+  "canvas": {
+    "width": 128,
+    "height": 384
+  },
+  "anchor": {
+    "x": 64,
+    "y": 104
+  },
+  "segmented": {
+    "thickness": 46,
+    "length_min": 10,
+    "length_max": 10,
+    "head": {
+      "sprite_id": "boss_worm_head",
+      "center": {
+        "x": 64,
+        "y": 103.5
+      },
+      "scale": 0.5,
+      "hit_radius": 28,
+      "under": [
+        {
+          "sprite_id": "boss_worm_tent_l_base"
+        },
+        {
+          "sprite_id": "boss_worm_tent_r_base"
+        },
+        {
+          "sprite_id": "boss_worm_tent_l",
+          "pivot": {
+            "x": 18.5,
+            "y": 128
+          },
+          "sway": 0.16,
+          "speed": 2.1,
+          "phase": 0.0
+        },
+        {
+          "sprite_id": "boss_worm_tent_r",
+          "pivot": {
+            "x": 108.5,
+            "y": 128
+          },
+          "sway": 0.16,
+          "speed": 2.1,
+          "phase": 1.9
+        },
+        {
+          "sprite_id": "boss_worm_tent_l1",
+          "pivot": {
+            "x": 24.5,
+            "y": 158
+          },
+          "sway": 0.2,
+          "speed": 3.0,
+          "phase": 0.8
+        },
+        {
+          "sprite_id": "boss_worm_tent_r1",
+          "pivot": {
+            "x": 102.5,
+            "y": 158
+          },
+          "sway": 0.2,
+          "speed": 3.0,
+          "phase": 2.6
+        },
+        {
+          "sprite_id": "boss_worm_tent_l2",
+          "pivot": {
+            "x": 22,
+            "y": 139
+          },
+          "sway": 0.18,
+          "speed": 2.6,
+          "phase": 1.6
+        },
+        {
+          "sprite_id": "boss_worm_tent_r2",
+          "pivot": {
+            "x": 105,
+            "y": 139
+          },
+          "sway": 0.18,
+          "speed": 2.6,
+          "phase": 0.4
+        }
+      ],
+      "over": [
+        {
+          "sprite_id": "boss_worm_tent_mid_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_l_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_r_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_l1_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_r1_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_l2_up"
+        },
+        {
+          "sprite_id": "boss_worm_tent_r2_up"
+        }
+      ]
+    },
+    "body": {
+      "sprite_id": "boss_worm_body",
+      "center": {
+        "x": 64,
+        "y": 252
+      },
+      "scale": 0.42,
+      "hit_radius": 23
+    },
+    "tail": {
+      "sprite_id": "boss_worm_body",
+      "center": {
+        "x": 64,
+        "y": 252
+      },
+      "scale": 0.3,
+      "hit_radius": 14
+    },
+    "head_to_body": 72,
+    "body_to_body": 55,
+    "body_to_tail": 49,
+    "health": {
+      "head": 500,
+      "body": 150,
+      "tail": 200
+    },
+    "flight": {
+      "turn_rate": 1.7,
+      "pass_distance": 120,
+      "pass_time": [
+        1.1,
+        1.8
+      ],
+      "boost": 1.35,
+      "wave": {
+        "amp": 4,
+        "k": 0.045
+      }
+    }
+  },
+  "parts": []
+}

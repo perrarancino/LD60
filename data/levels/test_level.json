@@ -76,6 +76,13 @@
       "x": 12,
       "y": 8,
       "anchor_y": -2
+    },
+    {
+      "enemy_id": "worm_boss",
+      "sprite_id": "boss_worm_head",
+      "x": 20,
+      "y": 3,
+      "length": 10
     }
   ],
   "decor": [

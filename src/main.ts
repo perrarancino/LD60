@@ -8,8 +8,10 @@ import { Particles } from './effects/Particles.ts';
 import { ColorGrade } from './effects/ColorGrade.ts';
 import { Lighting } from './effects/Lighting.ts';
 import { PUNCH_FX, SMOKE_FX, SpriteEffects } from './effects/SpriteEffects.ts';
+import { isPartDamageable } from './entities/Hittable.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
+import { WormBoss } from './entities/WormBoss.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
@@ -77,6 +79,7 @@ class GameApp {
   private spiders: Spider[] = [];
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
+  private bosses: WormBoss[] = [];
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
   private grade: ColorGrade | null = null; // цветокоррекция уровня
@@ -319,6 +322,18 @@ class GameApp {
         this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
         continue;
       }
+      if (def.behavior_type === 'flying_worm') {
+        // Босс-червь: летает сквозь тайлы за героем, рисуется под тайлами (часть тела в блоках скрыта маской)
+        const rig = RIGS.find((r) => r.id === def.rig_id);
+        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const boss = new WormBoss(def, spawn, this.level, rig, this.sprites, () => {
+          const b = this.player.body;
+          return { x: b.x, y: b.y - 30 };
+        });
+        this.bosses.push(boss);
+        this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
+        continue;
+      }
       if (def.behavior_type === 'burrower') {
         // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
         const rig = RIGS.find((r) => r.id === def.rig_id);
@@ -326,7 +341,6 @@ class GameApp {
         const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
-        this.track(worm, def.stats.max_health, worm.container, () => this.worms.splice(this.worms.indexOf(worm), 1));
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
@@ -352,7 +366,7 @@ class GameApp {
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
-    () => [...this.spiders, ...this.worms, ...this.mothers].map((e) => e.container)); // мобы со светящимися пикселями сами светят
+    () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
     this.sceneLayer.addChild(this.lighting.container);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
@@ -371,6 +385,7 @@ class GameApp {
     yield* this.spiders;
     yield* this.worms;
     yield* this.mothers;
+    yield* this.bosses;
   }
 
   /**
@@ -386,14 +401,14 @@ class GameApp {
     }
     const ax = strike.x1 + (strike.x2 - strike.x1) * FORE_ARM_START;
     const ay = strike.y1 + (strike.y2 - strike.y1) * FORE_ARM_START;
-    for (const target of this.hittables()) {
+    for (const target of [...this.hittables()]) { // копия: попадание может выбить часть или убить цель — списки меняются на ходу
       if (this.punchHits.has(target)) continue;
       const contact = this.strikeContact(strike, ax, ay, target);
       if (!contact) continue;
       this.punchHits.add(target);
-      target.onHit(strike.dirX, strike.dirY);
+      target.onHit(strike.dirX, strike.dirY, contact.part);
       this.landPunch(contact.x, contact.y, strike);
-      this.damage(target, contact.x, contact.y, strike.dirX);
+      this.damage(target, contact.x, contact.y, strike.dirX, contact.part);
     }
   }
 
@@ -410,18 +425,36 @@ class GameApp {
   }
 
   /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона, стоп-кадр и тряска; при нуле — смерть. */
-  private damage(target: Hittable, x: number, y: number, dirX: number): void {
+  private damage(target: Hittable, x: number, y: number, dirX: number, part?: number): void {
     const mob = this.mobs.get(target);
-    if (!mob) return;
+    const byParts = isPartDamageable(target);
+    if (!mob && !byParts) return;
     const [lo, hi] = this.combat.punch_damage;
     const crit = Math.random() < (this.combat.crit_chance ?? 0);
     let dmg = lo + Math.floor(Math.random() * (hi - lo + 1));
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
-    mob.hp -= dmg;
     this.numbers.spawn(x, y - 6, dmg, crit, dirX);
     this.hitStop = Math.max(this.hitStop, crit ? CRIT_HIT_STOP : HIT_STOP);
     this.shake = Math.max(this.shake, crit ? CRIT_SHAKE : HIT_SHAKE);
-    if (mob.hp <= 0) this.kill(target, mob);
+    if (isPartDamageable(target)) {
+      // существо из частей (червь, босс): урон идёт в ту часть, в которую попали; выбитая часть исчезает, гибель головы — гибель всего
+      if (part !== undefined && target.damagePart(part, dmg) === 'dead') this.removeWhole(target);
+      return;
+    }
+    mob!.hp -= dmg;
+    if (mob!.hp <= 0) this.kill(target, mob!);
+  }
+
+  /** Погибло существо из частей: вычёркиваем из списков игры и убираем с экрана (эффекты смерти — позже). */
+  private removeWhole(target: Hittable): void {
+    const drop = <T>(list: T[], item: unknown) => {
+      const i = list.indexOf(item as T);
+      if (i >= 0) list.splice(i, 1);
+    };
+    const view = (target as unknown as { container: Container }).container;
+    drop(this.worms, target);
+    drop(this.bosses, target);
+    view.destroy({ children: true });
   }
 
   /** Смерть врага: он выходит из игры и исчезает (эффекты смерти — позже). */
@@ -457,13 +490,13 @@ class GameApp {
   }
 
   /** Точка касания кулака с ближайшим кругом цели (null — не достал). */
-  private strikeContact(strike: Strike, ax: number, ay: number, target: Hittable): { x: number; y: number } | null {
+  private strikeContact(strike: Strike, ax: number, ay: number, target: Hittable): { x: number; y: number; part?: number } | null {
     const bx = strike.x2;
     const by = strike.y2;
     const abx = bx - ax;
     const aby = by - ay;
     const len2 = abx * abx + aby * aby || 1;
-    let best: { x: number; y: number } | null = null;
+    let best: { x: number; y: number; part?: number } | null = null;
     let bestGap = 0;
     for (const c of target.hitCircles()) {
       const t = Math.max(0, Math.min(1, ((c.x - ax) * abx + (c.y - ay) * aby) / len2));
@@ -471,7 +504,7 @@ class GameApp {
       const py = ay + aby * t;
       const gap = Math.hypot(c.x - px, c.y - py) - c.r - FIST_RADIUS;
       if (gap > 0 || (best && gap >= bestGap)) continue;
-      best = { x: px, y: py };
+      best = { x: px, y: py, part: c.part };
       bestGap = gap;
     }
     return best;
@@ -540,7 +573,9 @@ class GameApp {
       ids.push(
         ...rig.parts.map((p) => p.sprite_id),
         ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? []),
-        ...(rig.segmented ? [rig.segmented.head.sprite_id, rig.segmented.body.sprite_id, rig.segmented.tail.sprite_id] : []),
+        ...(rig.segmented
+          ? [rig.segmented.head, rig.segmented.body, rig.segmented.tail].flatMap((s) => [s.sprite_id, ...[...(s.under ?? []), ...(s.over ?? [])].map((a) => a.sprite_id)])
+          : []),
         ...(rig.wobbler ? [rig.wobbler.sprite_id, ...(rig.wobbler.thread ? [rig.wobbler.thread.sprite_id] : []), ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
       );
     }
@@ -574,6 +609,7 @@ class GameApp {
     for (const spider of this.spiders) spider.update(dt);
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
+    for (const boss of this.bosses) boss.update(dt);
     this.resolveStrike();
     this.fx.update(dt);
     this.spriteFx.update(dt);

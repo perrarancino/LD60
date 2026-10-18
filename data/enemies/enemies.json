@@ -328,5 +328,32 @@
       "scrap_parts_max": 3,
       "drop_chance_percent": 80.0
     }
+  },
+  {
+    "id": "worm_boss",
+    "display_name": "Босс: Пожиратель плат (червь-летун)",
+    "lore": "Огромный фиолетовый червь с рогатой головой и дрожащими щупальцами. Летает сквозь плату и камень, как рыба в воде, делает петли и проносится мимо добычи. Тело — десяток звеньев; пока ни на кого не нападает.",
+    "sprite_variants": [
+      "boss_worm_head"
+    ],
+    "rig_id": "worm_boss_rig",
+    "stats": {
+      "max_health": 500,
+      "contact_damage": 0,
+      "movement_speed": 125.0
+    },
+    "behavior_type": "flying_worm",
+    "attack": {
+      "name": "Таран",
+      "damage": 0,
+      "cooldown_seconds": 0,
+      "range": 0,
+      "description": "Пока не наносит урона: только летает за героем и подставляет части тела под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 3,
+      "scrap_parts_max": 5,
+      "drop_chance_percent": 100.0
+    }
   }
 ]
