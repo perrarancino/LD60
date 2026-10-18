@@ -112,6 +112,9 @@
       <button class="tool-btn" data-tool="cable" title="Провода и шлейфы (C)">
         🔌<span class="hotkey">C</span>
       </button>
+      <button class="tool-btn" data-tool="decor" title="Декор и интерактивные объекты (Y)">
+        🖼️<span class="hotkey">Y</span>
+      </button>
       <button class="tool-btn" data-tool="select" title="Выделение и удаление сущностей (V)">
         🔍<span class="hotkey">V</span>
       </button>
@@ -304,8 +307,61 @@
         </div>
       </div>
 
-      <!-- Вкладка: Декор & Двери (Кабели, Шлюзы) -->
+      <!-- Вкладка: Декор & Двери (Кабели, Шлюзы, Объекты) -->
       <div id="tab-decor" class="tab-content">
+        <!-- Секция объектов декора и ассетов -->
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">КАТАЛОГ ДЕКОРА И ОБЪЕКТОВ (Y)</div>
+            <button id="btn-tool-decor" type="button" class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;">
+              🖼️ Режим [Y]
+            </button>
+          </div>
+          
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+            Кликните по спрайту, затем по карте для размещения.
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label" style="font-size: 11px;">Слой размещения (Layer):</label>
+            <select id="decor-layer-select" class="select-input" style="width: 100%;">
+              <option value="front">front — поверх тайлов (по умолчанию)</option>
+              <option value="back">back — за тайлами (задний план)</option>
+            </select>
+          </div>
+
+          <div id="palette-decor-list" class="palette-grid" style="max-height: 240px; overflow-y: auto;">
+            <!-- Заполняется динамически из sprites.json -->
+          </div>
+
+          <div id="selected-decor-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; margin-top: 10px;">
+            <div style="color: #38bdf8; font-weight: 700; margin-bottom: 4px;">Выбранный объект декора:</div>
+            <div id="selected-decor-desc" style="color: var(--text-muted); margin-bottom: 6px;"></div>
+            <div class="form-row" style="margin-bottom: 6px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 10px;">X (тайлы)</label>
+                <input id="decor-edit-x" type="number" step="0.5" class="text-input" style="width: 100%;" />
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 10px;">Y (тайлы)</label>
+                <input id="decor-edit-y" type="number" step="0.5" class="text-input" style="width: 100%;" />
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 10px;">Слой отрисовки</label>
+              <select id="decor-edit-layer" class="select-input" style="width: 100%;">
+                <option value="front">front (поверх тайлов)</option>
+                <option value="back">back (за тайлами)</option>
+              </select>
+            </div>
+            <button id="btn-delete-decor" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить выбранный декор
+            </button>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 14px 0;"></div>
+
         <!-- Секция кабелей -->
         <div style="margin-bottom: 16px;">
           <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПРОВОДА И ШЛЕЙФЫ (CABLE TOOL)</div>

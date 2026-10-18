@@ -113,21 +113,23 @@ export class Level {
             sprite.mask = mask;
             this.container.addChild(mask);
 
-            // Линия дорожки по диагонали
-            const edge = new Graphics();
-            edge.setStrokeStyle({ width: 2, color: 0x4ade80, alpha: 0.9 });
-            if (tile.slope === 'up_right') {
-              edge.moveTo(ox, oy + ts).lineTo(ox + ts, oy);
-            } else if (tile.slope === 'up_left') {
-              edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
-            } else if (tile.slope === 'ceil_right') {
-              edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
-            } else if (tile.slope === 'ceil_left') {
-              edge.moveTo(ox + ts, oy).lineTo(ox, oy + ts);
+            if (!tile.id.includes('step')) {
+              // Линия дорожки по диагонали
+              const edge = new Graphics();
+              edge.setStrokeStyle({ width: 2, color: 0x4ade80, alpha: 0.9 });
+              if (tile.slope === 'up_right') {
+                edge.moveTo(ox, oy + ts).lineTo(ox + ts, oy);
+              } else if (tile.slope === 'up_left') {
+                edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_right') {
+                edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_left') {
+                edge.moveTo(ox + ts, oy).lineTo(ox, oy + ts);
+              }
+              edge.stroke();
+              this.container.addChild(edge);
             }
-            edge.stroke();
             this.container.addChild(sprite);
-            this.container.addChild(edge);
           } else {
             this.container.addChild(sprite);
           }

@@ -78,6 +78,14 @@
       "sprite_id": "tile_tile1",
       "solid": true,
       "one_way": false
+    },
+    {
+      "id": "step",
+      "display_name": "Лестница / Ступени (step)",
+      "sprite_id": "tile_step",
+      "solid": true,
+      "one_way": false,
+      "slope": "up_right"
     }
   ]
 }

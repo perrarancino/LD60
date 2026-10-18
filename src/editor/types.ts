@@ -98,6 +98,13 @@ export interface CableDef {
   type?: 'sata' | 'power' | 'ide' | 'ground';
 }
 
+export interface DecorDef {
+  sprite_id: string;
+  x: number;
+  y: number;
+  layer?: 'back' | 'front';
+}
+
 export interface LevelDef {
   $schema?: string;
   id: string;
@@ -114,6 +121,7 @@ export interface LevelDef {
   cables?: CableDef[];
   rooms?: RoomDef[];
   spawn_zones?: MobSpawnZoneDef[];
+  decor?: DecorDef[];
 }
 
 export interface PlaytestState {
@@ -149,7 +157,7 @@ export interface BackgroundDef {
   layers: BackgroundLayerDef[];
 }
 
-export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move' | 'transition' | 'cable' | 'room' | 'passage' | 'walkability' | 'mob_zone' | 'boss_spawn' | 'bevel';
+export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move' | 'transition' | 'cable' | 'room' | 'passage' | 'walkability' | 'mob_zone' | 'boss_spawn' | 'bevel' | 'decor';
 
 export type ResizeDirection = 'top' | 'bottom' | 'left' | 'right';
 
@@ -172,7 +180,7 @@ export interface WorldLayoutDef {
 }
 
 export interface EntityDragState {
-  type: 'player' | 'enemy';
+  type: 'player' | 'enemy' | 'decor';
   index: number; // -1 для игрока
   startX: number;
   startY: number;

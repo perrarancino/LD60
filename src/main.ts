@@ -33,8 +33,12 @@ const LEVELS = Object.values(
 
 const urlParams = new URLSearchParams(window.location.search);
 const requestedLevel = urlParams.get('level');
-const activeLevelDef = (requestedLevel ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel)) : undefined)
-  ?? (LEVELS.find(l => l.id === 'test_level') || LEVELS[0]);
+const activeLevelDef = (requestedLevel
+  ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
+  : undefined) ?? (LEVELS.find(l => l.id === 'test_level') || LEVELS[0]);
+
+document.title = `${activeLevelDef.display_name} — LD60`;
+console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
 
 // Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
 const RIGS = Object.values(

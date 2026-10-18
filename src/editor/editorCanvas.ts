@@ -1,6 +1,6 @@
 import { GAME_CONFIG } from '../core/Constants';
 import type { AssetManager } from './assetManager';
-import type { BackgroundDef, CableDef, EnemyDef, EnemySpawnDef, EntityDragState, LevelDef, LevelTransitionDef, MobSpawnZoneDef, PlaytestState, ResizeDirection, RoomDef, TileDef, ToolType } from './types';
+import type { BackgroundDef, CableDef, DecorDef, EnemyDef, EnemySpawnDef, EntityDragState, LevelDef, LevelTransitionDef, MobSpawnZoneDef, PlaytestState, ResizeDirection, RoomDef, TileDef, ToolType } from './types';
 
 export interface EditorCallbacks {
   onHoverTile?: (x: number, y: number) => void;
@@ -9,6 +9,7 @@ export interface EditorCallbacks {
   onSelectCable?: (cable: CableDef | null, index: number) => void;
   onSelectRoom?: (room: RoomDef | null, index: number) => void;
   onSelectMobZone?: (zone: MobSpawnZoneDef | null, index: number) => void;
+  onSelectDecor?: (decor: DecorDef | null, index: number) => void;
   onToolChange?: (tool: ToolType) => void;
   onPlaytestToggle?: (active: boolean) => void;
   onLevelChanged?: () => void;
@@ -51,6 +52,9 @@ export class EditorCanvas {
   public selectedEnemyIndex: number = -1;
   public selectedTransitionIndex: number = -1;
   public selectedCableIndex: number = -1;
+  public selectedDecorSpriteId: string = 'deco_door_loc1';
+  public selectedDecorLayer: 'back' | 'front' = 'front';
+  public selectedDecorIndex: number = -1;
 
   // Комнаты (Room Tool)
   public roomStart: { x: number; y: number } | null = null;
@@ -128,6 +132,8 @@ export class EditorCanvas {
 
   public setLevel(level: LevelDef) {
     this.level = level;
+    if (this.level && !this.level.decor) this.level.decor = [];
+    this.selectedDecorIndex = -1;
     this.history = [];
     this.historyIndex = -1;
     this.saveStateToHistory();
@@ -174,6 +180,7 @@ export class EditorCanvas {
       cables: this.level.cables || [],
       rooms: this.level.rooms || [],
       spawn_zones: this.level.spawn_zones || [],
+      decor: this.level.decor || [],
       width: this.level.width,
       height: this.level.height
     });
@@ -202,6 +209,7 @@ export class EditorCanvas {
       this.level.cables = snapshot.cables || [];
       this.level.rooms = snapshot.rooms || [];
       this.level.spawn_zones = snapshot.spawn_zones || [];
+      this.level.decor = snapshot.decor || [];
       this.level.width = snapshot.width;
       this.level.height = snapshot.height;
       this.callbacks.onLevelChanged?.();
@@ -222,6 +230,7 @@ export class EditorCanvas {
       this.level.cables = snapshot.cables || [];
       this.level.rooms = snapshot.rooms || [];
       this.level.spawn_zones = snapshot.spawn_zones || [];
+      this.level.decor = snapshot.decor || [];
       this.level.width = snapshot.width;
       this.level.height = snapshot.height;
       this.callbacks.onLevelChanged?.();
@@ -517,6 +526,7 @@ export class EditorCanvas {
       if (this.level.cables) this.level.cables.forEach(c => { c.y1 += count * ts; c.y2 += count * ts; });
       if (this.level.rooms) this.level.rooms.forEach(r => (r.y += count));
       if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => (z.y += count));
+      if (this.level.decor) this.level.decor.forEach(d => (d.y += count));
       this.panY -= count * this.level.tile_size * this.zoom;
     } else if (direction === 'bottom') {
       for (let i = 0; i < count; i++) this.level.rows.push('.'.repeat(w));
@@ -531,6 +541,7 @@ export class EditorCanvas {
       if (this.level.cables) this.level.cables.forEach(c => { c.x1 += count * ts; c.x2 += count * ts; });
       if (this.level.rooms) this.level.rooms.forEach(r => (r.x += count));
       if (this.level.spawn_zones) this.level.spawn_zones.forEach(z => (z.x += count));
+      if (this.level.decor) this.level.decor.forEach(d => (d.x += count));
       this.panX -= count * this.level.tile_size * this.zoom;
     } else if (direction === 'right') {
       const suffix = '.'.repeat(count);
@@ -570,6 +581,10 @@ export class EditorCanvas {
       if (this.level.spawn_zones) {
         this.level.spawn_zones.forEach(z => (z.y -= count));
       }
+      if (this.level.decor) {
+        this.level.decor.forEach(d => (d.y -= count));
+        this.level.decor = this.level.decor.filter(d => d.y >= 0);
+      }
       this.panY += count * this.level.tile_size * this.zoom;
     } else if (direction === 'bottom') {
       if (h <= count) return;
@@ -579,6 +594,9 @@ export class EditorCanvas {
       this.level.enemies = this.level.enemies.filter(e => e.y < this.level!.height);
       if (this.level.transitions) {
         this.level.transitions = this.level.transitions.filter(t => t.y < this.level!.height);
+      }
+      if (this.level.decor) {
+        this.level.decor = this.level.decor.filter(d => d.y < this.level!.height);
       }
     } else if (direction === 'left') {
       if (w <= count) return;
@@ -600,6 +618,10 @@ export class EditorCanvas {
       if (this.level.spawn_zones) {
         this.level.spawn_zones.forEach(z => (z.x -= count));
       }
+      if (this.level.decor) {
+        this.level.decor.forEach(d => (d.x -= count));
+        this.level.decor = this.level.decor.filter(d => d.x >= 0);
+      }
       this.panX += count * this.level.tile_size * this.zoom;
     } else if (direction === 'right') {
       if (w <= count) return;
@@ -609,6 +631,9 @@ export class EditorCanvas {
       this.level.enemies = this.level.enemies.filter(e => e.x < this.level!.width);
       if (this.level.transitions) {
         this.level.transitions = this.level.transitions.filter(t => t.x < this.level!.width);
+      }
+      if (this.level.decor) {
+        this.level.decor = this.level.decor.filter(d => d.x < this.level!.width);
       }
     }
 
@@ -684,6 +709,14 @@ export class EditorCanvas {
         z.x += dx;
         z.y += dy;
       });
+    }
+
+    if (this.level.decor) {
+      this.level.decor.forEach(d => {
+        d.x += dx;
+        d.y += dy;
+      });
+      this.level.decor = this.level.decor.filter(d => d.x >= 0 && d.x < w && d.y >= 0 && d.y < h);
     }
 
     this.saveStateToHistory();
@@ -848,6 +881,54 @@ export class EditorCanvas {
         }
       }
 
+      // 7.5. Инструмент декора и объектов (Decor Tool)
+      if (this.activeTool === 'decor') {
+        if (e.button === 0 && this.level) {
+          this.level.decor = this.level.decor || [];
+          const ts = this.level.tile_size;
+
+          const hitIdx = this.level.decor.findIndex(d => {
+            const def = this.assets.getSpriteDef(d.sprite_id);
+            const fw = def?.frame_width ?? ts;
+            const fh = def?.frame_height ?? ts;
+            const ox = def?.origin?.x ?? 0.5;
+            const oy = def?.origin?.y ?? 1.0;
+            const left = d.x * ts - ox * fw;
+            const top = d.y * ts - oy * fh;
+            return world.x >= left && world.x <= left + fw && world.y >= top && world.y <= top + fh;
+          });
+
+          if (hitIdx !== -1) {
+            this.selectedDecorIndex = hitIdx;
+            this.callbacks.onSelectDecor?.(this.level.decor[hitIdx], hitIdx);
+            this.callbacks.onStatusMessage?.(`Выбран декор: ${this.level.decor[hitIdx].sprite_id}`);
+            this.render();
+            return;
+          }
+
+          const def = this.assets.getSpriteDef(this.selectedDecorSpriteId);
+          const ox = def?.origin?.x ?? 0.5;
+          const oy = def?.origin?.y ?? 1.0;
+          const posX = e.shiftKey ? Math.round((world.x / ts) * 10) / 10 : (tileX + (ox === 0.5 ? 0.5 : 0));
+          const posY = e.shiftKey ? Math.round((world.y / ts) * 10) / 10 : (tileY + (oy === 1.0 ? 1.0 : (oy === 0.5 ? 0.5 : 0)));
+
+          const newDecor: DecorDef = {
+            sprite_id: this.selectedDecorSpriteId,
+            x: posX,
+            y: posY,
+            layer: this.selectedDecorLayer
+          };
+          this.level.decor.push(newDecor);
+          this.selectedDecorIndex = this.level.decor.length - 1;
+          this.callbacks.onSelectDecor?.(newDecor, this.selectedDecorIndex);
+          this.saveStateToHistory();
+          this.callbacks.onLevelChanged?.();
+          this.callbacks.onStatusMessage?.(`Размещён декор: ${newDecor.sprite_id} (${posX}, ${posY})`);
+          this.render();
+          return;
+        }
+      }
+
       // 8. Инструмент проходов (Passage Tool)
       if (this.activeTool === 'passage') {
         if (e.button === 0 && this.level) {
@@ -965,6 +1046,37 @@ export class EditorCanvas {
               this.render();
               return;
             }
+          }
+        }
+
+        // Проверяем декор
+        if (this.level.decor) {
+          const ts = this.level.tile_size;
+          const decorIdx = this.level.decor.findIndex(d => {
+            const def = this.assets.getSpriteDef(d.sprite_id);
+            const fw = def?.frame_width ?? ts;
+            const fh = def?.frame_height ?? ts;
+            const ox = def?.origin?.x ?? 0.5;
+            const oy = def?.origin?.y ?? 1.0;
+            const left = d.x * ts - ox * fw;
+            const top = d.y * ts - oy * fh;
+            return world.x >= left && world.x <= left + fw && world.y >= top && world.y <= top + fh;
+          });
+          if (decorIdx !== -1) {
+            this.selectedDecorIndex = decorIdx;
+            this.callbacks.onSelectDecor?.(this.level.decor[decorIdx], decorIdx);
+            this.dragState = {
+              type: 'decor',
+              index: decorIdx,
+              startX: this.level.decor[decorIdx].x,
+              startY: this.level.decor[decorIdx].y,
+              currentX: this.level.decor[decorIdx].x,
+              currentY: this.level.decor[decorIdx].y
+            };
+            this.canvas.style.cursor = 'grabbing';
+            this.callbacks.onStatusMessage?.(`Выбран декор: ${this.level.decor[decorIdx].sprite_id}`);
+            this.render();
+            return;
           }
         }
       }
@@ -1086,6 +1198,15 @@ export class EditorCanvas {
             this.level.enemies[this.dragState.index].x = cx;
             this.level.enemies[this.dragState.index].y = cy;
             this.callbacks.onStatusMessage?.(`Враг перемещён в (${cx}, ${cy})`);
+          } else if (this.dragState.type === 'decor' && this.dragState.index >= 0 && this.level.decor) {
+            const dec = this.level.decor[this.dragState.index];
+            const def = this.assets.getSpriteDef(dec.sprite_id);
+            const ox = def?.origin?.x ?? 0.5;
+            const oy = def?.origin?.y ?? 1.0;
+            dec.x = cx + (ox === 0.5 ? 0.5 : 0);
+            dec.y = cy + (oy === 1.0 ? 1.0 : (oy === 0.5 ? 0.5 : 0));
+            this.callbacks.onSelectDecor?.(dec, this.dragState.index);
+            this.callbacks.onStatusMessage?.(`Декор перемещён в (${dec.x}, ${dec.y})`);
           }
           this.saveStateToHistory();
           this.callbacks.onLevelChanged?.();
@@ -1179,6 +1300,7 @@ export class EditorCanvas {
       if (e.key === 'v' || e.key === 'V') this.setTool('select');
       if (e.key === 'd' || e.key === 'D') this.setTool('transition');
       if (e.key === 'c' || e.key === 'C') this.setTool('cable');
+      if (e.key === 'y' || e.key === 'Y') this.setTool('decor');
       if (e.key === 'r' || e.key === 'R') this.setTool('room');
       if (e.key === 'w' || e.key === 'W') this.setTool('passage');
       if (e.key === 'q' || e.key === 'Q') this.setTool('walkability');
@@ -1641,7 +1763,20 @@ export class EditorCanvas {
       this.deleteSelectedRoom();
     } else if (this.selectedMobZoneIndex !== -1) {
       this.deleteSelectedMobZone();
+    } else if (this.selectedDecorIndex !== -1) {
+      this.deleteSelectedDecor();
     }
+  }
+
+  public deleteSelectedDecor() {
+    if (!this.level?.decor || this.selectedDecorIndex === -1) return;
+    const deleted = this.level.decor.splice(this.selectedDecorIndex, 1);
+    this.selectedDecorIndex = -1;
+    this.callbacks.onSelectDecor?.(null, -1);
+    this.callbacks.onLevelChanged?.();
+    this.saveStateToHistory();
+    this.callbacks.onStatusMessage?.(`Удалён декор ${deleted[0]?.sprite_id || ''}`);
+    this.render();
   }
 
   public deleteSelectedEnemy() {
@@ -2069,6 +2204,9 @@ export class EditorCanvas {
       ctx.fillRect(0, 0, levelPixelW, levelPixelH);
     }
 
+    // 1.5. Декор заднего плана (layer: 'back')
+    this.renderDecor(ctx, 'back');
+
     // 2. Отрисовка тайлов
     for (let cy = 0; cy < this.level.height; cy++) {
       const row = this.level.rows[cy];
@@ -2107,19 +2245,21 @@ export class EditorCanvas {
               ctx.restore();
 
               // Зеленая дорожка на скосе
-              ctx.strokeStyle = '#4ade80';
-              ctx.lineWidth = 2 / this.zoom;
-              ctx.beginPath();
-              if (tile.slope === 'up_right') {
-                ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy);
-              } else if (tile.slope === 'up_left') {
-                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
-              } else if (tile.slope === 'ceil_right') {
-                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
-              } else if (tile.slope === 'ceil_left') {
-                ctx.moveTo(ox + ts, oy); ctx.lineTo(ox, oy + ts);
+              if (!tile.id.includes('step')) {
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 2 / this.zoom;
+                ctx.beginPath();
+                if (tile.slope === 'up_right') {
+                  ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy);
+                } else if (tile.slope === 'up_left') {
+                  ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
+                } else if (tile.slope === 'ceil_right') {
+                  ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
+                } else if (tile.slope === 'ceil_left') {
+                  ctx.moveTo(ox + ts, oy); ctx.lineTo(ox, oy + ts);
+                }
+                ctx.stroke();
               }
-              ctx.stroke();
             } else {
               this.assets.drawSprite(ctx, tile.sprite_id, cx * ts, cy * ts, 0, ts, ts);
             }
@@ -2156,6 +2296,9 @@ export class EditorCanvas {
         }
       }
     }
+
+    // 2.5. Декор переднего плана (layer: 'front')
+    this.renderDecor(ctx, 'front');
 
     // 3. Переходы и шлюзы (Transitions)
     this.renderTransitions(ctx);
@@ -2294,6 +2437,22 @@ export class EditorCanvas {
         ctx.font = 'bold 8px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('MOVE ENEMY', (gx + 0.5) * ts, gy * ts - 1);
+      } else if (this.dragState.type === 'decor' && this.dragState.index >= 0 && this.level.decor) {
+        const dec = this.level.decor[this.dragState.index];
+        const def = this.assets.getSpriteDef(dec.sprite_id);
+        const fw = def?.frame_width ?? ts;
+        const fh = def?.frame_height ?? ts;
+        const ox = def?.origin?.x ?? 0.5;
+        const oy = def?.origin?.y ?? 1.0;
+        const drawX = Math.round((gx + (ox === 0.5 ? 0.5 : 0)) * ts - ox * fw);
+        const drawY = Math.round((gy + (oy === 1.0 ? 1.0 : (oy === 0.5 ? 0.5 : 0))) * ts - oy * fh);
+        this.assets.drawSprite(ctx, dec.sprite_id, drawX, drawY, 0, fw, fh);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(drawX, drawY - 12, Math.max(64, dec.sprite_id.length * 6), 11);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`MOVE ${dec.sprite_id}`, drawX + 2, drawY - 3);
       }
     }
 
@@ -2482,6 +2641,23 @@ export class EditorCanvas {
           ctx.fillRect(hx, hy, ts, ts * 2);
           ctx.strokeStyle = '#38bdf8';
           ctx.strokeRect(hx, hy, ts, ts * 2);
+        } else if (this.activeTool === 'decor' && this.selectedDecorSpriteId) {
+          const def = this.assets.getSpriteDef(this.selectedDecorSpriteId);
+          const fw = def?.frame_width ?? ts;
+          const fh = def?.frame_height ?? ts;
+          const ox = def?.origin?.x ?? 0.5;
+          const oy = def?.origin?.y ?? 1.0;
+          const posX = this.hoveredTileX + (ox === 0.5 ? 0.5 : 0);
+          const posY = this.hoveredTileY + (oy === 1.0 ? 1.0 : (oy === 0.5 ? 0.5 : 0));
+          const drawX = Math.round(posX * ts - ox * fw);
+          const drawY = Math.round(posY * ts - oy * fh);
+          ctx.save();
+          ctx.globalAlpha = 0.6;
+          this.assets.drawSprite(ctx, this.selectedDecorSpriteId, drawX, drawY, 0, fw, fh);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(drawX, drawY, fw, fh);
+          ctx.restore();
         }
 
         ctx.strokeStyle = '#38bdf8';
@@ -2713,6 +2889,47 @@ export class EditorCanvas {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  // --- Отрисовка декора и интерактивных объектов (Decor) ---
+  private renderDecor(ctx: CanvasRenderingContext2D, targetLayer: 'back' | 'front') {
+    if (!this.level?.decor || this.level.decor.length === 0) return;
+    const ts = this.level.tile_size;
+
+    this.level.decor.forEach((d, idx) => {
+      const isBack = d.layer === 'back';
+      if ((targetLayer === 'back' && !isBack) || (targetLayer === 'front' && isBack)) return;
+
+      const def = this.assets.getSpriteDef(d.sprite_id);
+      const fw = def?.frame_width ?? ts;
+      const fh = def?.frame_height ?? ts;
+      const ox = def?.origin?.x ?? 0.5;
+      const oy = def?.origin?.y ?? 1.0;
+
+      const drawX = Math.round(d.x * ts - ox * fw);
+      const drawY = Math.round(d.y * ts - oy * fh);
+
+      this.assets.drawSprite(ctx, d.sprite_id, drawX, drawY, 0, fw, fh);
+
+      if (this.selectedDecorIndex === idx) {
+        ctx.save();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.setLineDash([4 / this.zoom, 2 / this.zoom]);
+        ctx.strokeRect(drawX - 2, drawY - 2, fw + 4, fh + 4);
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#0284c7';
+        const labelText = `${d.sprite_id} (${d.layer || 'front'})`;
+        const badgeW = Math.max(64, labelText.length * 6);
+        ctx.fillRect(drawX - 2, drawY - 14, badgeW, 12);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(labelText, drawX, drawY - 5);
+        ctx.restore();
+      }
+    });
   }
 
   // --- Отрисовка переходов между уровнями (Transitions) ---

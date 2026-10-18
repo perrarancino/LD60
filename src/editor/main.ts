@@ -1,6 +1,6 @@
 import { AssetManager } from './assetManager';
 import { EditorCanvas } from './editorCanvas';
-import type { BackgroundDef, CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, MobSpawnZoneDef, RoomDef, TileDef, ToolType } from './types';
+import type { BackgroundDef, CableDef, DecorDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, MobSpawnZoneDef, RoomDef, TileDef, ToolType } from './types';
 import { WorldGraphModal } from './worldGraph';
 
 class EditorApp {
@@ -18,6 +18,7 @@ class EditorApp {
       onSelectEnemy: (enemy, idx) => this.updateSelectedEnemy(enemy, idx),
       onSelectTransition: (trans, idx) => this.updateSelectedTransition(trans, idx),
       onSelectCable: (cable, idx) => this.updateSelectedCable(cable, idx),
+      onSelectDecor: (decor, idx) => this.updateSelectedDecor(decor, idx),
       onSelectRoom: (room, idx) => this.updateSelectedRoom(room, idx),
       onSelectMobZone: (zone, idx) => this.updateSelectedMobZone(zone, idx),
       onToolChange: (tool) => {
@@ -25,6 +26,9 @@ class EditorApp {
           const t = (btn as HTMLElement).dataset.tool;
           btn.classList.toggle('active', t === tool);
         });
+        if (tool === 'decor') {
+          this.activateTab('tab-decor-btn', 'tab-decor');
+        }
       },
       onPlaytestToggle: (active) => this.updatePlaytestUI(active),
       onLevelChanged: () => {
@@ -70,6 +74,7 @@ class EditorApp {
       this.populateTilePalette();
       this.populateEnemyPalette();
       this.populateBossPalette();
+      this.populateDecorPalette();
       this.populateZoneEnemyDropdown();
       this.populateBackgroundDropdowns();
       this.populateWorldRegions();
@@ -890,6 +895,80 @@ class EditorApp {
     }
   }
 
+  private populateDecorPalette() {
+    const container = document.getElementById('palette-decor-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const allSprites = this.assets.getAllSprites();
+    // Фильтруем спрайты декора, предметов, эффектов и интерфейса
+    const decorSprites = allSprites.filter(s =>
+      s.category === 'decor' ||
+      s.category === 'items' ||
+      s.category === 'effects' ||
+      s.category === 'ui' ||
+      s.id.startsWith('deco_') ||
+      s.id.startsWith('item_') ||
+      s.id.startsWith('fx_') ||
+      s.id.startsWith('ui_')
+    );
+
+    // Сортируем: сначала decor, затем items, затем effects, затем ui/остальные
+    decorSprites.sort((a, b) => {
+      const order = (cat: string) => (cat === 'decor' ? 1 : cat === 'items' ? 2 : cat === 'effects' ? 3 : 4);
+      const catA = order(a.category);
+      const catB = order(b.category);
+      if (catA !== catB) return catA - catB;
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const sprite of decorSprites) {
+      const item = document.createElement('div');
+      item.className = 'palette-item';
+      item.dataset.spriteId = sprite.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'palette-item-thumb';
+      thumb.style.display = 'flex';
+      thumb.style.alignItems = 'center';
+      thumb.style.justifyContent = 'center';
+      thumb.style.padding = '2px';
+
+      const img = document.createElement('img');
+      img.src = `/ld60-assets/${sprite.image}`;
+      img.style.maxWidth = '100%';
+      img.style.maxHeight = '100%';
+      img.style.objectFit = 'contain';
+      img.style.imageRendering = 'pixelated';
+      thumb.appendChild(img);
+
+      const label = document.createElement('div');
+      label.className = 'palette-item-label';
+      label.textContent = sprite.id.replace(/^(deco_|item_|fx_|ui_)/, '');
+      label.title = `${sprite.id} (${sprite.frame_width}×${sprite.frame_height}px) [${sprite.category}]`;
+
+      item.appendChild(thumb);
+      item.appendChild(label);
+
+      item.addEventListener('click', () => {
+        container.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+        this.canvas.selectedDecorSpriteId = sprite.id;
+        this.setTool('decor');
+        this.setStatus(`🖼️ Выбран декор: ${sprite.id} (${sprite.frame_width}×${sprite.frame_height}px). Кликните по карте.`);
+      });
+
+      container.appendChild(item);
+    }
+
+    if (decorSprites.length > 0) {
+      const initialId = this.canvas.selectedDecorSpriteId || decorSprites[0].id;
+      this.canvas.selectedDecorSpriteId = initialId;
+      const firstItem = container.querySelector(`[data-sprite-id="${initialId}"]`) || container.querySelector('.palette-item');
+      firstItem?.classList.add('active');
+    }
+  }
+
   private populateZoneEnemyDropdown() {
     const select = document.getElementById('zone-enemy-select') as HTMLSelectElement;
     if (!select || !this.config?.enemies) return;
@@ -985,6 +1064,9 @@ class EditorApp {
       const t = (btn as HTMLElement).dataset.tool;
       btn.classList.toggle('active', t === tool);
     });
+    if (tool === 'decor') {
+      this.activateTab('tab-decor-btn', 'tab-decor');
+    }
   }
 
   private updateSelectedEnemy(enemy: EnemySpawnDef | null, _idx: number) {
@@ -1053,6 +1135,32 @@ class EditorApp {
       this.activateTab('tab-decor-btn', 'tab-decor');
     } else {
       box.style.display = 'none';
+    }
+  }
+
+  private updateSelectedDecor(decor: DecorDef | null, idx: number) {
+    const panel = document.getElementById('selected-decor-panel');
+    const desc = document.getElementById('selected-decor-desc');
+    const inputX = document.getElementById('decor-edit-x') as HTMLInputElement;
+    const inputY = document.getElementById('decor-edit-y') as HTMLInputElement;
+    const selectLayer = document.getElementById('decor-edit-layer') as HTMLSelectElement;
+
+    if (!panel) return;
+
+    if (decor) {
+      panel.style.display = 'block';
+      if (desc) {
+        const sDef = this.assets.getSpriteDef(decor.sprite_id);
+        const sizeStr = sDef ? ` (${sDef.frame_width}×${sDef.frame_height}px)` : '';
+        desc.textContent = `#${idx + 1}: ${decor.sprite_id}${sizeStr} [слой: ${decor.layer || 'front'}]`;
+      }
+      if (inputX) inputX.value = decor.x.toString();
+      if (inputY) inputY.value = decor.y.toString();
+      if (selectLayer) selectLayer.value = decor.layer || 'front';
+
+      this.activateTab('tab-decor-btn', 'tab-decor');
+    } else {
+      panel.style.display = 'none';
     }
   }
 
@@ -1404,6 +1512,58 @@ class EditorApp {
 
     document.getElementById('btn-delete-cable')?.addEventListener('click', () => {
       this.canvas.deleteSelectedCable();
+    });
+
+    // Инструменты декора и инспектора
+    document.getElementById('btn-tool-decor')?.addEventListener('click', () => {
+      this.setTool('decor');
+      this.setStatus('🖼️ Режим декора (Y). Выберите спрайт из палитры и кликните на карте.');
+    });
+
+    const decorLayerSelect = document.getElementById('decor-layer-select') as HTMLSelectElement;
+    decorLayerSelect?.addEventListener('change', () => {
+      const layer = decorLayerSelect.value === 'back' ? 'back' : 'front';
+      this.canvas.selectedDecorLayer = layer;
+      this.setStatus(`Слой нового декора: ${layer}`);
+    });
+
+    const inputDecorX = document.getElementById('decor-edit-x') as HTMLInputElement;
+    inputDecorX?.addEventListener('change', () => {
+      if (this.canvas.selectedDecorIndex !== -1 && this.canvas.level?.decor?.[this.canvas.selectedDecorIndex]) {
+        const val = parseFloat(inputDecorX.value);
+        if (!isNaN(val)) {
+          this.canvas.level.decor[this.canvas.selectedDecorIndex].x = val;
+          this.canvas.saveStateToHistory();
+          this.canvas.render();
+        }
+      }
+    });
+
+    const inputDecorY = document.getElementById('decor-edit-y') as HTMLInputElement;
+    inputDecorY?.addEventListener('change', () => {
+      if (this.canvas.selectedDecorIndex !== -1 && this.canvas.level?.decor?.[this.canvas.selectedDecorIndex]) {
+        const val = parseFloat(inputDecorY.value);
+        if (!isNaN(val)) {
+          this.canvas.level.decor[this.canvas.selectedDecorIndex].y = val;
+          this.canvas.saveStateToHistory();
+          this.canvas.render();
+        }
+      }
+    });
+
+    const selectDecorLayer = document.getElementById('decor-edit-layer') as HTMLSelectElement;
+    selectDecorLayer?.addEventListener('change', () => {
+      if (this.canvas.selectedDecorIndex !== -1 && this.canvas.level?.decor?.[this.canvas.selectedDecorIndex]) {
+        const layer = selectDecorLayer.value === 'back' ? 'back' : 'front';
+        this.canvas.level.decor[this.canvas.selectedDecorIndex].layer = layer;
+        this.canvas.saveStateToHistory();
+        this.canvas.render();
+        this.updateSelectedDecor(this.canvas.level.decor[this.canvas.selectedDecorIndex], this.canvas.selectedDecorIndex);
+      }
+    });
+
+    document.getElementById('btn-delete-decor')?.addEventListener('click', () => {
+      this.canvas.deleteSelectedDecor();
     });
 
     // Редактирование и удаление перехода (шлюза)
