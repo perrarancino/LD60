@@ -1,0 +1,57 @@
+{
+  "source": "vorobei.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Nogi",
+      "file": "vorobei_layers/Nogi.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        27,
+        51,
+        49,
+        64
+      ]
+    },
+    {
+      "name": "Torso",
+      "file": "vorobei_layers/Torso.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        11,
+        24,
+        52,
+        57
+      ]
+    },
+    {
+      "name": "Krilo",
+      "file": "vorobei_layers/Krilo.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        34,
+        25,
+        59,
+        56
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "vorobei_layers/Head.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        14,
+        2,
+        48,
+        30
+      ]
+    }
+  ]
+}

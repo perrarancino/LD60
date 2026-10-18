@@ -78,7 +78,15 @@ export class Level {
         this.solid[cy][cx] = !!tile?.solid;
         this.slopes[cy][cx] = tile?.slope;
 
-        if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx] && !tile.slope) {
+        if (tile && (tile.top_frames || tile.fill_frames) && !tile.slope) {
+          // Лист вариантов (textalite): сверху — кадры верхнего слоя, в толще — кадры заливки; вариант выбирается по клетке, всегда один и тот же
+          const under = cy > 0 && this.solid[cy - 1][cx];
+          const pool = (under ? tile.fill_frames : tile.top_frames) ?? tile.top_frames ?? tile.fill_frames!;
+          const frame = pool[(((cx * 73856093) ^ (cy * 19349663)) >>> 0) % pool.length];
+          const sprite = sprites.createSprite(tile.sprite_id, frame);
+          sprite.position.set(cx * this.tileSize, cy * this.tileSize);
+          this.container.addChild(sprite);
+        } else if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx] && !tile.slope) {
           // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
           const fill = sprites.createSprite(tile.fill_sprite_id);
           fill.position.set(cx * this.tileSize, cy * this.tileSize);

@@ -99,6 +99,10 @@ for rig in rigs.values():
                       f"риг {rig['id']}: {what}: слой {sid} другого размера, чем холст")
         if wob.get("thread"):
             check(wob["thread"]["sprite_id"] in sprites, f"риг {rig['id']}: нитка: нет спрайта {wob['thread']['sprite_id']}")
+    crit = rig.get("critter")
+    if crit:
+        for cp in crit["parts"]:
+            check(cp["sprite_id"] in sprites, f"риг {rig['id']}: деталь {cp['name']}: нет спрайта {cp['sprite_id']}")
     seg = rig.get("segmented")
     if seg:
         for key in ("head", "body", "tail"):

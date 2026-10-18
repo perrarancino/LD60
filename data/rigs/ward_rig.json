@@ -1,0 +1,73 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "ward_rig",
+  "description": "Страж (ward) из слоёв ward.aseprite (32x32): неподвижный глаз-гриб. Ножка слегка качается, шляпка с глазом парит и наклоняется вслед за героем.",
+  "canvas": {
+    "width": 32,
+    "height": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 32
+  },
+  "critter": {
+    "kind": "watcher",
+    "draw_facing": -1,
+    "stride": 0.1,
+    "sight": 220,
+    "hit": [
+      {
+        "x": 16,
+        "y": 12,
+        "r": 11
+      },
+      {
+        "x": 16,
+        "y": 24,
+        "r": 6
+      }
+    ],
+    "parts": [
+      {
+        "name": "Layer 1",
+        "sprite_id": "enemy_ward_stalk",
+        "pivot": {
+          "x": 16,
+          "y": 30
+        },
+        "anims": [
+          {
+            "type": "swing",
+            "amp": 0.04,
+            "rate": 1.3,
+            "phase": 0.0,
+            "always": true
+          }
+        ]
+      },
+      {
+        "name": "Layer 2",
+        "sprite_id": "enemy_ward_head",
+        "pivot": {
+          "x": 16,
+          "y": 19
+        },
+        "anims": [
+          {
+            "type": "track",
+            "amp": 0.22,
+            "rate": 1.0,
+            "phase": 0.0
+          },
+          {
+            "type": "bob",
+            "amp": 1.4,
+            "rate": 2.0,
+            "phase": 0.0
+          }
+        ]
+      }
+    ]
+  },
+  "parts": []
+}

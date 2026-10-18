@@ -12,6 +12,8 @@ import { isPartDamageable } from './entities/Hittable.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { WormBoss } from './entities/WormBoss.ts';
+import { Critter } from './entities/Critter.ts';
+import { Humanoid } from './entities/Humanoid.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
@@ -98,6 +100,7 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private bosses: WormBoss[] = [];
+  private critters: Array<Critter | Humanoid> = []; // мелкие мобы второй локации: крыса, воробей, птичка, страж, чубрик
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
   private grade: ColorGrade | null = null; // цветокоррекция уровня
@@ -190,6 +193,15 @@ class GameApp {
       if (e.key === 'F1') {
         e.preventDefault();
         window.location.href = './editor.html';
+      }
+      // Отладка: клавиши 1–4 переключают уровень (у уровня в JSON задан debug_key)
+      if (/^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const next = LEVELS.find((l) => l.debug_key === Number(e.key));
+        if (next && next.id !== activeLevelDef.id) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('level', next.id);
+          window.location.href = url.toString();
+        }
       }
     });
 
@@ -424,6 +436,22 @@ class GameApp {
         this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
         continue;
       }
+      if (def.behavior_type === 'critter' || def.behavior_type === 'humanoid') {
+        // Мелкие мобы второй локации: ходят, скачут, летают, следят за героем
+        const rig = RIGS.find((r) => r.id === def.rig_id);
+        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const hero = () => {
+          const b = this.player.body;
+          return { x: b.x, y: b.y };
+        };
+        const mob = def.behavior_type === 'humanoid'
+          ? new Humanoid(def, spawn, this.level, rig, this.sprites, hero, this.fx)
+          : new Critter(def, spawn, this.level, rig, this.sprites, hero);
+        this.critters.push(mob);
+        this.worldLayer.addChild(mob.container);
+        this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
+        continue;
+      }
       if (def.behavior_type === 'burrower') {
         // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
         const rig = RIGS.find((r) => r.id === def.rig_id);
@@ -487,6 +515,7 @@ class GameApp {
     yield* this.worms;
     yield* this.mothers;
     yield* this.bosses;
+    yield* this.critters;
   }
 
   /**
@@ -715,7 +744,8 @@ class GameApp {
     const ids: string[] = [...(spriteId ? [spriteId] : []), ...def.sprite_variants];
     if (rig) {
       ids.push(
-        ...rig.parts.map((p) => p.sprite_id),
+        ...rig.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
+        ...(rig.critter?.parts.map((p) => p.sprite_id) ?? []),
         ...(rig.crawler?.legs.flatMap((l) => [l.upper_sprite_id, l.lower_sprite_id]) ?? []),
         ...(rig.segmented
           ? [rig.segmented.head, rig.segmented.body, rig.segmented.tail].flatMap((s) => [s.sprite_id, ...[...(s.under ?? []), ...(s.over ?? [])].map((a) => a.sprite_id)])
@@ -773,6 +803,7 @@ class GameApp {
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
     for (const boss of this.bosses) boss.update(dt);
+    for (const mob of this.critters) mob.update(dt);
     this.resolveStrike();
     this.checkSpeedCollision(dt);
     this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });

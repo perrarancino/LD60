@@ -1363,6 +1363,329 @@
         "y": 0.5
       },
       "animations": {}
+    },
+    {
+      "id": "tile_textalite",
+      "category": "tiles",
+      "image": "tiles/tilemap_textalite.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 10,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_electro_rat",
+      "category": "enemies",
+      "image": "enemies/electro_rat.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 1,
+        "offset_y": 34,
+        "width": 60,
+        "height": 29
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_electro_rat_torso",
+      "category": "enemies",
+      "image": "enemies/electro_rat_layers/Torso.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_electro_rat_leg1",
+      "category": "enemies",
+      "image": "enemies/electro_rat_layers/leg1.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_electro_rat_leg2",
+      "category": "enemies",
+      "image": "enemies/electro_rat_layers/leg2.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_electro_rat_tail",
+      "category": "enemies",
+      "image": "enemies/electro_rat_layers/Hvost.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_vorobei",
+      "category": "enemies",
+      "image": "enemies/vorobei.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 13,
+        "offset_y": 26,
+        "width": 38,
+        "height": 38
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_vorobei_nogi",
+      "category": "enemies",
+      "image": "enemies/vorobei_layers/Nogi.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_vorobei_torso",
+      "category": "enemies",
+      "image": "enemies/vorobei_layers/Torso.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_vorobei_krilo",
+      "category": "enemies",
+      "image": "enemies/vorobei_layers/Krilo.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_vorobei_head",
+      "category": "enemies",
+      "image": "enemies/vorobei_layers/Head.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_ptichka",
+      "category": "enemies",
+      "image": "enemies/ptichka.png",
+      "frame_width": 16,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_ward",
+      "category": "enemies",
+      "image": "enemies/ward.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 5,
+        "offset_y": 5,
+        "width": 24,
+        "height": 25
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_ward_stalk",
+      "category": "enemies",
+      "image": "enemies/ward_layers/Layer_1.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_ward_head",
+      "category": "enemies",
+      "image": "enemies/ward_layers/Layer_2.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char",
+      "category": "enemies",
+      "image": "enemies/loc2_char.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "hitbox": {
+        "offset_x": 21,
+        "offset_y": 5,
+        "width": 22,
+        "height": 58
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_lleg",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/LLeg.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_lhand",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/LHand.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_torso",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/Torso.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_head",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/Head.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_eyes",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/Eyes.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_rleg",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/RLeg.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_loc2_char_rhand",
+      "category": "enemies",
+      "image": "enemies/loc2_char_layers/RHand.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }

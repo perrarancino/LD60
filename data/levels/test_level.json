@@ -7,7 +7,7 @@
   "width": 30,
   "height": 16,
   "legend": {
-    "#": "platform_block",
+    "#": "textalite",
     ".": null
   },
   "rows": [
@@ -186,5 +186,6 @@
       0.05,
       0.0
     ]
-  }
+  },
+  "debug_key": 1
 }

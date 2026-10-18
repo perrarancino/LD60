@@ -1,0 +1,100 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "vorobei_rig",
+  "description": "Воробей из слоёв vorobei.aseprite (64x64, клюв влево): скачет по полу прыжками, в воздухе машет крылом, на земле клюёт головой; от героя отскакивает. Лапы подбираются в прыжке.",
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "critter": {
+    "kind": "hopper",
+    "draw_facing": -1,
+    "stride": 0.1,
+    "sight": 110,
+    "hit": [
+      {
+        "x": 32,
+        "y": 42,
+        "r": 21
+      }
+    ],
+    "parts": [
+      {
+        "name": "Nogi",
+        "sprite_id": "enemy_vorobei_nogi",
+        "pivot": {
+          "x": 38,
+          "y": 52
+        },
+        "anims": [
+          {
+            "type": "step",
+            "amp": 2.0,
+            "rate": 1.0,
+            "phase": 0.0,
+            "lift": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Torso",
+        "sprite_id": "enemy_vorobei_torso",
+        "pivot": {
+          "x": 32,
+          "y": 44
+        },
+        "anims": [
+          {
+            "type": "bounce",
+            "amp": 1.0,
+            "rate": 1.0,
+            "phase": 0.0
+          }
+        ]
+      },
+      {
+        "name": "Krilo",
+        "sprite_id": "enemy_vorobei_krilo",
+        "pivot": {
+          "x": 38,
+          "y": 30
+        },
+        "anims": [
+          {
+            "type": "flap",
+            "amp": -0.55,
+            "rate": 24.0,
+            "phase": 0.0
+          }
+        ]
+      },
+      {
+        "name": "Head",
+        "sprite_id": "enemy_vorobei_head",
+        "pivot": {
+          "x": 36,
+          "y": 28
+        },
+        "anims": [
+          {
+            "type": "peck",
+            "amp": 0.34,
+            "rate": 3.4,
+            "phase": 0.0
+          },
+          {
+            "type": "bounce",
+            "amp": 1.0,
+            "rate": 1.0,
+            "phase": 0.0
+          }
+        ]
+      }
+    ]
+  },
+  "parts": []
+}

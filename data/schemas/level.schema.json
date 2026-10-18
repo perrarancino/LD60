@@ -7,6 +7,7 @@
   "properties": {
     "id": { "type": "string" },
     "display_name": { "type": "string" },
+    "debug_key": { "type": "integer", "minimum": 1, "maximum": 9, "description": "Отладка: клавиша 1–9 в игре переключает на этот уровень" },
     "background_id": { "type": "string", "description": "Id параллакс-фона из data/backgrounds/ (необязательно)" },
     "tile_size": { "type": "integer", "minimum": 1 },
     "width": { "type": "integer", "minimum": 1, "description": "Ширина в тайлах (длина каждой строки rows)" },

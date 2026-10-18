@@ -1,0 +1,93 @@
+{
+  "source": "loc2_char.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "LLeg",
+      "file": "loc2_char_layers/LLeg.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        34,
+        41,
+        40,
+        64
+      ]
+    },
+    {
+      "name": "LHand",
+      "file": "loc2_char_layers/LHand.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        36,
+        31,
+        54,
+        52
+      ]
+    },
+    {
+      "name": "Torso",
+      "file": "loc2_char_layers/Torso.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        17,
+        25,
+        50,
+        45
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "loc2_char_layers/Head.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        15,
+        4,
+        48,
+        30
+      ]
+    },
+    {
+      "name": "Eyes",
+      "file": "loc2_char_layers/Eyes.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        30,
+        12,
+        38,
+        28
+      ]
+    },
+    {
+      "name": "RLeg",
+      "file": "loc2_char_layers/RLeg.png",
+      "z": 5,
+      "visible": true,
+      "bbox": [
+        24,
+        41,
+        40,
+        64
+      ]
+    },
+    {
+      "name": "RHand",
+      "file": "loc2_char_layers/RHand.png",
+      "z": 6,
+      "visible": true,
+      "bbox": [
+        10,
+        31,
+        28,
+        51
+      ]
+    }
+  ]
+}

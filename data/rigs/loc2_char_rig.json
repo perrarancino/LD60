@@ -1,0 +1,92 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "loc2_char_rig",
+  "description": "Молниеносный чубрик из слоёв loc2_char.aseprite (64x64): гуманоид той же сборки, что и герой (PlayerRig): шагающие ноги, руки-канаты, голова и глаза следят за героем. Бегает быстро, рывками.",
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "parts": [
+    {
+      "name": "LLeg",
+      "sprite_id": "enemy_loc2_char_lleg",
+      "role": "leg",
+      "side": -1,
+      "pivot": {
+        "x": 37,
+        "y": 43
+      },
+      "length": 21
+    },
+    {
+      "name": "LHand",
+      "sprite_id": "enemy_loc2_char_lhand",
+      "role": "arm",
+      "side": -1,
+      "pivot": {
+        "x": 38,
+        "y": 33
+      },
+      "rope": {
+        "segments": 4
+      }
+    },
+    {
+      "name": "Torso",
+      "sprite_id": "enemy_loc2_char_torso",
+      "role": "torso",
+      "pivot": {
+        "x": 33,
+        "y": 43
+      }
+    },
+    {
+      "name": "Head",
+      "sprite_id": "enemy_loc2_char_head",
+      "role": "head",
+      "pivot": {
+        "x": 32,
+        "y": 28
+      },
+      "gaze_origin": {
+        "x": 34,
+        "y": 20
+      },
+      "face": {
+        "sprite_id": "enemy_loc2_char_eyes",
+        "max_shift": {
+          "x": 3,
+          "y": 2
+        }
+      }
+    },
+    {
+      "name": "RLeg",
+      "sprite_id": "enemy_loc2_char_rleg",
+      "role": "leg",
+      "side": 1,
+      "pivot": {
+        "x": 30,
+        "y": 43
+      },
+      "length": 21
+    },
+    {
+      "name": "RHand",
+      "sprite_id": "enemy_loc2_char_rhand",
+      "role": "arm",
+      "side": 1,
+      "pivot": {
+        "x": 26,
+        "y": 33
+      },
+      "rope": {
+        "segments": 4
+      }
+    }
+  ]
+}

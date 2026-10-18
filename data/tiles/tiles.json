@@ -86,6 +86,27 @@
       "solid": true,
       "one_way": false,
       "slope": "up_right"
+    },
+    {
+      "id": "textalite",
+      "display_name": "Блок текстолита (textalite, 10 вариантов)",
+      "sprite_id": "tile_textalite",
+      "solid": true,
+      "one_way": false,
+      "top_frames": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "fill_frames": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
     }
   ]
 }

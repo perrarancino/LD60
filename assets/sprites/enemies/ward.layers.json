@@ -1,0 +1,33 @@
+{
+  "source": "ward.aseprite",
+  "canvasWidth": 32,
+  "canvasHeight": 32,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Layer 1",
+      "file": "ward_layers/Layer_1.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        10,
+        16,
+        22,
+        30
+      ]
+    },
+    {
+      "name": "Layer 2",
+      "file": "ward_layers/Layer_2.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        5,
+        5,
+        29,
+        20
+      ]
+    }
+  ]
+}

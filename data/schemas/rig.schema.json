@@ -46,6 +46,48 @@
         }
       }
     },
+    "critter": {
+      "type": "object",
+      "description": "Небольшое существо из слоёв с процедурной анимацией: ходит, скачет, летает или стоит и следит за героем",
+      "required": ["kind", "draw_facing", "hit", "parts"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["walker", "hopper", "flyer", "watcher"] },
+        "draw_facing": { "type": "integer", "enum": [-1, 1], "description": "Куда смотрит рисунок (−1 — влево)" },
+        "stride": { "type": "number", "description": "Рад фазы шага на пиксель пути" },
+        "sight": { "type": "number", "description": "Дальность, на которой замечает героя, px" },
+        "hit": {
+          "type": "array", "minItems": 1, "description": "Круги попадания на холсте рига",
+          "items": { "type": "object", "required": ["x", "y", "r"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "r": { "type": "number" } } }
+        },
+        "parts": {
+          "type": "array", "minItems": 1, "description": "Детали снизу вверх",
+          "items": {
+            "type": "object",
+            "required": ["name", "sprite_id", "pivot"],
+            "properties": {
+              "name": { "type": "string" },
+              "sprite_id": { "type": "string" },
+              "pivot": { "type": "object", "required": ["x", "y"], "description": "Точка вращения на холсте", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+              "anims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["type", "amp"],
+                  "properties": {
+                    "type": { "type": "string", "enum": ["step", "swing", "wag", "bob", "bounce", "flap", "squash", "track", "peck"] },
+                    "amp": { "type": "number" },
+                    "rate": { "type": "number" },
+                    "phase": { "type": "number" },
+                    "lift": { "type": "number" },
+                    "always": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "wobbler": {
       "type": "object",
       "description": "Существо на фоне: тело и лапки — одна сетка со скиннингом; лапки ведёт цепочка костей, из пасти выплёвываются другие враги",

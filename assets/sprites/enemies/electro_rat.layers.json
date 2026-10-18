@@ -1,0 +1,57 @@
+{
+  "source": "electro_rat.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Torso",
+      "file": "electro_rat_layers/Torso.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        1,
+        34,
+        61,
+        63
+      ]
+    },
+    {
+      "name": "leg1",
+      "file": "electro_rat_layers/leg1.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        18,
+        59,
+        29,
+        64
+      ]
+    },
+    {
+      "name": "leg2",
+      "file": "electro_rat_layers/leg2.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        45,
+        59,
+        54,
+        64
+      ]
+    },
+    {
+      "name": "Hvost",
+      "file": "electro_rat_layers/Hvost.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        33,
+        9,
+        64,
+        60
+      ]
+    }
+  ]
+}

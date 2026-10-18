@@ -1,0 +1,106 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "electro_rat_rig",
+  "description": "Электрокрыса из слоёв electro_rat.aseprite (64x64, морда влево): хвост-молния качается вокруг корня, лапы шагают по очереди, тело подпрыгивает на шаге. Ползает по полу, на героя бросается быстрее.",
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "critter": {
+    "kind": "walker",
+    "draw_facing": -1,
+    "stride": 0.16,
+    "sight": 190,
+    "hit": [
+      {
+        "x": 18,
+        "y": 52,
+        "r": 11
+      },
+      {
+        "x": 40,
+        "y": 49,
+        "r": 13
+      }
+    ],
+    "parts": [
+      {
+        "name": "Hvost",
+        "sprite_id": "enemy_electro_rat_tail",
+        "pivot": {
+          "x": 58,
+          "y": 56
+        },
+        "anims": [
+          {
+            "type": "wag",
+            "amp": 0.13,
+            "rate": 7.0,
+            "phase": 0.0
+          },
+          {
+            "type": "bounce",
+            "amp": 1.2,
+            "rate": 1.0,
+            "phase": 0.0
+          }
+        ]
+      },
+      {
+        "name": "leg2",
+        "sprite_id": "enemy_electro_rat_leg2",
+        "pivot": {
+          "x": 49,
+          "y": 59
+        },
+        "anims": [
+          {
+            "type": "step",
+            "amp": 3.2,
+            "rate": 1.0,
+            "phase": 3.1416,
+            "lift": 2.2
+          }
+        ]
+      },
+      {
+        "name": "Torso",
+        "sprite_id": "enemy_electro_rat_torso",
+        "pivot": {
+          "x": 32,
+          "y": 50
+        },
+        "anims": [
+          {
+            "type": "bounce",
+            "amp": 1.3,
+            "rate": 1.0,
+            "phase": 0.0
+          }
+        ]
+      },
+      {
+        "name": "leg1",
+        "sprite_id": "enemy_electro_rat_leg1",
+        "pivot": {
+          "x": 23,
+          "y": 59
+        },
+        "anims": [
+          {
+            "type": "step",
+            "amp": 3.2,
+            "rate": 1.0,
+            "phase": 0.0,
+            "lift": 2.2
+          }
+        ]
+      }
+    ]
+  },
+  "parts": []
+}

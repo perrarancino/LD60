@@ -355,5 +355,145 @@
       "scrap_parts_max": 5,
       "drop_chance_percent": 100.0
     }
+  },
+  {
+    "id": "electro_rat",
+    "display_name": "Электрокрыса",
+    "location_id": "loc_2",
+    "lore": "Крыса с хвостом-молнией: носится по полу платы, а завидев героя, бросается на него.",
+    "sprite_variants": [
+      "enemy_electro_rat"
+    ],
+    "rig_id": "electro_rat_rig",
+    "stats": {
+      "max_health": 30,
+      "contact_damage": 6,
+      "movement_speed": 70.0
+    },
+    "behavior_type": "critter",
+    "attack": {
+      "name": "Разряд",
+      "damage": 6,
+      "cooldown_seconds": 1.5,
+      "range": 20.0,
+      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
+  },
+  {
+    "id": "vorobei",
+    "display_name": "Воробей",
+    "location_id": "loc_2",
+    "lore": "Толстый синий воробей: скачет по полу, клюёт землю и отскакивает от героя.",
+    "sprite_variants": [
+      "enemy_vorobei"
+    ],
+    "rig_id": "vorobei_rig",
+    "stats": {
+      "max_health": 25,
+      "contact_damage": 5,
+      "movement_speed": 60.0
+    },
+    "behavior_type": "critter",
+    "attack": {
+      "name": "Клевок",
+      "damage": 5,
+      "cooldown_seconds": 1.5,
+      "range": 16.0,
+      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
+  },
+  {
+    "id": "ptichka",
+    "display_name": "Птичка",
+    "location_id": "loc_2",
+    "lore": "Маленькая птичка из синего света: порхает над платой петлями.",
+    "sprite_variants": [
+      "enemy_ptichka"
+    ],
+    "rig_id": "ptichka_rig",
+    "stats": {
+      "max_health": 8,
+      "contact_damage": 3,
+      "movement_speed": 75.0
+    },
+    "behavior_type": "critter",
+    "attack": {
+      "name": "Пикирование",
+      "damage": 3,
+      "cooldown_seconds": 2.0,
+      "range": 24.0,
+      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
+  },
+  {
+    "id": "ward",
+    "display_name": "Страж (ward)",
+    "location_id": "loc_2",
+    "lore": "Неподвижный глаз на ножке: парит над платой и провожает героя взглядом.",
+    "sprite_variants": [
+      "enemy_ward"
+    ],
+    "rig_id": "ward_rig",
+    "stats": {
+      "max_health": 40,
+      "contact_damage": 4,
+      "movement_speed": 0.0
+    },
+    "behavior_type": "critter",
+    "attack": {
+      "name": "Взгляд",
+      "damage": 4,
+      "cooldown_seconds": 2.0,
+      "range": 120.0,
+      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
+  },
+  {
+    "id": "loc2_char",
+    "display_name": "Молниеносный чубрик",
+    "location_id": "loc_2",
+    "lore": "Синий человечек с антеннами: бегает быстро и рывками, как молния.",
+    "sprite_variants": [
+      "enemy_loc2_char"
+    ],
+    "rig_id": "loc2_char_rig",
+    "stats": {
+      "max_health": 60,
+      "contact_damage": 8,
+      "movement_speed": 80.0
+    },
+    "behavior_type": "humanoid",
+    "attack": {
+      "name": "Молния",
+      "damage": 8,
+      "cooldown_seconds": 2.5,
+      "range": 80.0,
+      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+    },
+    "drops": {
+      "scrap_parts_min": 1,
+      "scrap_parts_max": 2,
+      "drop_chance_percent": 60.0
+    }
   }
 ]

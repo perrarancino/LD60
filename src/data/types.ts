@@ -35,6 +35,8 @@ export interface TileDef {
   slope?: 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left'; // 45° диагональный скос тайла
   fill_sprite_id?: string; // спрайт заливки для клеток под верхним слоем (над которыми тоже твёрдая клетка): стены и толща
   loop_frames?: number; // спрайт — лист из трёх кадров-тайлов: левый край платформы, середина (повторяется), правый край
+  top_frames?: number[]; // кадры листа для верхнего слоя (над клеткой нет твёрдой): вариант выбирается по клетке, детерминированно
+  fill_frames?: number[]; // кадры листа для толщи (над клеткой твёрдая): то же
 }
 
 export interface TileSetDef {
@@ -113,6 +115,7 @@ export interface GradeDef {
 export interface LevelDef {
   id: string;
   display_name?: string;
+  debug_key?: number; // отладка: клавиша 1–4 в игре переключает на этот уровень
   background_id?: string;
   tile_size: number;
   width: number;
@@ -175,6 +178,33 @@ export interface AttachmentDef {
   sway?: number; // амплитуда качания, рад
   speed?: number; // скорость качания, рад/с
   phase?: number; // сдвиг фазы, рад
+}
+
+/** Анимация детали существа-«сборки» (Critter): все детали вращаются/сдвигаются вокруг своей точки pivot на холсте рига. */
+export interface CritterAnimDef {
+  type: 'step' | 'swing' | 'wag' | 'bob' | 'bounce' | 'flap' | 'squash' | 'track' | 'peck';
+  amp: number; // step — размах по x, px; swing/wag/flap/track/peck — угол, рад; bob/bounce — px; squash — доля
+  rate?: number; // частота колебаний, рад/с (для step/swing/bounce — по фазе шага)
+  phase?: number; // сдвиг фазы, рад
+  lift?: number; // step: подъём в махе, px
+  always?: boolean; // swing: качается и на месте (иначе — только в движении)
+}
+
+export interface CritterPartDef {
+  name: string;
+  sprite_id: string; // слой на полном холсте рига
+  pivot: { x: number; y: number }; // точка, вокруг которой деталь вращается
+  anims?: CritterAnimDef[];
+}
+
+/** Небольшое существо из слоёв с процедурной анимацией: ходит (walker), скачет (hopper), летает (flyer) или стоит и следит (watcher). */
+export interface CritterDef {
+  kind: 'walker' | 'hopper' | 'flyer' | 'watcher';
+  draw_facing: 1 | -1; // куда смотрит рисунок (−1 — влево): при движении в другую сторону зеркалится
+  stride?: number; // рад фазы шага на пиксель пути
+  sight?: number; // дальность, на которой замечает героя, px
+  hit: Array<{ x: number; y: number; r: number }>; // круги попадания на холсте рига
+  parts: CritterPartDef[]; // снизу вверх
 }
 
 export interface SegmentDef {
@@ -252,6 +282,7 @@ export interface RigDef {
   crawler?: CrawlerDef;
   segmented?: SegmentedDef;
   wobbler?: WobblerDef;
+  critter?: CritterDef;
   parts: RigPartDef[]; // снизу вверх
 }
 

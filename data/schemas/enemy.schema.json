@@ -76,6 +76,8 @@
         "crawler",
         "burrower",
         "flying_worm",
+        "critter",
+        "humanoid",
         "spawner"
       ],
       "description": "Базовый тип передвижения и поиска целей"

@@ -1,0 +1,51 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "ptichka_rig",
+  "description": "Птичка из ptichka.aseprite (16x16, один слой): летает по плавным петлям вокруг точки появления, огибает тайлы; взмахи — сжатие и растяжение спрайта по высоте и покачивание.",
+  "canvas": {
+    "width": 16,
+    "height": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "critter": {
+    "kind": "flyer",
+    "draw_facing": -1,
+    "stride": 0.1,
+    "sight": 0,
+    "hit": [
+      {
+        "x": 8,
+        "y": 8,
+        "r": 7
+      }
+    ],
+    "parts": [
+      {
+        "name": "Layer 1",
+        "sprite_id": "enemy_ptichka",
+        "pivot": {
+          "x": 8,
+          "y": 8
+        },
+        "anims": [
+          {
+            "type": "squash",
+            "amp": 0.32,
+            "rate": 22.0,
+            "phase": 0.0
+          },
+          {
+            "type": "bob",
+            "amp": 0.8,
+            "rate": 5.0,
+            "phase": 0.0
+          }
+        ]
+      }
+    ]
+  },
+  "parts": []
+}
