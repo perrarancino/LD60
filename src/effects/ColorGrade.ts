@@ -52,10 +52,7 @@ void main(void) {
   c += uShadows * sh + uHighlights * hi;
   vec2 d = vTextureCoord - 0.5;                              // виньетка
   c *= 1.0 - uVignette * smoothstep(0.25, 0.85, dot(d, d) * 2.0);
-  // светящиеся фиолетовые детали (и блум вокруг них) не затемняются коррекцией: остаются яркими и сочными, как нарисованы
-  vec3 s = src.rgb;
-  float emit = step(s.g + 0.10, s.r) * smoothstep(0.82, 0.9, s.r) * smoothstep(0.96, 0.995, s.b); // неоновые пиксели (красный и синий почти на максимуме): не затемняются
-  c = mix(c, min(s * 1.08, 1.0), emit);
+  // светящиеся пиксели и свет жуков рисуются поверх коррекции (Lighting.overlay) — здесь их нет
   finalColor = vec4(clamp(c, 0.0, 1.0) * src.a, src.a);
 }
 `;
