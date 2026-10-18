@@ -68,6 +68,17 @@ export interface DecorZoneDef {
   density?: number;
 }
 
+/** Цветокоррекция уровня: тона (RGB-добавки 0..1) теней и светов в начале уровня и (по желанию) в конце — по уровню они плавно переходят. */
+export interface GradeDef {
+  saturation?: number;
+  contrast?: number;
+  vignette?: number;
+  shadows?: [number, number, number];
+  highlights?: [number, number, number];
+  shadows_end?: [number, number, number];
+  highlights_end?: [number, number, number];
+}
+
 export interface LevelDef {
   id: string;
   display_name?: string;
@@ -79,6 +90,7 @@ export interface LevelDef {
   rows: string[];
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
+  grade?: GradeDef;
   zones?: DecorZoneDef[];
   enemies: EnemySpawnDef[];
 }

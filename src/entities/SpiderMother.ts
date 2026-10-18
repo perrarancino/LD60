@@ -3,6 +3,7 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SpawnsDef } from '../data/types.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { FlexBody } from './FlexBody.ts';
+import type { ShadowSpec } from '../effects/Shadows.ts';
 import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import type { Spider } from './Spider.ts';
@@ -211,6 +212,12 @@ export class SpiderMother implements Hittable {
   public hitCircles(): HitCircle[] {
     const c = this.bodyPoint(this.bodyOffset);
     return [{ x: c.x, y: c.y, r: HIT_RADIUS }];
+  }
+
+  /** Тень висящей паучихи на полу под ней: далеко — бледная и узкая, ближе — темнее. */
+  public shadowSpec(): ShadowSpec {
+    const c = this.bodyPoint(this.bodyOffset);
+    return { mode: 'drop', x: c.x, y: c.y + 16, w: 34, strength: 0.7, maxDist: 260 };
   }
 
   /** Удар: белая вспышка, нитку и тело раскачивает по направлению удара. */

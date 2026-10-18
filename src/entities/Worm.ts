@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, RigDef, SegmentDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
+import type { ShadowSpec } from '../effects/Shadows.ts';
 import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 
@@ -223,6 +224,23 @@ export class Worm implements Hittable {
       circles.push({ x, y, r: this.radius });
     }
     return circles;
+  }
+
+  /** Одна длинная тень под всем червём (по видимым сегментам, не в земле): падает на поверхность под самым низким сегментом. */
+  public shadowSpec(): ShadowSpec | null {
+    const ts = this.level.tileSize;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const seg of this.segments) {
+      const { x, y } = seg.sprite.position;
+      if (this.level.isSolid(Math.floor(x / ts), Math.floor(y / ts))) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    if (minX === Infinity) return null;
+    return { mode: 'drop', x: (minX + maxX) / 2, y: maxY + this.radius - 1, w: maxX - minX + this.radius * 1.6, strength: 0.9, maxDist: 40 };
   }
 
   /** Удар: белая вспышка. */
