@@ -19,6 +19,7 @@ import { Level } from './world/Level.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
+import { FpsCounter } from './core/FpsCounter.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import { EventBus } from './core/EventBus.ts';
@@ -208,8 +209,10 @@ class GameApp {
     await this.setupScene();
 
     // Запуск основного игрового цикла (Pixi ticker)
+    const fps = new FpsCounter(); // счётчик FPS в углу (F3 — скрыть)
     this.app.ticker.add((ticker) => {
       const dt = ticker.deltaTime / 60; // Перевод тиков в секунды
+      fps.tick(ticker.deltaMS);
       this.update(dt);
     });
   }
