@@ -14,15 +14,16 @@ const VINE_GRAVITY = 300; // px/с²: нитка лёгкая — тяжесть
 const VINE_DAMPING = 1.4; // 1/с: затухание скорости (малое — после толчка лиана качается ещё несколько раз, как маятник)
 const VINE_WIND = 95; // px/с²: порывы ветра (к концу лианы растут быстрее, чем линейно, — нить изгибается дугой)
 const VINE_BIAS = [18, 42]; // px/с²: постоянный лёгкий сквозняк у каждой лианы (в свою сторону) — висит с наклоном и изгибом, а не палкой
-const VINE_RETURN = 2.5; // 1/с²: слабая пружина возврата к вертикали (основная защита от «улёта» — предел отклонения ниже)
-const VINE_MAX_SWING = 0.62; // макс. смещение узла от вертикали: доля расстояния от корня до узла (≈ 38°)
+const VINE_RETURN = 2.5; // 1/с²: слабая пружина возврата к вертикали (предела отклонения нет — лиана ограничена только длиной и столкновениями)
 const VINE_ITERATIONS = 3;
 const VINE_SUBSTEPS = 2;
-const ACTOR_PAD = 4; // px: герой задевает лиану чуть раньше края хитбокса
-const PUSH = 1500; // px/с²: сила, с которой герой отодвигает узлы лианы (плавно спадает к краям хитбокса — без рывков)
-const PUSH_MIN = 0.3; // доля силы у самого края хитбокса
-const DRAG_ALONG = 0.6; // 1/с·с: насколько узлы увлекаются скоростью героя (лиана «цепляется» и тянется за ним)
-const MOVING = 25; // px/с: быстрее — толкаем по ходу героя, медленнее — в сторону, где узел
+const ACTOR_PAD = 3; // px: герой задевает лиану чуть раньше края хитбокса
+const PUSH_SPEED = 180; // px/с: быстрее узел героем не отодвигается — смещение плавное, без телепортов
+const CARRY = 0.2; // доля скорости героя, которую получает задетый узел (лиана немного увлекается за ним)
+const REACH_FLIP = 0.72; // доля длины до узла: герой не тянет узел дальше — узел переходит на другую сторону героя, лиана не натягивается струной
+const CALM_TIME = 0.7; // с: после контакта лиана успокаивается быстрее — отпущенная, не хлещет
+const CALM_DAMPING = 4; // 1/с: добавка затухания сразу после контакта
+const SIDE_STUCK = 0.12; // с: узел не может уйти на свою сторону (цепочка натянута) — перетекает на другую сторону героя
 const VIEW_MARGIN = 40; // px: за краем обзора декор не обновляется
 const VINE_TINTS = [0xffffff, 0xe3f1ff, 0xcfe6ff];
 const SKY_CLEARANCE = 8; // px: нитка с неба обрывается чуть выше первой платформы под ней, а не проходит сквозь неё
@@ -100,6 +101,9 @@ class Vine {
   private readonly py: Float32Array;
   private readonly pieces: Piece[] = [];
   private readonly bead: Sprite | null;
+  private readonly side: Int8Array; // с какой стороны от героя узел (-1 слева, 1 справа, 0 — не задет): сторона не меняется, пока контакт идёт
+  private calm = 0; // сколько ещё действует усиленное затухание после контакта с героем, с
+  private readonly stuck: Float32Array; // сколько узел не может выбраться на свою сторону, с
   /** Есть ли рядом твёрдые клетки, в которые лиана может упереться: только такие лианы проверяют тайлы (остальные висят в пустоте). */
   private readonly collide: boolean;
   private readonly isSolid: (cx: number, cy: number) => boolean;
@@ -126,6 +130,8 @@ class Vine {
     this.y = new Float32Array(size);
     this.px = new Float32Array(size);
     this.py = new Float32Array(size);
+    this.side = new Int8Array(size);
+    this.stuck = new Float32Array(size);
     for (let i = 0; i < size; i++) {
       this.x[i] = this.px[i] = rx;
       this.y[i] = this.py[i] = ry + i * VINE_NODE;
@@ -136,7 +142,7 @@ class Vine {
     this.minX = rx - reach;
     this.maxX = rx + reach;
     // область, куда лиана может дотянуться (отклонение ограничено): есть ли в ней твёрдые клетки (кроме клетки, из которой она растёт)
-    const swing = reach * VINE_MAX_SWING + 2;
+    const swing = reach + 2; // предела отклонения нет: лиана может дотянуться на всю длину
     let near = false;
     for (let cy = Math.floor((ry + VINE_NODE) / ts); cy <= Math.floor((ry + reach + 2) / ts) && !near; cy++) { // узлы начинаются ниже грани тайла
       for (let cx = Math.floor((rx - swing) / ts); cx <= Math.floor((rx + swing) / ts); cx++) {
@@ -169,7 +175,9 @@ class Vine {
 
   public update(dt: number, t: number, actors: readonly Actor[]): void {
     const h = Math.min(dt, 1 / 30) / VINE_SUBSTEPS;
-    const damp = Math.exp(-VINE_DAMPING * h);
+    const calmK = Math.min(1, this.calm / CALM_TIME);
+    const damp = Math.exp(-(VINE_DAMPING + CALM_DAMPING * calmK) * h);
+    this.calm = Math.max(0, this.calm - Math.min(dt, 1 / 30));
     const n = this.n;
     const rx = this.rx;
     for (let step = 0; step < VINE_SUBSTEPS; step++) {
@@ -183,26 +191,8 @@ class Vine {
         const vy = (this.y[i] - this.py[i]) * damp;
         this.px[i] = this.x[i];
         this.py[i] = this.y[i];
-        // герой не «выталкивает» узел рывком, а толкает его силой, плавно растущей к центру хитбокса, и увлекает за собой скоростью:
-        // лиана раздвигается и перетекает, а не телепортируется
-        let push = 0;
-        let pull = 0;
-        for (const a of actors) {
-          if (a.right < this.minX || a.left > this.maxX) continue;
-          const y = this.y[i];
-          if (y < a.top || y > a.bottom) continue;
-          const cx = (a.left + a.right) / 2;
-          const half = (a.right - a.left) / 2 + ACTOR_PAD;
-          const off = this.x[i] - cx;
-          const w = 1 - Math.abs(off) / half;
-          if (w <= 0) continue;
-          const dir = Math.abs(a.vx) > MOVING ? Math.sign(a.vx) : off < 0 ? -1 : 1; // идёт — толкаем по ходу, стоит — от центра
-          const f = PUSH_MIN + (1 - PUSH_MIN) * w;
-          push += dir * PUSH * f;
-          pull += a.vx * DRAG_ALONG * w;
-        }
-        // пружина возврата к вертикали под корнем + ветер + толчок героя + тяжесть
-        this.x[i] += vx + pull * h + (wind + push - VINE_RETURN * (this.x[i] - rx)) * h * h;
+        // пружина возврата к вертикали под корнем + ветер + тяжесть
+        this.x[i] += vx + (wind - VINE_RETURN * (this.x[i] - rx)) * h * h;
         this.y[i] += vy + VINE_GRAVITY * h * h;
       }
       for (let it = 0; it < VINE_ITERATIONS; it++) {
@@ -222,13 +212,35 @@ class Vine {
           }
         }
       }
-      // предел отклонения от вертикали: узел не может уйти далеко от корня (скорость при этом гасится)
       for (let i = 1; i <= n; i++) {
         if (this.y[i] < this.ceilY) { this.y[i] = this.ceilY; this.py[i] = this.ceilY; } // не заходит в тайл, из которого растёт
-        const lim = i * VINE_NODE * VINE_MAX_SWING;
-        const d = this.x[i] - rx;
-        if (d > lim) { this.x[i] = rx + lim; this.px[i] = Math.min(this.px[i], this.x[i]); }
-        else if (d < -lim) { this.x[i] = rx - lim; this.px[i] = Math.max(this.px[i], this.x[i]); }
+      }
+      // герой — препятствие: узел в его хитбоксе плавно (с ограничением скорости) отодвигается к ближайшему краю и остаётся с этой стороны,
+      // пока контакт идёт; если цепочка натянута и узел так не выбраться — он перетекает на другую сторону (по телу, без скачка)
+      for (const a of actors) {
+        if (a.right < this.minX || a.left > this.maxX) continue;
+        const cx = (a.left + a.right) / 2;
+        for (let i = 1; i <= n; i++) {
+          const x = this.x[i];
+          const y = this.y[i];
+          const inside = y > a.top && y < a.bottom && x > a.left - ACTOR_PAD && x < a.right + ACTOR_PAD;
+          if (!inside) { this.side[i] = 0; this.stuck[i] = 0; continue; }
+          this.calm = CALM_TIME;
+          if (this.side[i] === 0) this.side[i] = x < cx ? -1 : 1;
+          // герой не оттягивает узел слишком далеко от корня: если пришлось бы тянуть дальше — узел уходит на другую сторону
+          if (Math.sign(x - rx) === this.side[i] && Math.abs(x - rx) > i * VINE_NODE * REACH_FLIP) this.side[i] = -this.side[i] as -1 | 1;
+          const target = this.side[i] < 0 ? a.left - ACTOR_PAD : a.right + ACTOR_PAD;
+          const need = target - x;
+          const move = Math.max(-PUSH_SPEED * h, Math.min(PUSH_SPEED * h, need));
+          this.x[i] += move;
+          this.px[i] += move - a.vx * CARRY * h; // смещение не превращается в скорость; узел немного увлекается ходом героя
+          if (Math.abs(need) - Math.abs(move) > 1.5) {
+            this.stuck[i] += h;
+            if (this.stuck[i] > SIDE_STUCK) { this.side[i] = -this.side[i] as -1 | 1; this.stuck[i] = 0; }
+          } else {
+            this.stuck[i] = 0;
+          }
+        }
       }
       // стены и платформы: лиана их не пересекает (проверка — только у лиан рядом с твёрдыми клетками)
       if (this.collide) for (let i = 1; i <= n; i++) this.pushOutOfTiles(i);
