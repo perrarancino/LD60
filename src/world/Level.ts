@@ -25,11 +25,15 @@ function mulberry32(seed: number): () => number {
  * Слои (снизу вверх, добавляет владелец): backLayer (декор «за тайлами» и лианы под ними) -> container (тайлы) ->
  * frontLayer (декор поверх тайлов: паутина, транзисторы).
  */
+const CHUNK = 8; // клеток в стороне чанка тайлов
+
 export class Level {
   public readonly tileSize: number;
   public readonly widthTiles: number;
   public readonly heightTiles: number;
-  public readonly container = new Container();
+  public readonly container = new Container(); // тайлы: разбиты на чанки CHUNK×CHUNK клеток, невидимые прячутся (cull)
+  private readonly chunks = new Map<number, Container>();
+  private chunkCols = 0;
   public readonly backLayer = new Container();
   public readonly frontLayer = new Container();
   public readonly def: LevelDef;
@@ -58,6 +62,7 @@ export class Level {
     this.def = def;
     this.tileSize = def.tile_size;
     this.widthTiles = def.width;
+    this.chunkCols = Math.ceil(def.width / CHUNK);
     this.heightTiles = def.height;
 
     const tilesById = new Map(tileset.tiles.map((t) => [t.id, t]));
@@ -85,12 +90,12 @@ export class Level {
           const frame = pool[(((cx * 73856093) ^ (cy * 19349663)) >>> 0) % pool.length];
           const sprite = sprites.createSprite(tile.sprite_id, frame);
           sprite.position.set(cx * this.tileSize, cy * this.tileSize);
-          this.container.addChild(sprite);
+          this.chunk(cx, cy).addChild(sprite);
         } else if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx] && !tile.slope) {
           // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
           const fill = sprites.createSprite(tile.fill_sprite_id);
           fill.position.set(cx * this.tileSize, cy * this.tileSize);
-          this.container.addChild(fill);
+          this.chunk(cx, cy).addChild(fill);
         } else if (tile) {
           // Платформа из трёх кадров: левый край (0), середина (1, повторяется), правый край (2). Одиночный тайл (стенка) — середина.
           let frame = 0;
@@ -119,7 +124,7 @@ export class Level {
             }
             mask.fill({ color: 0xffffff });
             sprite.mask = mask;
-            this.container.addChild(mask);
+            this.chunk(cx, cy).addChild(mask);
 
             if (!tile.id.includes('step')) {
               // Линия дорожки по диагонали
@@ -135,11 +140,11 @@ export class Level {
                 edge.moveTo(ox + ts, oy).lineTo(ox, oy + ts);
               }
               edge.stroke();
-              this.container.addChild(edge);
+              this.chunk(cx, cy).addChild(edge);
             }
-            this.container.addChild(sprite);
+            this.chunk(cx, cy).addChild(sprite);
           } else {
-            this.container.addChild(sprite);
+            this.chunk(cx, cy).addChild(sprite);
           }
         }
       }
@@ -189,6 +194,33 @@ export class Level {
   }
 
   /** Анимация декора; camLeft..camRight — видимый диапазон по x (мир), actors — кто задевает лианы. */
+  /** Контейнер-чанк для клетки: тайлы одной области лежат вместе, чтобы прятать целиком. */
+  private chunk(cx: number, cy: number): Container {
+    const key = Math.floor(cy / CHUNK) * this.chunkCols + Math.floor(cx / CHUNK);
+    let c = this.chunks.get(key);
+    if (!c) {
+      c = new Container();
+      this.chunks.set(key, c);
+      this.container.addChild(c);
+    }
+    return c;
+  }
+
+  /**
+   * Показывает только чанки тайлов, попавшие в область (мировые px, с запасом): остальные не рисуются ни в кадре, ни в проходах света
+   * (на большой карте это тысячи спрайтов, которые раньше обходились при каждой отрисовке мира).
+   */
+  public cull(left: number, right: number, top: number, bottom: number): void {
+    const size = CHUNK * this.tileSize;
+    for (const [key, c] of this.chunks) {
+      const col = key % this.chunkCols;
+      const row = Math.floor(key / this.chunkCols);
+      const x0 = col * size;
+      const y0 = row * size;
+      c.visible = x0 + size > left && x0 < right && y0 + size > top && y0 < bottom;
+    }
+  }
+
   public update(dt: number, camLeft: number, camRight: number, actors: readonly Actor[]): void {
     this.webs.update(dt, camLeft, camRight, actors);
   }

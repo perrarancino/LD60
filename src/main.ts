@@ -209,7 +209,7 @@ class GameApp {
     await this.setupScene();
 
     // Запуск основного игрового цикла (Pixi ticker)
-    const fps = new FpsCounter(); // счётчик FPS в углу (F3 — скрыть)
+    const fps = new FpsCounter(this.app.ticker); // счётчик FPS в углу (F3 — скрыть, F4 — лимит кадров)
     this.app.ticker.add((ticker) => {
       const dt = ticker.deltaTime / 60; // Перевод тиков в секунды
       fps.tick(ticker.deltaMS);
@@ -318,6 +318,9 @@ class GameApp {
     this.worldLayer.position.set(-snap(camX) + sx, -snap(camY) + sy);
     this.numbers.container.position.copyFrom(this.worldLayer.position);
     this.background?.update(snap(camX), snap(camY), lh, this.scale);
+    // тайлы вне экрана (с запасом в клетку) не рисуются — ни в кадре, ни в проходах света
+    const m = this.level.tileSize;
+    this.level.cull(snap(camX) - m, snap(camX) + this.viewW + m, snap(camY) - m, snap(camY) + this.viewH + m);
   }
 
   /**
@@ -503,8 +506,10 @@ class GameApp {
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
-    this.sceneLayer.addChildAt(this.lighting.backContainer, this.sceneLayer.getChildIndex(this.worldLayer)); // туман — за миром
-    this.sceneLayer.addChild(this.lighting.container);
+    // Мир на экран не рисуется напрямую: он один раз за кадр рисуется в текстуру (Lighting.update), а на экран выводится спрайтом из неё
+    // с фильтром кромки, теней и тумана; слою мира в сцене места нет
+    this.sceneLayer.removeChild(this.worldLayer);
+    this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
     if (levelDef.grade) {
