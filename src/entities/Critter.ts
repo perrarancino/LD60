@@ -36,6 +36,7 @@ interface Vec {
 interface Part {
   sprite: Sprite;
   pivot: Vec;
+  name: string;
   anims: CritterAnimDef[];
   cur: { dx: number; dy: number; rot: number; sy: number }; // сглаженное состояние детали (пружина к целевому)
 }
@@ -110,7 +111,7 @@ export class Critter implements Hittable {
       sprite.pivot.set(d.pivot.x, d.pivot.y);
       sprite.position.set(d.pivot.x, d.pivot.y);
       this.node.addChild(sprite);
-      this.parts.push({ sprite, pivot: d.pivot, anims: d.anims ?? [], cur: { dx: 0, dy: 0, rot: 0, sy: 1 } });
+      this.parts.push({ sprite, pivot: d.pivot, name: d.name, anims: d.anims ?? [], cur: { dx: 0, dy: 0, rot: 0, sy: 1 } });
     }
     if (cfg.tail) {
       // хвост-молния: поверх деталей; хлёст дотягивается на reach px вперёд от точки привязки
@@ -439,6 +440,12 @@ export class Critter implements Hittable {
           }
           case 'track': rot += this.lookX * a.amp; break;
           case 'tuck': sy *= 1 - tuck * a.amp; dy -= (a.lift ?? 0) * tuck; break; // ноги вжимаются в тело (на прыжке)
+          case 'sink': {
+            // идёт за смещением другой детали (она выше в списке — уже посчитана) только вниз: вверх не отрывается, а уходит в неё
+            const src = this.parts.find((q) => q.name === a.of);
+            if (src) dy += Math.max(0, src.cur.dy) * a.amp;
+            break;
+          }
           case 'peck': rot += Math.pow(Math.max(0, Math.sin(this.t * rate + ph + this.seed)), 3) * a.amp * (1 - airT); break;
         }
       }

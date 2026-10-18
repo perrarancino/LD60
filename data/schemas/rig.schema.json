@@ -95,12 +95,13 @@
                   "type": "object",
                   "required": ["type", "amp"],
                   "properties": {
-                    "type": { "type": "string", "enum": ["step", "swing", "wag", "bob", "bounce", "flap", "squash", "track", "peck", "tuck"] },
+                    "type": { "type": "string", "enum": ["step", "swing", "wag", "bob", "bounce", "flap", "squash", "track", "peck", "tuck", "sink"] },
                     "amp": { "type": "number" },
                     "rate": { "type": "number" },
                     "phase": { "type": "number" },
                     "lift": { "type": "number" },
-                    "always": { "type": "boolean" }
+                    "always": { "type": "boolean" },
+                    "of": { "type": "string", "description": "sink: деталь выше в списке, за чьим смещением вниз идёт эта (вверх за ней не идёт)" }
                   }
                 }
               }
