@@ -145,6 +145,22 @@ float firstHit(vec2 dir, vec2 side, float lateral) {
   }
   return 0.0;
 }
+// Стоит ли существо на полу: от точки p (пиксели арта от этого пикселя) вниз по его телу до конца, затем до 4 px вниз — тайл. Проверяется в окне
+// вдоль поверхности, чтобы руки и голова не давали ложного «нет». Тогда у героя одна тень — внизу, на полу: на потолке и стенах её нет.
+bool restsOnFloor(vec2 p) {
+  for (int l = -2; l <= 2; l++) {
+    vec2 q = p + vec2(float(l) * 5.0, 0.0);
+    for (int i = 0; i < 72; i++) {
+      if (casterAt(q + vec2(0.0, float(i))) < 0.5) {
+        for (int j = 0; j < 4; j++) {
+          if (tileAt(q + vec2(0.0, float(i + j))) > 0.5) return true;
+        }
+        break;
+      }
+    }
+  }
+  return false;
+}
 // Тень на этом пикселе от существа, стоящего снаружи поверхности в направлении dir (side — вдоль поверхности).
 // Форма — скруглённый овал: по глубине вглубь тайла (0, 1, 2 пикселя от края) нужна всё большая доля существа в окне ±3 пикселя вдоль поверхности,
 // поэтому самый глубокий ряд короче, а края тени закруглены.
@@ -155,11 +171,15 @@ float shadowFrom(vec2 dir, vec2 side) {
   float band = depth < 0.5 ? 1.0 : (depth < 1.5 ? 0.75 : 0.45);
   float cover = 0.0;
   float nearest = 1000.0;
+  float nearestLat = 0.0;
   for (int j = -3; j <= 3; j++) {
-    float k = firstHit(dir, side, float(j) - uShift);
-    if (k > 0.0) { cover += 1.0; nearest = min(nearest, k); }
+    float lat = float(j) - uShift;
+    float k = firstHit(dir, side, lat);
+    if (k > 0.0) { cover += 1.0; if (k < nearest) { nearest = k; nearestLat = lat; } }
   }
   if (cover / 7.0 < need) return 0.0;
+  // пол — основная поверхность тени; на потолке и стенах тень не нужна, если существо стоит на полу
+  if (dir.y > -0.5 && restsOnFloor(dir * nearest + side * nearestLat)) return 0.0;
   return clamp(1.0 - (nearest - 1.0) / uReach, 0.0, 1.0) * band;
 }
 void main(void) {
