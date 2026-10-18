@@ -82,6 +82,7 @@ uniform vec3 uColor;
 uniform float uRim;
 uniform float uAmbient;
 uniform float uLevels;
+uniform vec3 uEmit;         // добавка яркости светящимся деталям
 bool onCaster = false; // этот пиксель принадлежит существу/транзистору
 // Твёрдый ли сосед. Для пикселей поверхностей (тайлы) существа и транзисторы соседями не считаются: пол под ногами остаётся краем и освещён
 // так же, как вокруг, а не тёмной дырой в кромке (тень на нём ляжет отдельно)
@@ -110,12 +111,17 @@ void main(void) {
   float edge1 = max(max(up1, dn1), max(lf1, rt1));
   float edge2 = max(max(up2, dn2), max(lf2, rt2));
   float edge = edge1 > 0.5 ? 1.0 : (edge2 > 0.5 ? 0.5 : 0.0); // 1-й пиксель от края — полностью, 2-й — вполсилы, глубже — ничего
-  if (edge == 0.0) { finalColor = vec4(0.0); return; }
+  // Сами светящиеся детали (яркие фиолетовые пиксели): светятся ярче и сочнее, а вокруг них внутри спрайта лежит блум
+  vec3 own = texture(uTexture, vTextureCoord).rgb / max(a, 0.001);
+  float emissive = step(own.g + 0.10, own.r) * step(own.g + 0.30, own.b) * smoothstep(0.70, 0.84, own.b);
   float gl = max(glow.r, max(glow.g, glow.b));
-  if (gl > 0.0) glow *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение на краю — чёткими ступенями
+  float bloom = 0.3 * smoothstep(0.18, 0.5, gl);                // блум ложится на пиксели рядом с яркими деталями (вполсилы), а не на всё тело
+  float lit = max(edge, bloom);
+  if (lit == 0.0 && emissive == 0.0) { finalColor = vec4(0.0); return; }
+  if (gl > 0.0) glow *= floor(gl * uLevels + 0.5) / uLevels / gl; // свечение — чёткими ступенями
   float rim = up1 > 0.5 ? 1.0 : (up2 > 0.5 ? 0.5 : ((lf1 + rt1) > 0.5 ? 0.4 : 0.0)); // кромка сверху ярче, по бокам слабее
   float band = floor((0.25 + 0.75 * vTextureCoord.y) * 3.0) / 3.0;                  // общий свет тремя ровными полосами
-  vec3 c = uColor * (rim * uRim + uAmbient * band * edge) + glow * edge;
+  vec3 c = uColor * (rim * uRim + uAmbient * band * edge) + glow * lit + uEmit * emissive;
   finalColor = vec4(c, max(c.r, max(c.g, c.b)));
 }
 `;
@@ -326,7 +332,8 @@ export class Lighting {
       uColor: { value: new Float32Array(GREEN), type: 'vec3<f32>' },
       uRim: { value: 0.7, type: 'f32' },
       uAmbient: { value: 0.09, type: 'f32' },
-      uLevels: { value: 5, type: 'f32' }
+      uLevels: { value: 5, type: 'f32' },
+      uEmit: { value: new Float32Array([0.14, 0.05, 0.24]), type: 'vec3<f32>' }
     }, { uGlow: this.glowRT.source, uCaster: this.casterRT.source });
     this.compSprite.filters = [this.comp];
     this.shadowSprite.texture = this.groundRT;
