@@ -46,6 +46,28 @@
         }
       }
     },
+    "wobbler": {
+      "type": "object",
+      "description": "Существо на фоне: тело и лапки из частей-слоёв; лапки шатаются в шарнирах, из пасти выплёвываются другие враги",
+      "required": ["body_sprite_id", "mouth", "limbs"],
+      "properties": {
+        "body_sprite_id": { "type": "string" },
+        "mouth": { "type": "object", "required": ["x", "y"], "description": "Откуда вылетают плевки (px на холсте)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "limbs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "upper", "lower"],
+            "properties": {
+              "name": { "type": "string" },
+              "upper": { "$ref": "#/$defs/joint_part" },
+              "lower": { "$ref": "#/$defs/joint_part" }
+            }
+          }
+        }
+      }
+    },
     "segmented": {
       "type": "object",
       "description": "Сегментированное существо (червь): голова, туловище, хвост едут по следу головы",
@@ -115,6 +137,15 @@
     }
   },
   "$defs": {
+    "joint_part": {
+      "type": "object",
+      "required": ["sprite_id", "pivot"],
+      "description": "Часть конечности: полнохолстный спрайт и точка вращения (корень или колено) на холсте",
+      "properties": {
+        "sprite_id": { "type": "string" },
+        "pivot": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+      }
+    },
     "segment": {
       "type": "object",
       "required": ["sprite_id", "center"],

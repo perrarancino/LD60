@@ -24,6 +24,17 @@ const SPRINT_BOOST = 1.9; // ускорение ног на поворотах �
 const RUN_TIME: [number, number] = [1.6, 4.2];
 const PAUSE_TIME: [number, number] = [0.5, 1.3];
 
+// ---- Выплюнутый паучок: летит по дуге, потом садится на поверхность и ползёт как обычный
+const GRAVITY = 520; // px/с²
+const FLY_STEP = 2; // px: максимальный шаг интегрирования полёта (чтобы не пролететь сквозь тайл)
+const FLY_GROW = 0.3; // с: паучок «вылетает из глубины» — вырастает от малого размера до своего
+const FADE_TIME = 1.5; // с: плавное исчезновение перед концом жизни
+
+export interface SpiderOptions {
+  scale?: number; // размер относительно нарисованного (паучки меньше)
+  lifetime?: number; // через сколько секунд исчезает (по умолчанию — не исчезает)
+}
+
 interface Vec {
   x: number;
   y: number;
@@ -76,9 +87,22 @@ export class Spider {
   private stateTimer: number;
   private idleTime = 0;
 
+  // Размер, жизнь и полёт (для выплюнутых паучков)
+  private readonly scale: number;
+  private readonly lifetime: number;
+  private age = 0;
+  private flying = false;
+  private pos: Vec = { x: 0, y: 0 };
+  private vel: Vec = { x: 0, y: 0 };
+  private flightTime = 0;
+  public expired = false;
+
   constructor(
-    def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary
+    def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
+    options: SpiderOptions = {}
   ) {
+    this.scale = options.scale ?? 1;
+    this.lifetime = options.lifetime ?? Infinity;
     const crawler = rig.crawler;
     if (!crawler) throw new Error(`[Spider] в риге "${rig.id}" нет блока crawler`);
     const raise = crawler.body_raise;
@@ -195,13 +219,92 @@ export class Spider {
   private applyTransform(): void {
     this.container.position.set(this.visPos.x, this.visPos.y);
     this.container.rotation = this.visAngle;
-    this.container.scale.x = this.mirror;
+    const grow = this.flying ? 0.25 + 0.75 * Math.min(1, this.flightTime / FLY_GROW) : 1;
+    this.container.scale.set(this.mirror * this.scale * grow, this.scale * grow);
   }
 
   // ---------- Обновление ----------
 
+  /** Выплёвывает паучка: он летит из точки (x, y) со скоростью (vx, vy) и садится на первую же поверхность. */
+  public launch(x: number, y: number, vx: number, vy: number): void {
+    this.flying = true;
+    this.flightTime = 0;
+    this.pos = { x, y };
+    this.vel = { x: vx, y: vy };
+    this.visPos = { x, y };
+    this.s = { x, y };
+    this.mirror = vx >= 0 ? -1 : 1; // рисунок смотрит влево
+    this.visAngle = 0;
+    this.applyTransform();
+  }
+
+  /** Полёт по дуге; при касании тайла — посадка на поверхность (нормаль — ось грани, повёрнутая к летящему). */
+  private fly(dt: number): void {
+    this.flightTime += dt;
+    this.vel.y += GRAVITY * dt;
+    const total = Math.hypot(this.vel.x, this.vel.y) * dt;
+    const steps = Math.max(1, Math.ceil(total / FLY_STEP));
+    const dx = (this.vel.x * dt) / steps;
+    const dy = (this.vel.y * dt) / steps;
+    for (let i = 0; i < steps; i++) {
+      const nx = this.pos.x + dx;
+      const ny = this.pos.y + dy;
+      if (this.solid(nx, ny)) {
+        this.land(this.pos, { x: dx, y: dy });
+        return;
+      }
+      this.pos = { x: nx, y: ny };
+    }
+    // в полёте паучок кувыркается слегка по ходу и держит лапки в нарисованной позе
+    this.visPos = { x: this.pos.x, y: this.pos.y + 8 * this.scale }; // тело паучка — над точкой «ног»
+    this.visAngle = Math.max(-0.5, Math.min(0.5, this.vel.x * 0.004)) + Math.sin(this.flightTime * 14) * 0.12;
+    this.mirror = this.vel.x >= 0 ? -1 : 1;
+    this.applyTransform();
+    this.animate(dt, 0);
+  }
+
+  private land(from: Vec, step: Vec): void {
+    const len = Math.hypot(step.x, step.y) || 1;
+    const dir = { x: step.x / len, y: step.y / len };
+    const hit = this.cast(from, dir, len + 2) ?? from;
+    // нормаль: ось, вдоль которой от точки удара есть свободное место, а за ней — твёрдое; берём ту, что смотрит против полёта
+    let best: Vec | null = null;
+    let bestScore = -Infinity;
+    for (const a of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+      const out = { x: hit.x + a.x * 1.5, y: hit.y + a.y * 1.5 };
+      const inn = { x: hit.x - a.x * 1.5, y: hit.y - a.y * 1.5 };
+      if (this.solid(out.x, out.y) || !this.solid(inn.x, inn.y)) continue;
+      const score = -(a.x * dir.x + a.y * dir.y);
+      if (score > bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    this.n = best ?? { x: 0, y: -1 };
+    const side = this.vel.x >= 0 ? 1 : -1;
+    this.t = Math.abs(this.n.x) > 0.5 ? { x: 0, y: side } : { x: side, y: 0 };
+    this.s = { x: hit.x, y: hit.y };
+    this.flying = false;
+    this.cornerCooldown = 0.12;
+    this.snapToSurface();
+    this.visPos = { ...this.s };
+    this.visAngle = this.targetAngle();
+    this.mirror = this.targetMirror();
+    this.applyTransform();
+  }
+
   public update(dt: number): void {
     dt = Math.min(dt, 1 / 30);
+    this.age += dt;
+    if (this.age >= this.lifetime) {
+      this.expired = true;
+    } else if (this.lifetime - this.age < FADE_TIME) {
+      this.container.alpha = (this.lifetime - this.age) / FADE_TIME;
+    }
+    if (this.flying) {
+      this.fly(dt);
+      return;
+    }
     this.cornerCooldown -= dt;
     this.sprint -= dt;
 
@@ -245,11 +348,13 @@ export class Spider {
     }
 
     // Внутренний угол: впереди стена — поворачиваем «на стену»
-    const base = { x: this.s.x + this.n.x * WALL_PROBE_HEIGHT, y: this.s.y + this.n.y * WALL_PROBE_HEIGHT };
-    const front = { x: base.x + this.t.x * BODY_FRONT, y: base.y + this.t.y * BODY_FRONT };
+    const front0 = BODY_FRONT * this.scale;
+    const probeH = Math.max(2, WALL_PROBE_HEIGHT * this.scale);
+    const base = { x: this.s.x + this.n.x * probeH, y: this.s.y + this.n.y * probeH };
+    const front = { x: base.x + this.t.x * front0, y: base.y + this.t.y * front0 };
     if (this.solid(front.x, front.y)) {
-      const wall = this.cast(base, this.t, BODY_FRONT + 2);
-      const d = wall ? Math.hypot(wall.x - base.x, wall.y - base.y) : BODY_FRONT;
+      const wall = this.cast(base, this.t, front0 + 2);
+      const d = wall ? Math.hypot(wall.x - base.x, wall.y - base.y) : front0;
       // новая точка контакта — в углу, где поверхность упирается в стену
       this.s = { x: this.s.x + this.t.x * d, y: this.s.y + this.t.y * d };
       const oldN = this.n;
@@ -298,7 +403,7 @@ export class Spider {
     // Фаза цикла идёт по пройденному пути: стопа в опоре едет назад ровно со скоростью тела (нет «скольжения»)
     const stride = 4 * STRIDE_HALF; // путь тела за полный цикл (опора + мах)
     const boost = this.sprint > 0 ? SPRINT_BOOST : 1;
-    this.phase += ((Math.PI * 2 * speedNow * dt) / stride) * boost;
+    this.phase += ((Math.PI * 2 * (speedNow / this.scale) * dt) / stride) * boost;
     this.idleTime += dt;
     const m = this.move; // амплитуда шагов: на остановке ноги сходятся в нарисованную позу
 

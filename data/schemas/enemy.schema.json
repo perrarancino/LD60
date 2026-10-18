@@ -37,6 +37,19 @@
       "items": { "type": "string" },
       "description": "Id спрайтов из data/sprites/sprites.json (может быть пустым на этапе геймдизайна)"
     },
+    "spawns": {
+      "type": "object",
+      "description": "Только для spawner: враг сидит на фоне и время от времени выплёвывает других врагов",
+      "required": ["enemy_id", "interval_seconds", "max_alive"],
+      "properties": {
+        "enemy_id": { "type": "string", "description": "Кого выплёвывает (id врага)" },
+        "sprite_id": { "type": "string", "description": "Вариант внешности порождаемого врага" },
+        "interval_seconds": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0.5 }, "description": "Пауза между плевками: [от, до]" },
+        "max_alive": { "type": "integer", "minimum": 1, "description": "Сколько порождённых может быть живо одновременно" },
+        "scale": { "type": "number", "minimum": 0.1, "description": "Размер порождённого относительно обычного (паучки меньше)" },
+        "lifetime_seconds": { "type": "number", "minimum": 1, "description": "Через сколько секунд порождённый исчезает (по умолчанию — не исчезает)" }
+      }
+    },
     "rig_id": { "type": "string", "description": "Id процедурного рига из data/rigs/ (для врагов, собранных из частей-слоёв, например паук)" },
     "stats": {
       "type": "object",
@@ -61,7 +74,8 @@
         "diver",
         "bouncing_projectile",
         "crawler",
-        "burrower"
+        "burrower",
+        "spawner"
       ],
       "description": "Базовый тип передвижения и поиска целей"
     },

@@ -93,6 +93,12 @@
       "y": 14,
       "surface": "floor",
       "length": 5
+    },
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 12,
+      "y": 5
     }
   ]
 }

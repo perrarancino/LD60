@@ -61,6 +61,10 @@ rigs = {r["id"]: r for r in [load(f"rigs/{p.name}") for p in sorted((DATA / "rig
 check(player["rig_id"] in rigs, f"игрок: риг {player['rig_id']} не найден")
 for e in enemies.values():
     check(e.get("rig_id") is None or e["rig_id"] in rigs, f"враг {e['id']}: риг {e.get('rig_id')} не найден")
+    sp_def = e.get("spawns")
+    if sp_def:
+        check(sp_def["enemy_id"] in enemies, f"враг {e['id']}: spawns -> неизвестный враг {sp_def['enemy_id']}")
+        check(sp_def.get("sprite_id") is None or sp_def["sprite_id"] in sprites, f"враг {e['id']}: spawns -> нет спрайта {sp_def.get('sprite_id')}")
 for rig in rigs.values():
     for part in rig["parts"]:
         check(part["sprite_id"] in sprites, f"риг {rig['id']}: нет спрайта {part['sprite_id']}")
@@ -75,6 +79,19 @@ for rig in rigs.values():
             if sp:
                 check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
                       f"риг {rig['id']}: нога {leg['name']}: слой {leg[key]} другого размера, чем холст")
+    wob = rig.get("wobbler")
+    if wob:
+        ids = [("тело", wob["body_sprite_id"])] + [(l["name"], l[k]["sprite_id"]) for l in wob["limbs"] for k in ("upper", "lower")]
+        for what, sid in ids:
+            sp = sprites.get(sid)
+            check(sp is not None, f"риг {rig['id']}: {what}: нет спрайта {sid}")
+            if sp:
+                check((sp["frame_width"], sp["frame_height"]) == (rig["canvas"]["width"], rig["canvas"]["height"]),
+                      f"риг {rig['id']}: {what}: слой {sid} другого размера, чем холст")
+    seg = rig.get("segmented")
+    if seg:
+        for key in ("head", "body", "tail"):
+            check(seg[key]["sprite_id"] in sprites, f"риг {rig['id']}: сегмент {key}: нет спрайта {seg[key]['sprite_id']}")
 
 backgrounds = {b["id"]: b for b in [load(f"backgrounds/{p.name}") for p in sorted((DATA / "backgrounds").glob("*.json"))]}
 for bg in backgrounds.values():

@@ -291,5 +291,43 @@
       "scrap_parts_max": 2,
       "drop_chance_percent": 60.0
     }
+  },
+  {
+    "id": "spider_mother",
+    "display_name": "Паучиха-матка (модель SOIC-16)",
+    "lore": "Огромная паучиха, которая сидит прямо на фоне — на стене платы — и тревожно шевелит лапками. Время от времени выплёвывает паучков, которые падают на платформы и расползаются.",
+    "sprite_variants": [
+      "enemy_spider_mother"
+    ],
+    "rig_id": "spider_mother_rig",
+    "stats": {
+      "max_health": 60,
+      "contact_damage": 0,
+      "movement_speed": 0.0
+    },
+    "behavior_type": "spawner",
+    "attack": {
+      "name": "Выплюнуть паучка",
+      "damage": 8,
+      "cooldown_seconds": 9.0,
+      "range": 200.0,
+      "description": "Выплёвывает маленького паука, который падает на платформы и ползёт по поверхностям."
+    },
+    "spawns": {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "interval_seconds": [
+        6.0,
+        12.0
+      ],
+      "max_alive": 4,
+      "scale": 0.55,
+      "lifetime_seconds": 40.0
+    },
+    "drops": {
+      "scrap_parts_min": 2,
+      "scrap_parts_max": 3,
+      "drop_chance_percent": 80.0
+    }
   }
 ]

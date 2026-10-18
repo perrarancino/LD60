@@ -68,6 +68,7 @@ export interface EnemyDef {
   rig_id?: string;
   stats: { max_health: number; contact_damage: number; movement_speed: number };
   behavior_type: string;
+  spawns?: SpawnsDef; // для spawner: кого и как выплёвывает
 }
 
 export interface RigPartDef {
@@ -117,12 +118,39 @@ export interface SegmentedDef {
   body_to_tail: number;
 }
 
+export interface JointPartDef {
+  sprite_id: string;
+  pivot: { x: number; y: number }; // точка вращения на холсте (корень или колено)
+}
+
+export interface WobblerLimbDef {
+  name: string;
+  upper: JointPartDef;
+  lower: JointPartDef;
+}
+
+export interface WobblerDef {
+  body_sprite_id: string;
+  mouth: { x: number; y: number };
+  limbs: WobblerLimbDef[];
+}
+
+export interface SpawnsDef {
+  enemy_id: string;
+  sprite_id?: string;
+  interval_seconds: [number, number];
+  max_alive: number;
+  scale?: number;
+  lifetime_seconds?: number;
+}
+
 export interface RigDef {
   id: string;
   canvas: { width: number; height: number };
   anchor: { x: number; y: number };
   crawler?: CrawlerDef;
   segmented?: SegmentedDef;
+  wobbler?: WobblerDef;
   parts: RigPartDef[]; // снизу вверх
 }
 

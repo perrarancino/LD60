@@ -1,0 +1,21 @@
+{
+  "source": "spider_mother.aseprite",
+  "canvasWidth": 64,
+  "canvasHeight": 64,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Layer 1",
+      "file": "spider_mother_layers/Layer_1.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        2,
+        1,
+        63,
+        57
+      ]
+    }
+  ]
+}

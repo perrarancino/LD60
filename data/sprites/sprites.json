@@ -571,6 +571,292 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother",
+      "category": "enemies",
+      "image": "enemies/spider_mother.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_body",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/body.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg1_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg1_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg1_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg1_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg2_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg2_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg2_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg2_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg3_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg3_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg3_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg3_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg4_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg4_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg4_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg4_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg5_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg5_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg5_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg5_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg6_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg6_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg6_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg6_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg7_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg7_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg7_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg7_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg8_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg8_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg8_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg8_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg9_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg9_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg9_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg9_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg10_a",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg10_a.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_leg10_b",
+      "category": "enemies",
+      "image": "enemies/spider_mother_parts/leg10_b.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
     }
   ]
 }
