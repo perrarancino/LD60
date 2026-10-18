@@ -25,7 +25,17 @@ import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import playerData from '../data/player/player_initial_state.json';
 import enemiesData from '../data/enemies/enemies.json';
 import tilesData from '../data/tiles/tiles.json';
-import levelData from '../data/levels/test_level.json';
+import { WorldPrototypeInteractions } from './world/WorldPrototypeInteractions.ts';
+
+// Все уровни из data/levels/
+const LEVELS = Object.values(
+  import.meta.glob('../data/levels/*.json', { eager: true, import: 'default' }) as Record<string, LevelDef>
+);
+
+const urlParams = new URLSearchParams(window.location.search);
+const requestedLevel = urlParams.get('level');
+const activeLevelDef = (requestedLevel ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel)) : undefined)
+  ?? (LEVELS.find(l => l.id === 'test_level') || LEVELS[0]);
 
 // Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
 const RIGS = Object.values(
@@ -80,6 +90,7 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private bosses: WormBoss[] = [];
+  private worldInteractions: WorldPrototypeInteractions | null = null;
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
   private grade: ColorGrade | null = null; // цветокоррекция уровня
@@ -261,7 +272,7 @@ class GameApp {
     this.drawGrid();
 
     const tileset = tilesData as TileSetDef;
-    const levelDef = levelData as unknown as LevelDef;
+    const levelDef = activeLevelDef;
     const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
 
     // Параллакс-фон уровня (если задан)
@@ -408,6 +419,9 @@ class GameApp {
     }
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
+    if (levelDef.id === 'world_prototype') {
+      this.worldInteractions = new WorldPrototypeInteractions(this.worldLayer, this.fx, this.player);
+    }
   }
 
   /** Всё, по чему можно ударить. */
@@ -633,7 +647,9 @@ class GameApp {
     this.aging.update(dt);
 
     // 2. Игрок: ввод + физика на тайлах
-    this.player.update(dt, this.input.poll(), this.level, this.aimInWorld());
+    const inputState = this.input.poll();
+    this.player.update(dt, inputState, this.level, this.aimInWorld());
+    this.worldInteractions?.update(dt, inputState);
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);

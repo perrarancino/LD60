@@ -17,8 +17,11 @@
 
       <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
 
-      <div class="world-title-badge" style="display: flex; align-items: center; gap: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border); padding: 4px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; color: #38bdf8;">
-        <span>🗺️ ЕДИНЫЙ МИР METROIDVANIA</span>
+      <div style="display: flex; align-items: center; gap: 8px; background: rgba(30, 41, 59, 0.85); border: 1px solid var(--border); padding: 3px 10px; border-radius: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #38bdf8;">🗺️ УРОВЕНЬ:</span>
+        <select id="editor-level-select" class="select-input" style="background: #0f172a; color: #fff; border: 1px solid #334155; padding: 3px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+          <!-- Заполняется динамически -->
+        </select>
       </div>
       <button id="btn-auto-fit-bounds" class="btn btn-primary" title="Умная оптимизация и подгонка границ мира под все комнаты">
         📐 Подогнать границы

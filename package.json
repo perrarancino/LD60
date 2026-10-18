@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "map": "vite --open /?level=world_prototype",
     "editor": "vite --open /editor.html",
     "build": "tsc && vite build",
     "preview": "vite preview",

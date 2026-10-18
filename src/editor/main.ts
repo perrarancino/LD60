@@ -75,15 +75,21 @@ class EditorApp {
       this.populateWorldRegions();
       this.populateTransitionTargetLevels();
       this.setupNewTileModal();
+      this.populateLevelDropdown();
 
       if (this.config?.world) {
         this.worldGraphModal.setWorld(this.config.world, (regionId) => this.handleSelectWorldRegion(regionId));
       }
 
-      // Загружаем единый мир метроидвании (test_level.json)
-      const mainWorld = this.config?.levels?.find(l => l.filename === 'test_level.json') || this.config?.levels?.[0];
-      if (mainWorld) {
-        this.loadLevel(mainWorld.filename, mainWorld.data);
+      // Загружаем начальный уровень (по URL параметру, world_prototype.json или test_level.json)
+      const urlLevel = new URLSearchParams(window.location.search).get('level');
+      const targetLvl = (urlLevel ? this.config?.levels?.find(l => l.filename === urlLevel || l.data.id === urlLevel) : undefined)
+        ?? this.config?.levels?.find(l => l.filename === 'world_prototype.json')
+        ?? this.config?.levels?.find(l => l.filename === 'test_level.json')
+        ?? this.config?.levels?.[0];
+
+      if (targetLvl) {
+        this.loadLevel(targetLvl.filename, targetLvl.data);
       }
 
       this.setStatus('Готов к работе');
@@ -496,8 +502,33 @@ class EditorApp {
     });
   }
 
+  private populateLevelDropdown() {
+    const select = document.getElementById('editor-level-select') as HTMLSelectElement;
+    if (!select || !this.config?.levels) return;
+    select.innerHTML = '';
+
+    for (const lvl of this.config.levels) {
+      const opt = document.createElement('option');
+      opt.value = lvl.filename;
+      opt.textContent = `${lvl.data.display_name || lvl.data.id} (${lvl.filename})`;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', () => {
+      const chosen = this.config?.levels.find((l) => l.filename === select.value);
+      if (chosen) {
+        this.loadLevel(chosen.filename, chosen.data);
+      }
+    });
+  }
+
   private loadLevel(filename: string, levelData: LevelDef) {
     this.currentFilename = filename;
+    const select = document.getElementById('editor-level-select') as HTMLSelectElement;
+    if (select && select.value !== filename) {
+      select.value = filename;
+    }
+
     // Клонируем, чтобы работать независимо
     const clone: LevelDef = JSON.parse(JSON.stringify(levelData));
     this.canvas.setLevel(clone);
