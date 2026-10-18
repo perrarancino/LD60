@@ -20,6 +20,7 @@ import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { FpsCounter } from './core/FpsCounter.ts';
+import { pal } from './core/Palette.ts';
 import { AgingSystem } from './systems/AgingSystem.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import { EventBus } from './core/EventBus.ts';
@@ -61,6 +62,7 @@ const BACKGROUNDS = Object.values(
 const FIST_RADIUS = 6; // px: «толщина» кулака при проверке попаданий
 const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
+const ZAP_COLORS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('electric', 7)]; // искры электрокрысы
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
 const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухает
@@ -453,6 +455,16 @@ class GameApp {
           return { x: b.x, y: b.y };
         };
         const mob = new Critter(def, spawn, this.level, rig, this.sprites, hero);
+        // хлыст-молния электрокрысы: сбивает героя с ног (регдолл), на щелчке — искры
+        mob.onWhipHit = (x, y, dirX) => {
+          const knocked = this.player.knockdown(dirX);
+          if (knocked) {
+            this.shake = Math.max(this.shake, CRIT_SHAKE);
+            this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
+          }
+          return knocked;
+        };
+        mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
         this.critters.push(mob);
         this.worldLayer.addChild(mob.container);
         this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));

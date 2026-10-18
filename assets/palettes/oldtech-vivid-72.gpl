@@ -1,0 +1,76 @@
+GIMP Palette
+Name: OldTech 72 Vivid
+Columns: 8
+#
+ 10   4  39	void-0
+ 37  11 103	void-1
+ 71  27 167	void-2
+107  68 205	void-3
+150 103 242	void-4
+192 149 252	void-5
+224 189 251	void-6
+248 221 255	void-7 highlight
+  2  12  23	steel-0
+ 18  40  59	steel-1
+ 48  72  92	steel-2
+ 80 105 127	steel-3
+115 141 163	steel-4
+151 178 201	steel-5
+182 210 234	steel-6
+213 235 255	steel-7 highlight
+  2  14  11	pcb-0
+  6  46  36	pcb-1
+  5  82  58	pcb-2
+  0 122  75	pcb-3
+  0 164  82	pcb-4
+ 34 208  76	pcb-5
+ 86 244  54	pcb-6
+185 255 151	pcb-7 highlight
+  2  13  19	electric-0
+  6  43  54	electric-1
+  5  77  93	electric-2
+  0 115 132	electric-3
+  0 155 170	electric-4
+ 34 197 205	electric-5
+ 61 233 230	electric-6
+145 255 241	electric-7 highlight
+  1  10  32	cobalt-0
+  4  36  83	cobalt-1
+  4  67 135	cobalt-2
+  0 103 183	cobalt-3
+  0 144 226	cobalt-4
+ 65 186 252	cobalt-5
+143 218 251	cobalt-6
+193 241 255	cobalt-7 highlight
+ 17   3  32	virus-0
+ 53   8  87	virus-1
+ 98   7 146	virus-2
+150   0 202	virus-3
+208  13 248	virus-4
+247 107 252	virus-5
+251 178 235	virus-6
+255 221 239	virus-7 highlight
+ 25   2  17	plasma-0
+ 70   7  49	plasma-1
+124   6  80	plasma-2
+184   0 106	plasma-3
+247   0 127	plasma-4
+252 130 157	plasma-5
+251 186 191	plasma-6
+255 223 222	plasma-7 highlight
+ 26   2   9	ember-0
+ 74   7  28	ember-1
+131   6  40	ember-2
+192   0  39	ember-3
+255  11   8	ember-4
+252 137 107	ember-5
+251 189 166	ember-6
+255 225 210	ember-7 highlight
+ 27   3   2	gold-0
+ 67  23   4	gold-1
+106  53   4	gold-2
+144  87   0	gold-3
+183 124   0	gold-4
+221 163  28	gold-5
+251 197  61	gold-6
+255 229 170	gold-7 highlight

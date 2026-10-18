@@ -198,6 +198,20 @@ export interface CritterPartDef {
   anims?: CritterAnimDef[];
 }
 
+/** Хвост-молния (процедурный, src/effects/LightningTail.ts), хлещущий героя: подбегает, замахивается и сбивает с ног. */
+export interface CritterTailDef {
+  root: { x: number; y: number }; // корень хвоста на холсте рига
+  length: number; // длина в покое, px
+  nodes?: number; // узлов в цепочке (по умолчанию 11)
+  whip?: {
+    reach: number; // на сколько px вперёд от точки привязки дотягивается хлёст
+    windup: number; // время замаха, с
+    lash: number; // время самого хлёста, с
+    recover: number; // время возврата хвоста, с
+    cooldown: [number, number]; // пауза между хлёстами (случайная в диапазоне), с
+  };
+}
+
 /** Небольшое существо из слоёв с процедурной анимацией: ходит (walker), скачет (hopper), летает (flyer) или стоит и следит (watcher). */
 export interface CritterDef {
   kind: 'walker' | 'hopper' | 'flyer' | 'watcher';
@@ -206,6 +220,7 @@ export interface CritterDef {
   sight?: number; // дальность, на которой замечает героя, px
   hit: Array<{ x: number; y: number; r: number }>; // круги попадания на холсте рига
   parts: CritterPartDef[]; // снизу вверх
+  tail?: CritterTailDef; // процедурный хвост-молния поверх деталей
 }
 
 export interface SegmentDef {

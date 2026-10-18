@@ -18,6 +18,12 @@ assets/
     └── sfx/
 ```
 
+## Палитра-эталон
+
+`assets/palettes/oldtech-vivid-72.gpl` (GIMP/Aseprite) — OldTech 72 Vivid: 9 рамп по 8 оттенков (`void`, `steel`, `pcb`, `electric`, `cobalt`, `virus`,
+`plasma`, `ember`, `gold`; 0 — самый тёмный, 7 — блик). Все новые цвета (процедурные эффекты, молнии, искры, интерфейс, свет) берём только отсюда, в коде —
+через `pal('cobalt', 5)` из `src/core/Palette.ts`. Рисунок мобов второй локации — рампа cobalt, свечение жуков — void, электричество — electric и cobalt.
+
 ## Части тела героя (процедурный риг)
 
 `assets/source/player/player.aseprite` состоит из слоёв `Head, Torso (торс), Fhand/Bhand (руки), Fleg/Bleg (ноги)`.

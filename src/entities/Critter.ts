@@ -2,6 +2,7 @@ import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { CritterAnimDef, CritterDef, EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
+import { LightningTail } from '../effects/LightningTail.ts';
 import { Body } from './Body.ts';
 import { HitReaction } from './HitReaction.ts';
 import type { HitCircle, Hittable } from './Hittable.ts';
@@ -21,6 +22,10 @@ const FLIP_RATE = 15; // 1/с: плавный разворот (рисунок �
 const AIR_RATE = 10; // 1/с: плавный переход «на земле» ↔ «в воздухе» (взмахи крыла не включаются щелчком)
 const SQUASH_K = 190; // 1/с²: пружина сжатия/растяжения тела на прыжке и приземлении
 const SQUASH_D = 17; // 1/с: её затухание
+const WHIP_MARGIN = 12; // px: хлестать начинает, подойдя ближе reach на столько
+const WHIP_HIT_R = 11; // px: на таком расстоянии от хвоста герой считается задетым
+const WHIP_GIVE_UP = 5; // с: гонится за героем так долго и не дотянулся — отстаёт на время
+const KEEP_AWAY = 64; // px: пока хвост «отдыхает», крыса не липнет к герою ближе этого
 
 interface Vec {
   x: number;
@@ -75,6 +80,18 @@ export class Critter implements Hittable {
   private heading = Math.random() * Math.PI * 2; // курс птички
   private pos: Vec = { x: 0, y: 0 };
   private readonly spriteDef;
+  private readonly tail: LightningTail | null = null;
+  private wState: 'none' | 'windup' | 'lash' | 'recover' = 'none'; // хлёст хвостом: замах -> удар -> возврат
+  private wT = 0;
+  private wind = 0; // 0..1: замах (для хвоста)
+  private lash = 0; // 0..1: ход хлёста
+  private whipCd = rand(1.2, 3.2); // пауза до следующего хлёста, с
+  private chaseT = 0;
+  private whipHitDone = false;
+  /** Хлёст задел героя: (x, y, сторона отбрасывания). Возвращает true, если герой сбит (иначе — не засчитан, например уже лежит). */
+  public onWhipHit: ((x: number, y: number, dirX: number) => boolean) | null = null;
+  /** Щелчок хлыста в конце удара: точка кончика в мире. */
+  public onCrack: ((x: number, y: number) => void) | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -93,6 +110,11 @@ export class Critter implements Hittable {
       sprite.position.set(d.pivot.x, d.pivot.y);
       this.node.addChild(sprite);
       this.parts.push({ sprite, pivot: d.pivot, anims: d.anims ?? [], cur: { dx: 0, dy: 0, rot: 0, sy: 1 } });
+    }
+    if (cfg.tail) {
+      // хвост-молния: поверх деталей; хлёст дотягивается на reach px вперёд от точки привязки
+      this.tail = new LightningTail(cfg.tail, cfg.tail.root.x - this.anchor.x + (cfg.tail.whip?.reach ?? 0));
+      this.node.addChild(this.tail.graphics);
     }
     this.node.pivot.set(this.anchor.x, this.anchor.y);
     this.container.addChild(this.node);
@@ -168,6 +190,87 @@ export class Critter implements Hittable {
     this.updateSquash(dt);
     this.applyTransform(dt);
     this.animate(dt);
+    this.updateTail(dt);
+  }
+
+  /** Хвост-молния: рисуется только рядом с героем (дальше — вне экрана), позу задают замах и хлёст. */
+  private updateTail(dt: number): void {
+    const tail = this.tail;
+    if (!tail) return;
+    const h = this.target();
+    const p = this.position;
+    const near = !h || Math.abs(h.x - p.x) < 640;
+    tail.graphics.visible = near;
+    if (!near && this.wState === 'none') return;
+    if (tail.update(dt, this.move, this.wind, this.lash)) {
+      const sx = this.mirrored() ? -1 : 1;
+      this.onCrack?.(p.x + (tail.tip.x - this.anchor.x) * sx, p.y + (tail.tip.y - this.anchor.y));
+    }
+  }
+
+  /** Хлёст: замах -> удар -> возврат; в удар задетый хвостом герой сбивается с ног. Зверёк при этом стоит на месте. */
+  private stepWhip(dt: number, hero: Vec | null, whip: NonNullable<NonNullable<CritterDef['tail']>['whip']>): void {
+    const b = this.body;
+    const easeV = (v: number) => v * v * (3 - 2 * v);
+    switch (this.wState) {
+      case 'none': {
+        this.whipCd -= dt;
+        if (!hero || this.whipCd > 0) { if (!hero) this.chaseT = 0; break; }
+        if (b.grounded && Math.abs(hero.x - b.x) <= whip.reach - WHIP_MARGIN && Math.abs(hero.y - b.y) < 40) {
+          this.wState = 'windup';
+          this.wT = 0;
+          this.chaseT = 0;
+          this.whipHitDone = false;
+          this.setFacing(hero.x > b.x ? 1 : -1);
+        } else if ((this.chaseT += dt) > WHIP_GIVE_UP) {
+          this.chaseT = 0;
+          this.whipCd = rand(2, 3.5);
+        }
+        break;
+      }
+      case 'windup':
+        this.wT += dt;
+        this.wind = easeV(clamp(this.wT / whip.windup, 0, 1));
+        this.lash = 0;
+        if (this.wT >= whip.windup) { this.wState = 'lash'; this.wT = 0; }
+        break;
+      case 'lash':
+        this.wT += dt;
+        this.wind = 1;
+        this.lash = clamp(this.wT / whip.lash, 0, 1);
+        if (!this.whipHitDone && this.lash > 0.3 && hero && this.tailTouches(hero)) {
+          const dirX = hero.x >= b.x ? 1 : -1;
+          this.whipHitDone = true;
+          const tip = this.tail!.tip;
+          const sx = this.mirrored() ? -1 : 1;
+          this.onWhipHit?.(b.x + (tip.x - this.anchor.x) * sx, b.y + (tip.y - this.anchor.y), dirX);
+        }
+        if (this.wT >= whip.lash) { this.wState = 'recover'; this.wT = 0; }
+        break;
+      default: {
+        this.wT += dt;
+        const u = clamp(this.wT / whip.recover, 0, 1);
+        this.lash = 1 - easeV(u);
+        this.wind = 1 - easeV(clamp(u * 1.25, 0, 1));
+        if (this.wT >= whip.recover) {
+          this.wState = 'none';
+          this.wind = this.lash = 0;
+          this.whipCd = rand(whip.cooldown[0], whip.cooldown[1]);
+        }
+      }
+    }
+  }
+
+  /** Задел ли хвост героя (грудь и ноги — два круга) в этот момент. */
+  private tailTouches(hero: Vec): boolean {
+    const tail = this.tail;
+    if (!tail) return false;
+    const p = this.position;
+    const sx = this.mirrored() ? -1 : 1;
+    const local = (wy: number) => ({ x: (hero.x - p.x) * sx + this.anchor.x, y: wy - p.y + this.anchor.y });
+    const chest = local(hero.y - 22);
+    const legs = local(hero.y - 8);
+    return tail.distanceTo(chest.x, chest.y) < WHIP_HIT_R + 3 || tail.distanceTo(legs.x, legs.y) < WHIP_HIT_R;
   }
 
   /** Пружина тела: на взлёте тянется вверх по скорости, на приземлении сплющивается и пружинит назад. */
@@ -193,21 +296,29 @@ export class Critter implements Hittable {
   private updateWalker(dt: number): void {
     const b = this.body;
     const hero = this.heroNear(this.cfg.sight ?? 180);
+    const whip = this.cfg.tail?.whip;
+    if (whip) this.stepWhip(dt, hero, whip);
+    // с хвостом-хлыстом: гонится за героем только когда готов хлестать, в паузе держится на расстоянии; хлещет стоя на месте
+    const chasing = !!hero && (!whip || (this.whipCd <= 0 && this.wState === 'none'));
+    const keepAway = !!hero && !!whip && !chasing && this.wState === 'none' && Math.abs(hero.x - b.x) < KEEP_AWAY;
     let want = this.dir;
     let speed = this.speed;
-    if (hero) {
+    if (chasing) {
       if (Math.abs(hero.x - b.x) > 8) want = hero.x > b.x ? 1 : -1;
       speed *= CHASE_BOOST;
+    } else if (keepAway) {
+      want = hero.x > b.x ? -1 : 1;
     }
     const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want));
     if (blocked) {
-      if (hero) speed = 0; // у края или стены не падает и не лезет в стену — ждёт
+      if (chasing || keepAway) speed = 0; // у края или стены не падает и не лезет в стену — ждёт
       else {
         this.dir = want = (-want) as 1 | -1;
       }
-    } else if (!hero) {
+    } else if (!chasing && !keepAway) {
       this.dir = want;
     }
+    if (this.wState !== 'none') speed = 0; // замах и хлёст — на месте, лицом к герою
     if (speed > 0) this.setFacing(want);
     b.vx += (want * speed - b.vx) * (1 - Math.exp(-14 * dt));
     this.gravity(dt);

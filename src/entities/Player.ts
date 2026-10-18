@@ -42,6 +42,10 @@ const FALL_TOPPLE: [number, number] = [70, 130]; // px/с: толчок груд
 const GETUP_MIN = 0.55; // с: подъём не короче
 const GETUP_MAX = 1.1; // с: и не дольше
 const GETUP_DONE = 3.5; // px: тело почти в стойке — подъём закончен
+const KNOCK_VX = 190; // px/с: хлёст отбрасывает героя по горизонтали (на power 1)
+const KNOCK_VY = 330; // px/с: и подбрасывает вверх (регдолл берёт часть скорости: таз, грудь, голова)
+const KNOCK_TOPPLE = 150; // px/с: толчок груди и головы от удара — тело заваливается
+const KNOCK_IMMUNITY = 3.2; // с после сбивания (падение + подъём + запас), в которые повторный хлёст не засчитывается
 
 /** Удар в мире: от плеча к кулаку; id растёт с каждым ударом (чтобы один удар засчитывался врагу один раз). */
 export interface Strike {
@@ -125,6 +129,8 @@ export class Player {
   private wasGrounded = true;
   private doll: Ragdoll | null = null; // регдолл (создаётся при первом падении)
   private downed = false; // лежит регдоллом или встаёт
+  private level: Level | null = null; // уровень последнего update (для регдолла от внешнего удара)
+  private knockCd = 0; // с: защита от повторного сбивания
   private extraJumps = 0; // двойной прыжок (проводные ноги)
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
@@ -148,6 +154,8 @@ export class Player {
   /** aim — положение курсора в мире (null, пока мышь не двигали). */
   public update(dt: number, input: InputState, level: Level, aim: { x: number; y: number } | null): void {
     const b = this.body;
+    this.level = level;
+    this.knockCd -= dt;
     this.climbCooldown -= dt;
     this.kickT = this.climb || b.grounded ? 0 : Math.max(0, this.kickT - dt);
     // пока герой лежит и встаёт — управления нет
@@ -261,6 +269,25 @@ export class Player {
     const f = this.rig.fist;
     if (this.punchT < 0 || !f.active) return null;
     return { id: this.punchId, x1: f.x1, y1: f.y1, x2: f.x2, y2: f.y2, dirX: this.punchDir.x, dirY: this.punchDir.y };
+  }
+
+  /**
+   * Сбить героя с ног внешним ударом (хлыст электрокрысы): он падает регдоллом в сторону dirX (±1), подброшенный и завалившись, затем встаёт сам.
+   * Возвращает false, если не засчитано: уже лежит, висит на уступе или ещё действует защита от повторного сбивания.
+   */
+  public knockdown(dirX: number, power = 1): boolean {
+    const level = this.level;
+    if (!level || this.downed || this.climb || this.knockCd > 0) return false;
+    const b = this.body;
+    const dir = dirX >= 0 ? 1 : -1;
+    this.doll ??= new Ragdoll(this.rig.ragdollGeometry());
+    this.doll.start(level, b.x, b.y, this.facing, dir * KNOCK_VX * power, -KNOCK_VY * power, dir * KNOCK_TOPPLE * power);
+    this.downed = true;
+    this.punchT = -1;
+    this.throwT = -1;
+    this.kickT = 0;
+    this.knockCd = KNOCK_IMMUNITY;
+    return true;
   }
 
   /** Приземление после падения с большой высоты: тело становится регдоллом (по инерции бега — вперёд, стоя — валится назад). */

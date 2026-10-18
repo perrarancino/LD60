@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/rig.schema.json",
   "id": "electro_rat_rig",
-  "description": "Электрокрыса из слоёв electro_rat.aseprite (64x64, морда влево): хвост-молния качается вокруг корня, лапы шагают по очереди, тело подпрыгивает на шаге. Ползает по полу, на героя бросается быстрее.",
+  "description": "Электрокрыса из слоёв electro_rat.aseprite (64x64, морда влево): лапы шагают по очереди, тело подпрыгивает на шаге; хвост — процедурная молния (блок tail, рампа cobalt палитры): иногда крыса подбегает к герою, замахивается и хлещет хвостом, сбивая героя с ног (регдолл).",
   "canvas": {
     "width": 64,
     "height": 64
@@ -28,28 +28,6 @@
       }
     ],
     "parts": [
-      {
-        "name": "Hvost",
-        "sprite_id": "enemy_electro_rat_tail",
-        "pivot": {
-          "x": 58,
-          "y": 56
-        },
-        "anims": [
-          {
-            "type": "wag",
-            "amp": 0.13,
-            "rate": 7.0,
-            "phase": 0.0
-          },
-          {
-            "type": "bounce",
-            "amp": 1.2,
-            "rate": 1.0,
-            "phase": 0.0
-          }
-        ]
-      },
       {
         "name": "leg2",
         "sprite_id": "enemy_electro_rat_leg2",
@@ -100,7 +78,25 @@
           }
         ]
       }
-    ]
+    ],
+    "tail": {
+      "root": {
+        "x": 58,
+        "y": 56
+      },
+      "length": 30,
+      "nodes": 11,
+      "whip": {
+        "reach": 58,
+        "windup": 0.42,
+        "lash": 0.17,
+        "recover": 0.55,
+        "cooldown": [
+          3.0,
+          6.0
+        ]
+      }
+    }
   },
   "parts": []
 }
