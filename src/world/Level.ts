@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { DecorZoneDef, LevelDef, TileSetDef } from '../data/types.ts';
 import { THREAD_SPRITE, Webs } from './Webs.ts';
@@ -35,6 +35,7 @@ export class Level {
   public readonly def: LevelDef;
 
   private solid: boolean[][] = [];
+  private slopes: (('up_right' | 'up_left' | 'ceil_right' | 'ceil_left') | undefined)[][] = [];
   private readonly reserved = new Set<string>(); // «ряд:колонка» клеток, где уже стоит декор (автодекор там не ставится)
   private readonly webs: Webs;
 
@@ -66,6 +67,7 @@ export class Level {
     };
     for (let cy = 0; cy < def.height; cy++) {
       this.solid[cy] = [];
+      this.slopes[cy] = [];
       for (let cx = 0; cx < def.width; cx++) {
         const ch = def.rows[cy][cx];
         const tileId = def.legend[ch];
@@ -74,7 +76,9 @@ export class Level {
         if (tileId && !tile) throw new Error(`[Level] неизвестный тайл "${tileId}"`);
 
         this.solid[cy][cx] = !!tile?.solid;
-        if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx]) {
+        this.slopes[cy][cx] = tile?.slope;
+
+        if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx] && !tile.slope) {
           // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
           const fill = sprites.createSprite(tile.fill_sprite_id);
           fill.position.set(cx * this.tileSize, cy * this.tileSize);
@@ -89,7 +93,44 @@ export class Level {
           }
           const sprite = sprites.createSprite(tile.sprite_id, frame);
           sprite.position.set(cx * this.tileSize, cy * this.tileSize);
-          this.container.addChild(sprite);
+
+          if (tile.slope) {
+            const mask = new Graphics();
+            const ts = this.tileSize;
+            const ox = cx * ts;
+            const oy = cy * ts;
+            mask.beginPath();
+            if (tile.slope === 'up_right') {
+              mask.poly([ox, oy + ts, ox + ts, oy + ts, ox + ts, oy]);
+            } else if (tile.slope === 'up_left') {
+              mask.poly([ox, oy, ox, oy + ts, ox + ts, oy + ts]);
+            } else if (tile.slope === 'ceil_right') {
+              mask.poly([ox, oy, ox + ts, oy, ox + ts, oy + ts]);
+            } else if (tile.slope === 'ceil_left') {
+              mask.poly([ox, oy, ox + ts, oy, ox, oy + ts]);
+            }
+            mask.fill({ color: 0xffffff });
+            sprite.mask = mask;
+            this.container.addChild(mask);
+
+            // Линия дорожки по диагонали
+            const edge = new Graphics();
+            edge.setStrokeStyle({ width: 2, color: 0x4ade80, alpha: 0.9 });
+            if (tile.slope === 'up_right') {
+              edge.moveTo(ox, oy + ts).lineTo(ox + ts, oy);
+            } else if (tile.slope === 'up_left') {
+              edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
+            } else if (tile.slope === 'ceil_right') {
+              edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
+            } else if (tile.slope === 'ceil_left') {
+              edge.moveTo(ox + ts, oy).lineTo(ox, oy + ts);
+            }
+            edge.stroke();
+            this.container.addChild(sprite);
+            this.container.addChild(edge);
+          } else {
+            this.container.addChild(sprite);
+          }
         }
       }
     }
@@ -155,5 +196,52 @@ export class Level {
     if (cx < 0 || cx >= this.widthTiles) return true;
     if (cy < 0 || cy >= this.heightTiles) return false;
     return this.solid[cy][cx];
+  }
+
+  /** Получить скос клетки, если он есть */
+  public getSlope(cx: number, cy: number): ('up_right' | 'up_left' | 'ceil_right' | 'ceil_left') | undefined {
+    if (cx < 0 || cx >= this.widthTiles || cy < 0 || cy >= this.heightTiles) return undefined;
+    return this.slopes[cy]?.[cx];
+  }
+
+  /** Субпиксельная проверка твёрдости с учётом диагональных 45° скосов */
+  public isSolidAtPixel(px: number, py: number): boolean {
+    const cx = Math.floor(px / this.tileSize);
+    const cy = Math.floor(py / this.tileSize);
+    if (cx < 0 || cx >= this.widthTiles) return true;
+    if (cy < 0) return true;
+    if (cy >= this.heightTiles) return false;
+    if (!this.solid[cy]?.[cx]) return false;
+
+    const slope = this.slopes[cy]?.[cx];
+    if (!slope) return true;
+
+    const lx = (px - cx * this.tileSize) / this.tileSize;
+    const ly = (py - cy * this.tileSize) / this.tileSize;
+    if (slope === 'up_right') return ly >= 1 - lx;
+    if (slope === 'up_left') return ly >= lx;
+    if (slope === 'ceil_right') return ly <= lx;
+    if (slope === 'ceil_left') return ly <= 1 - lx;
+    return true;
+  }
+
+  /** Находит все допустимые клетки пола внутри заданной зоны (для спавна мобов строго на полу) */
+  public findFloorPositionsInZone(zone: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
+    const floors: Array<{ x: number; y: number }> = [];
+    const x0 = Math.max(0, zone.x);
+    const x1 = Math.min(this.widthTiles - 1, zone.x + zone.width - 1);
+    const y0 = Math.max(0, zone.y);
+    const y1 = Math.min(this.heightTiles - 1, zone.y + zone.height - 1);
+
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cy = y0; cy <= y1; cy++) {
+        // Клетка пола: твёрдая клетка, над которой пустота
+        if (this.isSolid(cx, cy) && (cy === 0 || !this.isSolid(cx, cy - 1))) {
+          // Игрок/моб стоит в клетке cy - 1 над блоком cy
+          floors.push({ x: cx, y: cy - 1 });
+        }
+      }
+    }
+    return floors;
   }
 }

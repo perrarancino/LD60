@@ -72,7 +72,11 @@ export class Body {
     const top = y + this.offsetY;
     for (let cy = Math.floor(top / ts); cy <= Math.floor((top + this.height - eps) / ts); cy++) {
       for (let cx = Math.floor(left / ts); cx <= Math.floor((left + this.width - eps) / ts); cx++) {
-        if (level.isSolid(cx, cy)) return true;
+        if (!level.isSolid(cx, cy)) continue;
+        if (!level.getSlope(cx, cy)) return true;
+        const testX = Math.max(left, Math.min(left + this.width, x));
+        const testY = Math.max(top, Math.min(top + this.height, y));
+        if (level.isSolidAtPixel(testX, testY)) return true;
       }
     }
     return false;
@@ -96,6 +100,11 @@ export class Body {
     for (let cy = r0; cy <= r1; cy++) {
       for (let cx = c0; cx <= c1; cx++) {
         if (!level.isSolid(cx, cy)) continue;
+        const slope = level.getSlope(cx, cy);
+        if (slope === 'up_right' || slope === 'up_left') {
+          // Напольные скосы не блокируют бег по горизонтали — персонаж взбегает по ним
+          continue;
+        }
         const center = this.x + this.offsetX + this.width / 2;
         const pushRight = vx < 0 || (vx === 0 && center > cx * ts + ts / 2);
         if (vx !== 0) this.blockedX = vx > 0 ? 1 : -1;
@@ -111,6 +120,42 @@ export class Body {
     for (let cy = r0; cy <= r1; cy++) {
       for (let cx = c0; cx <= c1; cx++) {
         if (!level.isSolid(cx, cy)) continue;
+        const slope = level.getSlope(cx, cy);
+        if (slope) {
+          const feetX = Math.max(cx * ts, Math.min((cx + 1) * ts, this.x));
+          const lx = (feetX - cx * ts) / ts;
+          if (slope === 'up_right' && falling) {
+            const surfaceY = (cy + 1 - lx) * ts;
+            if (this.y >= surfaceY - 4) {
+              this.y = surfaceY;
+              this.grounded = true;
+              this.vy = 0;
+            }
+          } else if (slope === 'up_left' && falling) {
+            const surfaceY = (cy + lx) * ts;
+            if (this.y >= surfaceY - 4) {
+              this.y = surfaceY;
+              this.grounded = true;
+              this.vy = 0;
+            }
+          } else if (slope === 'ceil_right' && !falling) {
+            const ceilY = (cy + lx) * ts;
+            const top = this.y + this.offsetY;
+            if (top <= ceilY + 4) {
+              this.y = ceilY - this.offsetY;
+              this.vy = 0;
+            }
+          } else if (slope === 'ceil_left' && !falling) {
+            const ceilY = (cy + 1 - lx) * ts;
+            const top = this.y + this.offsetY;
+            if (top <= ceilY + 4) {
+              this.y = ceilY - this.offsetY;
+              this.vy = 0;
+            }
+          }
+          continue;
+        }
+
         if (falling) {
           this.y = cy * ts - (this.offsetY + this.height);
           this.grounded = true;

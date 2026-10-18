@@ -32,6 +32,7 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
+  slope?: 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left'; // 45° диагональный скос тайла
   fill_sprite_id?: string; // спрайт заливки для клеток под верхним слоем (над которыми тоже твёрдая клетка): стены и толща
   loop_frames?: number; // спрайт — лист из трёх кадров-тайлов: левый край платформы, середина (повторяется), правый край
 }
@@ -39,6 +40,30 @@ export interface TileDef {
 export interface TileSetDef {
   tile_size: number;
   tiles: TileDef[];
+}
+
+export interface RoomDef {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color?: string;
+  beveled?: boolean;
+}
+
+export interface MobSpawnZoneDef {
+  id: string;
+  name?: string;
+  enemy_id: string;
+  sprite_id?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  count: number;
+  surface?: 'floor' | 'ceiling' | 'wall';
 }
 
 export interface EnemySpawnDef {
@@ -49,6 +74,8 @@ export interface EnemySpawnDef {
   surface?: 'floor' | 'ceiling' | 'wall_left' | 'wall_right';
   length?: number; // длина червя в сегментах (по умолчанию случайная в пределах рига)
   anchor_y?: number; // для висящих на нитке: ряд тайлов, где закреплён верх нитки (по умолчанию -2)
+  is_boss?: boolean;
+  boss_id?: string;
 }
 
 /** Декор уровня (без коллизии): точка привязки спрайта ставится в (x, y) тайлов. back — за тайлами, front — поверх них. */
@@ -97,6 +124,8 @@ export interface LevelDef {
   grade?: GradeDef;
   zones?: DecorZoneDef[];
   enemies: EnemySpawnDef[];
+  rooms?: RoomDef[];
+  spawn_zones?: MobSpawnZoneDef[];
 }
 
 export interface EnemyDef {

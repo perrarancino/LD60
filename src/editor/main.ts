@@ -1,6 +1,6 @@
 import { AssetManager } from './assetManager';
 import { EditorCanvas } from './editorCanvas';
-import type { BackgroundDef, CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, TileDef, ToolType } from './types';
+import type { BackgroundDef, CableDef, EditorConfigResponse, EnemySpawnDef, LevelDef, LevelTransitionDef, MobSpawnZoneDef, RoomDef, TileDef, ToolType } from './types';
 import { WorldGraphModal } from './worldGraph';
 
 class EditorApp {
@@ -18,8 +18,19 @@ class EditorApp {
       onSelectEnemy: (enemy, idx) => this.updateSelectedEnemy(enemy, idx),
       onSelectTransition: (trans, idx) => this.updateSelectedTransition(trans, idx),
       onSelectCable: (cable, idx) => this.updateSelectedCable(cable, idx),
+      onSelectRoom: (room, idx) => this.updateSelectedRoom(room, idx),
+      onSelectMobZone: (zone, idx) => this.updateSelectedMobZone(zone, idx),
+      onToolChange: (tool) => {
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          const t = (btn as HTMLElement).dataset.tool;
+          btn.classList.toggle('active', t === tool);
+        });
+      },
       onPlaytestToggle: (active) => this.updatePlaytestUI(active),
-      onLevelChanged: () => this.syncSettingsForm(),
+      onLevelChanged: () => {
+        this.syncSettingsForm();
+        this.syncRoomsAndZonesUI();
+      },
       onStatusMessage: (msg) => this.setStatus(msg)
     });
 
@@ -58,6 +69,8 @@ class EditorApp {
       // Наполняем палитры и данные
       this.populateTilePalette();
       this.populateEnemyPalette();
+      this.populateBossPalette();
+      this.populateZoneEnemyDropdown();
       this.populateBackgroundDropdowns();
       this.populateLevelDropdown();
       this.populateWorldRegions();
@@ -519,6 +532,7 @@ class EditorApp {
     }
 
     this.syncSettingsForm();
+    this.syncRoomsAndZonesUI();
     this.setStatus(`Загружен уровень: ${clone.display_name || clone.id}`);
   }
 
@@ -667,6 +681,160 @@ class EditorApp {
     }
   }
 
+  private populateBossPalette() {
+    const container = document.getElementById('palette-bosses-list');
+    if (!container || !this.config?.bosses) return;
+    container.innerHTML = '';
+
+    for (const boss of this.config.bosses) {
+      const card = document.createElement('div');
+      card.className = 'boss-card';
+      card.dataset.bossId = boss.id;
+
+      const header = document.createElement('div');
+      header.className = 'boss-card-header';
+
+      const crown = document.createElement('span');
+      crown.className = 'boss-card-crown';
+      crown.textContent = '👑';
+
+      const name = document.createElement('span');
+      name.className = 'boss-card-name';
+      name.textContent = boss.display_name || boss.id;
+
+      header.appendChild(crown);
+      header.appendChild(name);
+      card.appendChild(header);
+
+      const stats = document.createElement('div');
+      stats.className = 'boss-card-stats';
+      stats.textContent = `Здоровье: ${boss.stats?.max_health ?? 350} HP | Урон: ${boss.stats?.contact_damage ?? 20} | Локация: ${boss.location_id || 'любая'}`;
+      card.appendChild(stats);
+
+      if (boss.attacks && boss.attacks.length > 0) {
+        const attacksWrap = document.createElement('div');
+        attacksWrap.className = 'boss-card-attacks';
+        for (const atk of boss.attacks) {
+          const badge = document.createElement('span');
+          badge.className = 'boss-attack-badge';
+          badge.textContent = `⚔️ ${atk.name || atk.id}`;
+          badge.title = atk.description || '';
+          attacksWrap.appendChild(badge);
+        }
+        card.appendChild(attacksWrap);
+      }
+
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.boss-card').forEach(el => el.classList.remove('active'));
+        card.classList.add('active');
+        this.canvas.selectedBossId = boss.id;
+        this.canvas.selectedBossDisplayName = boss.display_name || boss.id;
+        this.setTool('boss_spawn');
+        this.setStatus(`👑 Выбран босс для спавна: ${boss.display_name}`);
+      });
+
+      container.appendChild(card);
+    }
+
+    // По умолчанию выбираем первого босса
+    if (this.config.bosses.length > 0) {
+      const firstBoss = this.config.bosses[0];
+      this.canvas.selectedBossId = firstBoss.id;
+      this.canvas.selectedBossDisplayName = firstBoss.display_name || firstBoss.id;
+      const firstCard = container.querySelector('.boss-card');
+      firstCard?.classList.add('active');
+    }
+  }
+
+  private populateZoneEnemyDropdown() {
+    const select = document.getElementById('zone-enemy-select') as HTMLSelectElement;
+    if (!select || !this.config?.enemies) return;
+    select.innerHTML = '';
+
+    for (const enemy of this.config.enemies) {
+      const opt = document.createElement('option');
+      opt.value = enemy.id;
+      opt.textContent = `${enemy.display_name || enemy.id} (HP: ${enemy.stats?.max_health ?? 30})`;
+      select.appendChild(opt);
+    }
+
+    if (this.config.enemies.length > 0) {
+      this.canvas.selectedMobZoneEnemyId = this.config.enemies[0].id;
+    }
+  }
+
+  private syncRoomsAndZonesUI() {
+    if (!this.canvas.level) return;
+    const lvl = this.canvas.level;
+
+    // 1. Комнаты
+    const roomsCountBadge = document.getElementById('badge-rooms-count');
+    const roomsList = document.getElementById('rooms-list');
+    if (roomsCountBadge && roomsList) {
+      const rooms = lvl.rooms || [];
+      roomsCountBadge.textContent = `${rooms.length} ${rooms.length === 1 ? 'комната' : rooms.length < 5 ? 'комнаты' : 'комнат'}`;
+      roomsList.innerHTML = '';
+
+      rooms.forEach((room, idx) => {
+        const item = document.createElement('div');
+        item.className = `room-card ${idx === this.canvas.selectedRoomIndex ? 'active' : ''}`;
+        
+        const title = document.createElement('div');
+        title.className = 'room-card-title';
+        title.textContent = `🏛️ ${room.name}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'room-card-meta';
+        meta.textContent = `[${room.x}, ${room.y}] ${room.width}×${room.height}${room.beveled ? ' (скосы)' : ''}`;
+
+        item.appendChild(title);
+        item.appendChild(meta);
+
+        item.addEventListener('click', () => {
+          this.canvas.selectedRoomIndex = idx;
+          this.updateSelectedRoom(room, idx);
+          this.canvas.render();
+        });
+
+        roomsList.appendChild(item);
+      });
+    }
+
+    // 2. Зоны спавна
+    const zonesCountBadge = document.getElementById('badge-zones-count');
+    const zonesList = document.getElementById('zones-list');
+    if (zonesCountBadge && zonesList) {
+      const zones = lvl.spawn_zones || [];
+      zonesCountBadge.textContent = `${zones.length} ${zones.length === 1 ? 'зона' : zones.length < 5 ? 'зоны' : 'зон'}`;
+      zonesList.innerHTML = '';
+
+      zones.forEach((zone, idx) => {
+        const item = document.createElement('div');
+        item.className = `zone-card ${idx === this.canvas.selectedMobZoneIndex ? 'active' : ''}`;
+        
+        const title = document.createElement('div');
+        title.className = 'zone-card-title';
+        title.textContent = `👾 ${zone.name || zone.enemy_id}`;
+
+        const floors = this.canvas.getValidFloorTilesInZone(zone);
+        const meta = document.createElement('div');
+        meta.className = 'zone-card-meta';
+        meta.textContent = `${zone.enemy_id} ×${zone.count} (пол: ${floors.length})`;
+
+        item.appendChild(title);
+        item.appendChild(meta);
+
+        item.addEventListener('click', () => {
+          this.canvas.selectedMobZoneIndex = idx;
+          this.updateSelectedMobZone(zone, idx);
+          this.canvas.render();
+        });
+
+        zonesList.appendChild(item);
+      });
+    }
+  }
+
   private setTool(tool: ToolType) {
     this.canvas.setTool(tool);
     document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -742,6 +910,51 @@ class EditorApp {
     } else {
       box.style.display = 'none';
     }
+  }
+
+  private updateSelectedRoom(room: RoomDef | null, _idx: number) {
+    const panel = document.getElementById('selected-room-panel');
+    const desc = document.getElementById('selected-room-desc');
+    if (!panel || !desc) return;
+
+    if (room) {
+      panel.style.display = 'block';
+      desc.innerHTML = `
+        <div><b>${room.name}</b> (${room.id})</div>
+        <div>Позиция: <b>[${room.x}, ${room.y}]</b></div>
+        <div>Размер: <b>${room.width} × ${room.height}</b> клеток</div>
+        <div>Срез углов: <b>${room.beveled ? 'Да (45° скосы)' : 'Прямые углы'}</b></div>
+      `;
+      this.activateTab('tab-rooms-btn', 'tab-rooms');
+    } else {
+      panel.style.display = 'none';
+    }
+    this.syncRoomsAndZonesUI();
+  }
+
+  private updateSelectedMobZone(zone: MobSpawnZoneDef | null, _idx: number) {
+    const panel = document.getElementById('selected-zone-panel');
+    const desc = document.getElementById('selected-zone-desc');
+    if (!panel || !desc) return;
+
+    if (zone) {
+      panel.style.display = 'block';
+      const floors = this.canvas.getValidFloorTilesInZone(zone);
+      desc.innerHTML = `
+        <div><b>${zone.name || zone.enemy_id}</b></div>
+        <div>Область: <b>[${zone.x}, ${zone.y}]</b> размер: <b>${zone.width} × ${zone.height}</b></div>
+        <div>Враг: <b>${zone.enemy_id}</b> | Количество: <b>${zone.count}</b></div>
+        <div style="color: #4ade80; margin-top: 4px;">✓ Валидных мест пола для спавна: <b>${floors.length}</b></div>
+      `;
+      const enemySelect = document.getElementById('zone-enemy-select') as HTMLSelectElement;
+      if (enemySelect) enemySelect.value = zone.enemy_id;
+      const countInput = document.getElementById('zone-mob-count') as HTMLInputElement;
+      if (countInput) countInput.value = zone.count.toString();
+      this.activateTab('tab-zones-btn', 'tab-zones');
+    } else {
+      panel.style.display = 'none';
+    }
+    this.syncRoomsAndZonesUI();
   }
 
   private activateTab(btnId: string, contentId: string) {
@@ -849,6 +1062,9 @@ class EditorApp {
     // Вкладки справа
     const tabs: Record<string, string> = {
       'tab-tiles-btn': 'tab-tiles',
+      'tab-rooms-btn': 'tab-rooms',
+      'tab-zones-btn': 'tab-zones',
+      'tab-bosses-btn': 'tab-bosses',
       'tab-enemies-btn': 'tab-enemies',
       'tab-decor-btn': 'tab-decor',
       'tab-bg-btn': 'tab-bg',
@@ -880,6 +1096,112 @@ class EditorApp {
 
     document.getElementById('btn-world-graph')?.addEventListener('click', () => {
       this.worldGraphModal.open(this.getCurrentRegionId());
+    });
+
+    // Переключатель оверлея проходимости (кубики)
+    const btnWalk = document.getElementById('toggle-walkability');
+    btnWalk?.addEventListener('click', () => {
+      const active = this.canvas.toggleWalkability();
+      btnWalk.classList.toggle('active', active);
+      this.setStatus(active ? '🟩 Оверлей проходимости ВКЛЮЧЁН (зелёный = пол, красный = блок)' : 'Оверлей проходимости выключен');
+    });
+
+    // Инструменты комнат и проходов
+    document.getElementById('btn-tool-room')?.addEventListener('click', () => {
+      this.setTool('room');
+      this.setStatus('🏛️ Создание комнат (R). Тяните мышь на холсте.');
+    });
+
+    const checkRoomBevel = document.getElementById('checkbox-room-bevel') as HTMLInputElement;
+    checkRoomBevel?.addEventListener('change', () => {
+      this.canvas.roomBevelCorners = checkRoomBevel.checked;
+      this.setStatus(checkRoomBevel.checked ? 'Срез углов комнат включён (45° скосы)' : 'Срез углов выключен');
+    });
+
+    document.getElementById('btn-tool-passage')?.addEventListener('click', () => {
+      this.setTool('passage');
+      this.setStatus('⛏️ Рисование проходов (W). Зажмите ЛКМ и рисуйте тоннели.');
+    });
+
+    const sliderPassageW = document.getElementById('slider-passage-width') as HTMLInputElement;
+    sliderPassageW?.addEventListener('input', () => {
+      const val = parseInt(sliderPassageW.value, 10);
+      this.canvas.passageWidth = val;
+      const label = document.getElementById('label-passage-width');
+      if (label) label.textContent = `${val} ${val === 1 ? 'клетка' : val < 5 ? 'клетки' : 'клеток'}`;
+    });
+
+    const checkPassageWalls = document.getElementById('checkbox-passage-autowalls') as HTMLInputElement;
+    checkPassageWalls?.addEventListener('change', () => {
+      this.canvas.passageAutoWalls = checkPassageWalls.checked;
+    });
+
+    const btnWalkPassable = document.getElementById('btn-walk-passable');
+    const btnWalkSolid = document.getElementById('btn-walk-solid');
+    btnWalkPassable?.addEventListener('click', () => {
+      this.canvas.walkabilityMode = 'passable';
+      btnWalkPassable.classList.add('active');
+      btnWalkSolid?.classList.remove('active');
+      this.setTool('walkability');
+      this.setStatus('Кисть проходимости: очистка в проходимый пол / воздух');
+    });
+    btnWalkSolid?.addEventListener('click', () => {
+      this.canvas.walkabilityMode = 'solid';
+      btnWalkSolid.classList.add('active');
+      btnWalkPassable?.classList.remove('active');
+      this.setTool('walkability');
+      this.setStatus('Кисть проходимости: установка блоков стен');
+    });
+
+    document.getElementById('btn-delete-room')?.addEventListener('click', () => {
+      this.canvas.deleteSelectedRoom();
+      this.syncRoomsAndZonesUI();
+    });
+
+    // Инструменты зон спавна мобов
+    document.getElementById('btn-tool-mob-zone')?.addEventListener('click', () => {
+      this.setTool('mob_zone');
+      this.setStatus('👾 Задание области спавна (Z). Выделите прямоугольник на карте.');
+    });
+
+    const selectZoneEnemy = document.getElementById('zone-enemy-select') as HTMLSelectElement;
+    selectZoneEnemy?.addEventListener('change', () => {
+      this.canvas.selectedMobZoneEnemyId = selectZoneEnemy.value;
+      if (this.canvas.selectedMobZoneIndex !== -1 && this.canvas.level?.spawn_zones?.[this.canvas.selectedMobZoneIndex]) {
+        this.canvas.level.spawn_zones[this.canvas.selectedMobZoneIndex].enemy_id = selectZoneEnemy.value;
+        this.canvas.render();
+        this.syncRoomsAndZonesUI();
+      }
+    });
+
+    const inputZoneCount = document.getElementById('zone-mob-count') as HTMLInputElement;
+    inputZoneCount?.addEventListener('input', () => {
+      const count = parseInt(inputZoneCount.value, 10) || 1;
+      this.canvas.selectedMobZoneCount = count;
+      if (this.canvas.selectedMobZoneIndex !== -1 && this.canvas.level?.spawn_zones?.[this.canvas.selectedMobZoneIndex]) {
+        this.canvas.level.spawn_zones[this.canvas.selectedMobZoneIndex].count = count;
+        this.canvas.render();
+        this.syncRoomsAndZonesUI();
+      }
+    });
+
+    document.getElementById('btn-generate-zone-mobs')?.addEventListener('click', () => {
+      if (this.canvas.selectedMobZoneIndex !== -1) {
+        this.canvas.generateZoneMobs(this.canvas.selectedMobZoneIndex);
+      } else {
+        this.setStatus('Сначала выберите зону спавна на карте или в списке!', true);
+      }
+    });
+
+    document.getElementById('btn-delete-zone')?.addEventListener('click', () => {
+      this.canvas.deleteSelectedMobZone();
+      this.syncRoomsAndZonesUI();
+    });
+
+    // Инструмент спавна боссов
+    document.getElementById('btn-tool-boss-spawn')?.addEventListener('click', () => {
+      this.setTool('boss_spawn');
+      this.setStatus(`👑 Спавн боссов (F). Кликните на карту для размещения ${this.canvas.selectedBossDisplayName || 'босса'}.`);
     });
 
     // Переключатель автотайлинга

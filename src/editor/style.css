@@ -242,11 +242,16 @@ canvas#editor-canvas {
   display: flex;
   border-bottom: 1px solid var(--border);
   background: #11131a;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sidebar-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 10px 2px;
+  padding: 10px 8px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -256,6 +261,7 @@ canvas#editor-canvas {
   cursor: pointer;
   text-align: center;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -529,4 +535,143 @@ canvas#editor-canvas {
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* Стили для комнат (Room Cards) */
+.room-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-card:hover {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.room-card.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+.room-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7dd3fc;
+}
+
+.room-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Стили для зон спавна мобов (Mob Zone Cards) */
+.zone-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.zone-card:hover {
+  border-color: #c084fc;
+  background: rgba(192, 132, 252, 0.05);
+}
+
+.zone-card.active {
+  border-color: #c084fc;
+  background: rgba(192, 132, 252, 0.15);
+  box-shadow: 0 0 8px rgba(192, 132, 252, 0.25);
+}
+
+.zone-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f0abfc;
+}
+
+.zone-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Стили для карточек боссов (Boss Cards) */
+.boss-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 3px solid #f59e0b;
+}
+
+.boss-card:hover {
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.boss-card.active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.boss-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.boss-card-crown {
+  font-size: 16px;
+}
+
+.boss-card-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.boss-card-stats {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.boss-card-attacks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.boss-attack-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+
+/* Кнопка оверлея проходимости */
+#toggle-walkability.active {
+  background: #166534;
+  border-color: #22c55e;
+  color: #86efac;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
 

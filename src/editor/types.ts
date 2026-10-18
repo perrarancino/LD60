@@ -22,11 +22,38 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
+  slope?: 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left';
+  fill_sprite_id?: string;
+  loop_frames?: number;
 }
 
 export interface TileSetDef {
   tile_size: number;
   tiles: TileDef[];
+}
+
+export interface RoomDef {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color?: string;
+  beveled?: boolean;
+}
+
+export interface MobSpawnZoneDef {
+  id: string;
+  name?: string;
+  enemy_id: string;
+  sprite_id?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  count: number;
+  surface?: 'floor' | 'ceiling' | 'wall';
 }
 
 export interface EnemyDef {
@@ -42,6 +69,9 @@ export interface EnemySpawnDef {
   sprite_id: string;
   x: number;
   y: number;
+  surface?: 'floor' | 'ceiling' | 'wall_left' | 'wall_right';
+  is_boss?: boolean;
+  boss_id?: string;
 }
 
 export interface LevelTransitionDef {
@@ -82,6 +112,8 @@ export interface LevelDef {
   enemies: EnemySpawnDef[];
   transitions?: LevelTransitionDef[];
   cables?: CableDef[];
+  rooms?: RoomDef[];
+  spawn_zones?: MobSpawnZoneDef[];
 }
 
 export interface PlaytestState {
@@ -117,7 +149,7 @@ export interface BackgroundDef {
   layers: BackgroundLayerDef[];
 }
 
-export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move' | 'transition' | 'cable';
+export type ToolType = 'brush' | 'eraser' | 'fill' | 'player_spawn' | 'enemy_spawn' | 'select' | 'move' | 'transition' | 'cable' | 'room' | 'passage' | 'walkability' | 'mob_zone' | 'boss_spawn' | 'bevel';
 
 export type ResizeDirection = 'top' | 'bottom' | 'left' | 'right';
 

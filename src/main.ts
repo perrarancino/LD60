@@ -279,8 +279,14 @@ class GameApp {
       ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id),
+      // спрайты врагов из зон спавна
+      ...(levelDef.spawn_zones ?? []).map((z) => z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '').filter(Boolean),
       // части тела врагов, собранных из слоёв (паук, червь, паучиха), и тех, кого они порождают
-      ...levelDef.enemies.flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id))
+      ...levelDef.enemies.flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id)),
+      ...(levelDef.spawn_zones ?? []).flatMap((z) => {
+        const sId = z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '';
+        return sId ? this.enemySpriteIds(enemyDefs, z.enemy_id, sId) : [];
+      })
     ]);
 
     if (bgDef) {
@@ -298,7 +304,32 @@ class GameApp {
     this.worldLayer.addChild(this.level.container);
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
-    for (const spawn of levelDef.enemies) {
+    // Собираем всех врагов: фиксированные спавны + сгенерированные строго на полу из зон спавна
+    const allEnemies = [...levelDef.enemies];
+    if (levelDef.spawn_zones) {
+      for (const zone of levelDef.spawn_zones) {
+        const floorPoints = this.level.findFloorPositionsInZone(zone);
+        if (floorPoints.length > 0) {
+          const count = Math.min(zone.count, floorPoints.length);
+          for (let i = 0; i < count; i++) {
+            const pickIdx = Math.floor(Math.random() * floorPoints.length);
+            const pt = floorPoints.splice(pickIdx, 1)[0];
+            const def = enemyDefs.get(zone.enemy_id);
+            if (!def) continue;
+            const spriteId = zone.sprite_id || def.sprite_variants[0] || '';
+            allEnemies.push({
+              enemy_id: zone.enemy_id,
+              sprite_id: spriteId,
+              x: pt.x,
+              y: pt.y,
+              surface: 'floor'
+            });
+          }
+        }
+      }
+    }
+
+    for (const spawn of allEnemies) {
       const def = enemyDefs.get(spawn.enemy_id);
       if (!def) throw new Error(`Уровень ссылается на неизвестного врага "${spawn.enemy_id}"`);
       if (def.behavior_type === 'crawler') {

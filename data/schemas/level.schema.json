@@ -81,6 +81,44 @@
           "length": { "type": "integer", "minimum": 3, "maximum": 5, "description": "Только для червей: длина в сегментах (по умолчанию случайная в пределах рига)" }
         }
       }
+    },
+    "rooms": {
+      "type": "array",
+      "description": "Список комнат на уровне: координаты, размеры, имя и параметры",
+      "items": {
+        "type": "object",
+        "required": ["id", "x", "y", "width", "height"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "x": { "type": "integer" },
+          "y": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "color": { "type": "string" },
+          "beveled": { "type": "boolean" }
+        }
+      }
+    },
+    "spawn_zones": {
+      "type": "array",
+      "description": "Зоны появления мобов строго на полу",
+      "items": {
+        "type": "object",
+        "required": ["id", "enemy_id", "x", "y", "width", "height", "count"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "enemy_id": { "type": "string" },
+          "sprite_id": { "type": "string" },
+          "x": { "type": "integer" },
+          "y": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "count": { "type": "integer", "minimum": 1 },
+          "surface": { "type": "string", "enum": ["floor", "ceiling", "wall"] }
+        }
+      }
     }
   }
 }

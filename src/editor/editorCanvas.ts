@@ -1,12 +1,15 @@
 import { GAME_CONFIG } from '../core/Constants';
 import type { AssetManager } from './assetManager';
-import type { BackgroundDef, CableDef, EnemyDef, EnemySpawnDef, EntityDragState, LevelDef, LevelTransitionDef, PlaytestState, ResizeDirection, TileDef, ToolType } from './types';
+import type { BackgroundDef, CableDef, EnemyDef, EnemySpawnDef, EntityDragState, LevelDef, LevelTransitionDef, MobSpawnZoneDef, PlaytestState, ResizeDirection, RoomDef, TileDef, ToolType } from './types';
 
 export interface EditorCallbacks {
   onHoverTile?: (x: number, y: number) => void;
   onSelectEnemy?: (enemy: EnemySpawnDef | null, index: number) => void;
   onSelectTransition?: (transition: LevelTransitionDef | null, index: number) => void;
   onSelectCable?: (cable: CableDef | null, index: number) => void;
+  onSelectRoom?: (room: RoomDef | null, index: number) => void;
+  onSelectMobZone?: (zone: MobSpawnZoneDef | null, index: number) => void;
+  onToolChange?: (tool: ToolType) => void;
   onPlaytestToggle?: (active: boolean) => void;
   onLevelChanged?: () => void;
   onStatusMessage?: (msg: string) => void;
@@ -40,6 +43,8 @@ export class EditorCanvas {
   public showEntities: boolean = true;
   public showJumpArc: boolean = true;
   public autotileEnabled: boolean = false;
+  public showWalkability: boolean = false; // Кубики проходимости
+  public walkabilityMode: 'passable' | 'solid' = 'passable';
 
   // Камера
   public zoom: number = 2.0;
@@ -54,6 +59,26 @@ export class EditorCanvas {
   public selectedEnemyIndex: number = -1;
   public selectedTransitionIndex: number = -1;
   public selectedCableIndex: number = -1;
+
+  // Комнаты (Room Tool)
+  public roomStart: { x: number; y: number } | null = null;
+  public roomBevelCorners: boolean = false;
+  public selectedRoomIndex: number = -1;
+
+  // Проходы (Passage Tool)
+  public passageWidth: number = 3;
+  public passageAutoWalls: boolean = true;
+  public passageBevel: boolean = false;
+
+  // Зоны спавна мобов (Mob Spawn Zone Tool)
+  public mobZoneStart: { x: number; y: number } | null = null;
+  public selectedMobZoneIndex: number = -1;
+  public selectedMobZoneEnemyId: string = 'spider';
+  public selectedMobZoneCount: number = 3;
+
+  // Спавн боссов (Boss Spawn Tool)
+  public selectedBossId: string | null = null;
+  public selectedBossDisplayName: string = '';
 
   // Провода (Cable Tool)
   public currentCableStart: { x: number; y: number } | null = null;
@@ -519,7 +544,61 @@ export class EditorCanvas {
         }
       }
 
-      // 4. Drag-and-Drop и Выбор (Move / Select)
+      // 4. Инструмент комнат (Room Tool)
+      if (this.activeTool === 'room') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.roomStart = { x: tileX, y: tileY };
+          this.callbacks.onStatusMessage?.(`Создание комнаты от [${tileX}, ${tileY}]... Тяните мышь.`);
+          this.render();
+          return;
+        }
+      }
+
+      // 5. Инструмент зон спавна мобов (Mob Spawn Zone Tool)
+      if (this.activeTool === 'mob_zone') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.mobZoneStart = { x: tileX, y: tileY };
+          this.callbacks.onStatusMessage?.(`Задание области спавна от [${tileX}, ${tileY}]... Тяните мышь.`);
+          this.render();
+          return;
+        }
+      }
+
+      // 6. Инструмент спавна боссов (Boss Spawn Tool)
+      if (this.activeTool === 'boss_spawn') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.placeBossAt(tileX, tileY);
+          return;
+        }
+      }
+
+      // 7. Инструмент среза углов (Bevel Tool)
+      if (this.activeTool === 'bevel') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.applyBevelAt(tileX, tileY);
+          return;
+        }
+      }
+
+      // 8. Инструмент проходов (Passage Tool)
+      if (this.activeTool === 'passage') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.isMouseDown = true;
+          this.applyPassage(tileX, tileY);
+          return;
+        }
+      }
+
+      // 9. Инструмент кубиков проходимости (Walkability Brush)
+      if (this.activeTool === 'walkability') {
+        if (e.button === 0 && this.level && tileX >= 0 && tileX < this.level.width && tileY >= 0 && tileY < this.level.height) {
+          this.isMouseDown = true;
+          this.applyWalkability(tileX, tileY);
+          return;
+        }
+      }
+
+      // 10. Drag-and-Drop и Выбор (Move / Select)
       if (this.level && e.button === 0 && (this.activeTool === 'move' || this.activeTool === 'select' || (!this.selectedTileId && this.activeTool === 'brush'))) {
         // Проверяем игрока
         if (tileX === this.level.player_spawn.x && tileY === this.level.player_spawn.y) {
@@ -564,6 +643,34 @@ export class EditorCanvas {
           if (transIdx !== -1) {
             this.selectedTransitionIndex = transIdx;
             this.callbacks.onSelectTransition?.(this.level.transitions[transIdx], transIdx);
+            this.render();
+            return;
+          }
+        }
+
+        // Проверяем комнату
+        if (this.level.rooms && this.activeTool === 'select') {
+          const roomIdx = this.level.rooms.findIndex(r =>
+            tileX >= r.x && tileX < r.x + r.width && tileY >= r.y && tileY < r.y + r.height
+          );
+          if (roomIdx !== -1) {
+            this.selectedRoomIndex = roomIdx;
+            this.callbacks.onSelectRoom?.(this.level.rooms[roomIdx], roomIdx);
+            this.callbacks.onStatusMessage?.(`Выбрана комната: ${this.level.rooms[roomIdx].name}`);
+            this.render();
+            return;
+          }
+        }
+
+        // Проверяем зону спавна
+        if (this.level.spawn_zones && this.activeTool === 'select') {
+          const zoneIdx = this.level.spawn_zones.findIndex(z =>
+            tileX >= z.x && tileX < z.x + z.width && tileY >= z.y && tileY < z.y + z.height
+          );
+          if (zoneIdx !== -1) {
+            this.selectedMobZoneIndex = zoneIdx;
+            this.callbacks.onSelectMobZone?.(this.level.spawn_zones[zoneIdx], zoneIdx);
+            this.callbacks.onStatusMessage?.(`Выбрана зона спавна: ${this.level.spawn_zones[zoneIdx].name || this.level.spawn_zones[zoneIdx].enemy_id}`);
             this.render();
             return;
           }
@@ -641,6 +748,22 @@ export class EditorCanvas {
         return;
       }
 
+      // Превью создания комнаты
+      if (this.activeTool === 'room' && this.roomStart) {
+        this.hoveredTileX = tileX;
+        this.hoveredTileY = tileY;
+        this.render();
+        return;
+      }
+
+      // Превью зоны спавна мобов
+      if (this.activeTool === 'mob_zone' && this.mobZoneStart) {
+        this.hoveredTileX = tileX;
+        this.hoveredTileY = tileY;
+        this.render();
+        return;
+      }
+
       // Курсор grab над сущностями в режиме Move или Select
       if (this.level && (this.activeTool === 'move' || this.activeTool === 'select')) {
         const isOverPlayer = tileX === this.level.player_spawn.x && tileY === this.level.player_spawn.y;
@@ -655,13 +778,33 @@ export class EditorCanvas {
         this.hoveredTileY = tileY;
         this.callbacks.onHoverTile?.(tileX, tileY);
         if (this.isMouseDown) {
-          this.handleDrawAction();
+          if (this.activeTool === 'passage') {
+            this.applyPassage(tileX, tileY);
+          } else if (this.activeTool === 'walkability') {
+            this.applyWalkability(tileX, tileY);
+          } else {
+            this.handleDrawAction();
+          }
         }
         this.render();
       }
     });
 
     window.addEventListener('mouseup', () => {
+      // Завершение создания комнаты
+      if (this.roomStart && this.level) {
+        this.applyRoom(this.roomStart.x, this.roomStart.y, this.hoveredTileX, this.hoveredTileY);
+        this.roomStart = null;
+        this.render();
+      }
+
+      // Завершение создания зоны спавна мобов
+      if (this.mobZoneStart && this.level) {
+        this.applyMobZone(this.mobZoneStart.x, this.mobZoneStart.y, this.hoveredTileX, this.hoveredTileY);
+        this.mobZoneStart = null;
+        this.render();
+      }
+
       // Завершение перетаскивания сущности
       if (this.dragState && this.level) {
         const cx = this.dragState.currentX;
@@ -768,6 +911,12 @@ export class EditorCanvas {
       if (e.key === 'v' || e.key === 'V') this.setTool('select');
       if (e.key === 'd' || e.key === 'D') this.setTool('transition');
       if (e.key === 'c' || e.key === 'C') this.setTool('cable');
+      if (e.key === 'r' || e.key === 'R') this.setTool('room');
+      if (e.key === 'w' || e.key === 'W') this.setTool('passage');
+      if (e.key === 'q' || e.key === 'Q') this.setTool('walkability');
+      if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey) this.setTool('mob_zone');
+      if (e.key === 'f' || e.key === 'F') this.setTool('boss_spawn');
+      if (e.key === 'x' || e.key === 'X') this.setTool('bevel');
       if (e.key === 'Delete' || e.key === 'Backspace') {
         this.deleteSelected();
       }
@@ -786,6 +935,7 @@ export class EditorCanvas {
 
   public setTool(tool: ToolType) {
     this.activeTool = tool;
+    this.callbacks.onToolChange?.(tool);
     this.render();
   }
 
@@ -855,7 +1005,29 @@ export class EditorCanvas {
     const ch = row[tx];
     const tileId = this.level.legend[ch];
     if (!tileId) return false;
-    return !!this.tilesById.get(tileId)?.solid;
+    const tile = this.tilesById.get(tileId);
+    if (!tile?.solid) return false;
+
+    if (tile.slope) {
+      const lx = (px - tx * ts) / ts;
+      const ly = (py - ty * ts) / ts;
+      if (tile.slope === 'up_right') return ly >= 1 - lx;
+      if (tile.slope === 'up_left') return ly >= lx;
+      if (tile.slope === 'ceil_right') return ly <= lx;
+      if (tile.slope === 'ceil_left') return ly <= 1 - lx;
+    }
+    return true;
+  }
+
+  public getSlope(cx: number, cy: number): 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left' | null {
+    if (!this.level || cx < 0 || cx >= this.level.width || cy < 0 || cy >= this.level.height) return null;
+    const row = this.level.rows[cy];
+    if (!row) return null;
+    const ch = row[cx];
+    const tileId = this.level.legend[ch];
+    if (!tileId) return null;
+    const tile = this.tilesById.get(tileId);
+    return tile?.slope || null;
   }
 
   private updatePlaytest(time: number) {
@@ -1191,6 +1363,10 @@ export class EditorCanvas {
       this.deleteSelectedTransition();
     } else if (this.selectedCableIndex !== -1) {
       this.deleteSelectedCable();
+    } else if (this.selectedRoomIndex !== -1) {
+      this.deleteSelectedRoom();
+    } else if (this.selectedMobZoneIndex !== -1) {
+      this.deleteSelectedMobZone();
     }
   }
 
@@ -1224,6 +1400,298 @@ export class EditorCanvas {
     this.callbacks.onLevelChanged?.();
     this.saveStateToHistory();
     this.callbacks.onStatusMessage?.(`Удалён кабель ${deleted[0]?.id || ''}`);
+    this.render();
+  }
+
+  public deleteSelectedRoom() {
+    if (!this.level || !this.level.rooms || this.selectedRoomIndex === -1) return;
+    const deleted = this.level.rooms.splice(this.selectedRoomIndex, 1);
+    this.selectedRoomIndex = -1;
+    this.callbacks.onSelectRoom?.(null, -1);
+    this.callbacks.onLevelChanged?.();
+    this.saveStateToHistory();
+    this.callbacks.onStatusMessage?.(`Удалена комната "${deleted[0]?.name || ''}"`);
+    this.render();
+  }
+
+  public deleteSelectedMobZone() {
+    if (!this.level || !this.level.spawn_zones || this.selectedMobZoneIndex === -1) return;
+    const deleted = this.level.spawn_zones.splice(this.selectedMobZoneIndex, 1);
+    this.selectedMobZoneIndex = -1;
+    this.callbacks.onSelectMobZone?.(null, -1);
+    this.callbacks.onLevelChanged?.();
+    this.saveStateToHistory();
+    this.callbacks.onStatusMessage?.(`Удалена зона спавна "${deleted[0]?.name || ''}"`);
+    this.render();
+  }
+
+  // --- Создание комнат (Room Tool) ---
+  public applyRoom(x0: number, y0: number, x1: number, y1: number) {
+    if (!this.level) return;
+    const minX = Math.max(0, Math.min(x0, x1));
+    const maxX = Math.min(this.level.width - 1, Math.max(x0, x1));
+    const minY = Math.max(0, Math.min(y0, y1));
+    const maxY = Math.min(this.level.height - 1, Math.max(y0, y1));
+
+    if (maxX - minX < 2 || maxY - minY < 2) {
+      this.callbacks.onStatusMessage?.('Комната слишком мала (минимум 3x3 тайла)');
+      return;
+    }
+
+    const wallTile = this.selectedTileId || 'platform_block';
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const isBorder = (x === minX || x === maxX || y === minY || y === maxY);
+        if (isBorder) {
+          // Углы со срезом, если включена опция
+          if (this.roomBevelCorners) {
+            if (x === minX && y === minY) {
+              this.setTile(x, y, 'platform_slope_ur');
+              continue;
+            } else if (x === maxX && y === minY) {
+              this.setTile(x, y, 'platform_slope_ul');
+              continue;
+            } else if (x === minX && y === maxY) {
+              this.setTile(x, y, 'platform_slope_cr');
+              continue;
+            } else if (x === maxX && y === maxY) {
+              this.setTile(x, y, 'platform_slope_cl');
+              continue;
+            }
+          }
+          this.setTile(x, y, wallTile);
+        } else {
+          // Внутреннее пространство комнаты — пустое (проходимое)
+          this.setTile(x, y, null);
+        }
+      }
+    }
+
+    this.level.rooms = this.level.rooms || [];
+    const newRoom: RoomDef = {
+      id: `room_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      name: `Комната ${this.level.rooms.length + 1}`,
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+      beveled: this.roomBevelCorners
+    };
+
+    this.level.rooms.push(newRoom);
+    this.selectedRoomIndex = this.level.rooms.length - 1;
+    this.callbacks.onSelectRoom?.(newRoom, this.selectedRoomIndex);
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`Создана комната "${newRoom.name}" [${newRoom.width}×${newRoom.height}]${this.roomBevelCorners ? ' (со скосами)' : ''}`);
+    this.render();
+  }
+
+  // --- Рисование проходов (Passage Tool) ---
+  public applyPassage(centerX: number, centerY: number) {
+    if (!this.level || centerX < 0 || centerX >= this.level.width || centerY < 0 || centerY >= this.level.height) return;
+    const half = Math.floor(this.passageWidth / 2);
+    const startY = Math.max(0, centerY - half);
+    const endY = Math.min(this.level.height - 1, startY + this.passageWidth - 1);
+
+    // Очищаем проход
+    for (let y = startY; y <= endY; y++) {
+      this.setTile(centerX, y, null);
+    }
+
+    // Авто-стены снизу и сверху
+    if (this.passageAutoWalls) {
+      const wallTile = this.selectedTileId || 'platform_block';
+      if (startY > 0) {
+        this.setTile(centerX, startY - 1, wallTile);
+      }
+      if (endY < this.level.height - 1) {
+        this.setTile(centerX, endY + 1, wallTile);
+      }
+    }
+
+    this.callbacks.onLevelChanged?.();
+    this.render();
+  }
+
+  // --- Кисть проходимости (Walkability Brush) ---
+  public applyWalkability(x: number, y: number) {
+    if (!this.level || x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) return;
+    if (this.walkabilityMode === 'passable') {
+      this.setTile(x, y, null);
+    } else {
+      const wallTile = this.selectedTileId || 'platform_block';
+      this.setTile(x, y, wallTile);
+    }
+    this.callbacks.onLevelChanged?.();
+    this.render();
+  }
+
+  // --- Зоны спавна мобов на полу (Mob Spawn Zone Tool) ---
+  public getValidFloorTilesInZone(zone: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
+    if (!this.level) return [];
+    const floors: Array<{ x: number; y: number }> = [];
+    const minX = Math.max(0, zone.x);
+    const maxX = Math.min(this.level.width - 1, zone.x + zone.width - 1);
+    const minY = Math.max(0, zone.y);
+    const maxY = Math.min(this.level.height - 1, zone.y + zone.height - 1);
+
+    for (let cx = minX; cx <= maxX; cx++) {
+      for (let cy = minY; cy <= maxY; cy++) {
+        // Твёрдый блок пола, над которым воздух
+        const isCurrentSolid = this.isSolidAtPixel((cx + 0.5) * this.level.tile_size, (cy + 0.5) * this.level.tile_size);
+        if (isCurrentSolid) {
+          const aboveSolid = cy > 0 && this.isSolidAtPixel((cx + 0.5) * this.level.tile_size, (cy - 0.5) * this.level.tile_size);
+          if (!aboveSolid) {
+            floors.push({ x: cx, y: cy - 1 });
+          }
+        }
+      }
+    }
+    return floors;
+  }
+
+  public applyMobZone(x0: number, y0: number, x1: number, y1: number) {
+    if (!this.level) return;
+    const minX = Math.max(0, Math.min(x0, x1));
+    const maxX = Math.min(this.level.width - 1, Math.max(x0, x1));
+    const minY = Math.max(0, Math.min(y0, y1));
+    const maxY = Math.min(this.level.height - 1, Math.max(y0, y1));
+
+    if (maxX - minX < 1 || maxY - minY < 1) {
+      this.callbacks.onStatusMessage?.('Область спавна слишком мала');
+      return;
+    }
+
+    this.level.spawn_zones = this.level.spawn_zones || [];
+    const newZone: MobSpawnZoneDef = {
+      id: `zone_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      name: `Зона ${this.level.spawn_zones.length + 1}`,
+      enemy_id: this.selectedMobZoneEnemyId || 'spider',
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+      count: this.selectedMobZoneCount || 3,
+      surface: 'floor'
+    };
+
+    this.level.spawn_zones.push(newZone);
+    this.selectedMobZoneIndex = this.level.spawn_zones.length - 1;
+    this.callbacks.onSelectMobZone?.(newZone, this.selectedMobZoneIndex);
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+
+    const validFloors = this.getValidFloorTilesInZone(newZone);
+    this.callbacks.onStatusMessage?.(`Создана зона спавна "${newZone.name}" (${newZone.enemy_id} x${newZone.count}). Найдено мест на полу: ${validFloors.length}`);
+    this.render();
+  }
+
+  public generateZoneMobs(zoneIdx: number) {
+    if (!this.level || !this.level.spawn_zones || !this.level.spawn_zones[zoneIdx]) return;
+    const zone = this.level.spawn_zones[zoneIdx];
+    const floors = this.getValidFloorTilesInZone(zone);
+    if (floors.length === 0) {
+      this.callbacks.onStatusMessage?.('В этой зоне нет твердого пола для спавна мобов!');
+      return;
+    }
+
+    // Удаляем предыдущих мобов из этой зоны
+    this.level.enemies = this.level.enemies.filter(e =>
+      !(e.x >= zone.x && e.x < zone.x + zone.width && e.y >= zone.y && e.y < zone.y + zone.height)
+    );
+
+    const enemyDef = this.enemiesById.get(zone.enemy_id);
+    const spriteId = zone.sprite_id || enemyDef?.sprite_variants[0] || 'enemy_spider';
+    const count = Math.min(zone.count, floors.length);
+
+    for (let i = 0; i < count; i++) {
+      const pickIdx = Math.floor(Math.random() * floors.length);
+      const pt = floors.splice(pickIdx, 1)[0];
+      this.level.enemies.push({
+        enemy_id: zone.enemy_id,
+        sprite_id: spriteId,
+        x: pt.x,
+        y: pt.y,
+        surface: 'floor'
+      });
+    }
+
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`Сгенерировано ${count} мобов [${zone.enemy_id}] строго на полу!`);
+    this.render();
+  }
+
+  // --- Срез углов и диагональные границы (Bevel Tool) ---
+  public applyBevelAt(x: number, y: number) {
+    if (!this.level || x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) return;
+    const ch = this.level.rows[y][x];
+    const tileId = this.level.legend[ch];
+    const tile = tileId ? this.tilesById.get(tileId) : null;
+
+    if (tileId === 'platform_slope_ur') {
+      this.setTile(x, y, 'platform_slope_ul');
+    } else if (tileId === 'platform_slope_ul') {
+      this.setTile(x, y, 'platform_slope_cr');
+    } else if (tileId === 'platform_slope_cr') {
+      this.setTile(x, y, 'platform_slope_cl');
+    } else if (tileId === 'platform_slope_cl') {
+      this.setTile(x, y, this.selectedTileId || 'platform_block');
+    } else if (tile?.solid) {
+      const up = y > 0 ? this.isSolidAtPixel((x + 0.5) * this.level.tile_size, (y - 0.5) * this.level.tile_size) : false;
+      const down = y < this.level.height - 1 ? this.isSolidAtPixel((x + 0.5) * this.level.tile_size, (y + 1.5) * this.level.tile_size) : true;
+      const left = x > 0 ? this.isSolidAtPixel((x - 0.5) * this.level.tile_size, (y + 0.5) * this.level.tile_size) : false;
+      const right = x < this.level.width - 1 ? this.isSolidAtPixel((x + 1.5) * this.level.tile_size, (y + 0.5) * this.level.tile_size) : false;
+
+      if (!up && !left) {
+        this.setTile(x, y, 'platform_slope_ur');
+      } else if (!up && !right) {
+        this.setTile(x, y, 'platform_slope_ul');
+      } else if (!down && !left) {
+        this.setTile(x, y, 'platform_slope_cr');
+      } else if (!down && !right) {
+        this.setTile(x, y, 'platform_slope_cl');
+      } else {
+        this.setTile(x, y, 'platform_slope_ur');
+      }
+    } else {
+      this.setTile(x, y, 'platform_slope_ur');
+    }
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`Диагональный скос на клетке [${x}, ${y}]`);
+    this.render();
+  }
+
+  // --- Фиксированный спавн боссов (Boss Spawn Tool) ---
+  public placeBossAt(x: number, y: number) {
+    if (!this.level || x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) return;
+    const bossId = this.selectedBossId || 'boss_chipset_sentinel';
+    const bossName = this.selectedBossDisplayName || bossId;
+
+    const bossDef = this.enemiesById.get(bossId);
+    const spriteId = bossDef?.sprite_variants[0] || 'boss_chipset_sentinel';
+
+    this.level.enemies = this.level.enemies.filter(e => !(e.x === x && e.y === y));
+
+    const newBoss: EnemySpawnDef = {
+      enemy_id: bossId,
+      sprite_id: spriteId,
+      x,
+      y,
+      surface: 'floor',
+      is_boss: true,
+      boss_id: bossId
+    };
+
+    this.level.enemies.push(newBoss);
+    this.selectedEnemyIndex = this.level.enemies.length - 1;
+    this.callbacks.onSelectEnemy?.(newBoss, this.selectedEnemyIndex);
+    this.saveStateToHistory();
+    this.callbacks.onLevelChanged?.();
+    this.callbacks.onStatusMessage?.(`👑 Фиксированный спавн босса: ${bossName} на [${x}, ${y}]`);
     this.render();
   }
 
@@ -1318,7 +1786,50 @@ export class EditorCanvas {
         if (tileId) {
           const tile = this.tilesById.get(tileId);
           if (tile) {
-            this.assets.drawSprite(ctx, tile.sprite_id, cx * ts, cy * ts, 0, ts, ts);
+            if (tile.slope) {
+              const ox = cx * ts;
+              const oy = cy * ts;
+              ctx.save();
+              ctx.beginPath();
+              if (tile.slope === 'up_right') {
+                ctx.moveTo(ox, oy + ts);
+                ctx.lineTo(ox + ts, oy + ts);
+                ctx.lineTo(ox + ts, oy);
+              } else if (tile.slope === 'up_left') {
+                ctx.moveTo(ox, oy);
+                ctx.lineTo(ox, oy + ts);
+                ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_right') {
+                ctx.moveTo(ox, oy);
+                ctx.lineTo(ox + ts, oy);
+                ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_left') {
+                ctx.moveTo(ox, oy);
+                ctx.lineTo(ox + ts, oy);
+                ctx.lineTo(ox, oy + ts);
+              }
+              ctx.closePath();
+              ctx.clip();
+              this.assets.drawSprite(ctx, tile.sprite_id, ox, oy, 0, ts, ts);
+              ctx.restore();
+
+              // Зеленая дорожка на скосе
+              ctx.strokeStyle = '#4ade80';
+              ctx.lineWidth = 2 / this.zoom;
+              ctx.beginPath();
+              if (tile.slope === 'up_right') {
+                ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy);
+              } else if (tile.slope === 'up_left') {
+                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_right') {
+                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_left') {
+                ctx.moveTo(ox + ts, oy); ctx.lineTo(ox, oy + ts);
+              }
+              ctx.stroke();
+            } else {
+              this.assets.drawSprite(ctx, tile.sprite_id, cx * ts, cy * ts, 0, ts, ts);
+            }
           } else {
             ctx.fillStyle = '#4ade80';
             ctx.fillRect(cx * ts, cy * ts, ts, ts);
@@ -1327,10 +1838,27 @@ export class EditorCanvas {
           // Оверлей твердости/коллизии
           if (this.showCollisions && tile?.solid) {
             ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
-            ctx.fillRect(cx * ts, cy * ts, ts, ts);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(cx * ts + 0.5, cy * ts + 0.5, ts - 1, ts - 1);
+            if (tile.slope) {
+              const ox = cx * ts;
+              const oy = cy * ts;
+              ctx.beginPath();
+              if (tile.slope === 'up_right') {
+                ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy + ts); ctx.lineTo(ox + ts, oy);
+              } else if (tile.slope === 'up_left') {
+                ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + ts); ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_right') {
+                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy); ctx.lineTo(ox + ts, oy + ts);
+              } else if (tile.slope === 'ceil_left') {
+                ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy); ctx.lineTo(ox, oy + ts);
+              }
+              ctx.closePath();
+              ctx.fill();
+            } else {
+              ctx.fillRect(cx * ts, cy * ts, ts, ts);
+              ctx.strokeStyle = '#ef4444';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(cx * ts + 0.5, cy * ts + 0.5, ts - 1, ts - 1);
+            }
           }
         }
       }
@@ -1341,6 +1869,17 @@ export class EditorCanvas {
 
     // 4. Провода и кабели (Cables)
     this.renderCables(ctx);
+
+    // 4.5. Комнаты (Rooms)
+    this.renderRooms(ctx);
+
+    // 4.6. Зоны спавна мобов на полу (Mob Spawn Zones)
+    this.renderMobZones(ctx);
+
+    // 4.7. Оверлей кубиков проходимости (Walkability Grid)
+    if (this.showWalkability) {
+      this.renderWalkabilityGrid(ctx);
+    }
 
     // 5. Отрисовка сущностей (Игрок и Враги)
     if (this.showEntities) {
@@ -1371,15 +1910,37 @@ export class EditorCanvas {
 
         const ey = enemy.y * ts;
         const ex = (enemy.x + 0.5) * ts;
-        ctx.fillStyle = isSelected ? '#eab308' : '#ef4444';
-        ctx.fillRect(enemy.x * ts + 2, ey - 7, ts - 4, 9);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 7px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(enemy.enemy_id.slice(0, 5).toUpperCase(), ex, ey);
+        const isBoss = enemy.is_boss || enemy.enemy_id.startsWith('boss_') || enemy.enemy_id === 'worm_boss';
+
+        if (isBoss) {
+          // Корона и статус босса
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(ex, ey - 10, 9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('👑', ex, ey - 6);
+
+          ctx.fillStyle = isSelected ? '#f59e0b' : '#d97706';
+          ctx.fillRect(enemy.x * ts - 4, ey - 22, ts + 8, 11);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          const bossLabel = enemy.boss_id || enemy.enemy_id;
+          ctx.fillText(`👑 ${bossLabel.slice(0, 12)}`, ex, ey - 14);
+        } else {
+          ctx.fillStyle = isSelected ? '#eab308' : '#ef4444';
+          ctx.fillRect(enemy.x * ts + 2, ey - 7, ts - 4, 9);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(enemy.enemy_id.slice(0, 5).toUpperCase(), ex, ey);
+        }
 
         if (isSelected) {
-          ctx.strokeStyle = '#eab308';
+          ctx.strokeStyle = isBoss ? '#f59e0b' : '#eab308';
           ctx.lineWidth = 2;
           ctx.strokeRect(enemy.x * ts - 1, enemy.y * ts - 1, ts + 2, ts + 2);
         }
@@ -1463,43 +2024,177 @@ export class EditorCanvas {
       ctx.strokeRect(0, 0, levelPixelW, levelPixelH);
     }
 
-    // 10. Превью курсора / активного инструмента
-    if (!this.playtest.active && this.hoveredTileX >= 0 && this.hoveredTileX < this.level.width &&
-        this.hoveredTileY >= 0 && this.hoveredTileY < this.level.height && !this.dragState) {
-      const hx = this.hoveredTileX * ts;
-      const hy = this.hoveredTileY * ts;
+    // 10. Превью курсора / активного инструмента и протягивания
+    if (!this.playtest.active && !this.dragState) {
+      // Превью протягивания комнаты
+      if (this.roomStart && this.hoveredTileX >= 0) {
+        const x0 = Math.min(this.roomStart.x, this.hoveredTileX);
+        const x1 = Math.max(this.roomStart.x, this.hoveredTileX);
+        const y0 = Math.min(this.roomStart.y, this.hoveredTileY);
+        const y1 = Math.max(this.roomStart.y, this.hoveredTileY);
+        const rw = (x1 - x0 + 1) * ts;
+        const rh = (y1 - y0 + 1) * ts;
+        const rx = x0 * ts;
+        const ry = y0 * ts;
 
-      if (this.activeTool === 'brush' && this.selectedTileId) {
-        const tile = this.tilesById.get(this.selectedTileId);
-        if (tile) {
-          ctx.save();
-          ctx.globalAlpha = 0.6;
-          this.assets.drawSprite(ctx, tile.sprite_id, hx, hy, 0, ts, ts);
-          ctx.restore();
-        }
-      } else if (this.activeTool === 'eraser') {
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
-        ctx.fillRect(hx, hy, ts, ts);
-      } else if (this.activeTool === 'player_spawn') {
-        ctx.save();
-        ctx.globalAlpha = 0.5;
-        this.assets.drawEntityAtTile(ctx, 'player', this.hoveredTileX, this.hoveredTileY, ts);
-        ctx.restore();
-      } else if (this.activeTool === 'enemy_spawn' && this.selectedEnemySpriteId) {
-        ctx.save();
-        ctx.globalAlpha = 0.5;
-        this.assets.drawEntityAtTile(ctx, this.selectedEnemySpriteId, this.hoveredTileX, this.hoveredTileY, ts);
-        ctx.restore();
-      } else if (this.activeTool === 'transition') {
-        ctx.fillStyle = 'rgba(14, 165, 233, 0.3)';
-        ctx.fillRect(hx, hy, ts, ts * 2);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+        ctx.fillRect(rx, ry, rw, rh);
         ctx.strokeStyle = '#38bdf8';
-        ctx.strokeRect(hx, hy, ts, ts * 2);
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.setLineDash([4 / this.zoom, 4 / this.zoom]);
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(rx + rw / 2 - 38, ry + rh / 2 - 12, 76, 24);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rx + rw / 2 - 38, ry + rh / 2 - 12, 76, 24);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`🏛️ ${x1 - x0 + 1}×${y1 - y0 + 1}`, rx + rw / 2, ry + rh / 2);
       }
 
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2 / this.zoom;
-      ctx.strokeRect(hx, hy, ts, ts);
+      // Превью протягивания зоны спавна
+      if (this.mobZoneStart && this.hoveredTileX >= 0) {
+        const x0 = Math.min(this.mobZoneStart.x, this.hoveredTileX);
+        const x1 = Math.max(this.mobZoneStart.x, this.hoveredTileX);
+        const y0 = Math.min(this.mobZoneStart.y, this.hoveredTileY);
+        const y1 = Math.max(this.mobZoneStart.y, this.hoveredTileY);
+        const zw = (x1 - x0 + 1) * ts;
+        const zh = (y1 - y0 + 1) * ts;
+        const zx = x0 * ts;
+        const zy = y0 * ts;
+
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
+        ctx.fillRect(zx, zy, zw, zh);
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.setLineDash([4 / this.zoom, 4 / this.zoom]);
+        ctx.strokeRect(zx, zy, zw, zh);
+        ctx.setLineDash([]);
+
+        const tempZone = { x: x0, y: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 };
+        const floors = this.getValidFloorTilesInZone(tempZone);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(zx + zw / 2 - 50, zy + zh / 2 - 12, 100, 24);
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(zx + zw / 2 - 50, zy + zh / 2 - 12, 100, 24);
+        ctx.fillStyle = '#f0abfc';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`👾 Пол: ${floors.length} мест`, zx + zw / 2, zy + zh / 2);
+      }
+
+      // Превью курсора на клетке
+      if (this.hoveredTileX >= 0 && this.hoveredTileX < this.level.width &&
+          this.hoveredTileY >= 0 && this.hoveredTileY < this.level.height) {
+        const hx = this.hoveredTileX * ts;
+        const hy = this.hoveredTileY * ts;
+
+        if (this.activeTool === 'brush' && this.selectedTileId) {
+          const tile = this.tilesById.get(this.selectedTileId);
+          if (tile) {
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            this.assets.drawSprite(ctx, tile.sprite_id, hx, hy, 0, ts, ts);
+            ctx.restore();
+          }
+        } else if (this.activeTool === 'eraser') {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+          ctx.fillRect(hx, hy, ts, ts);
+        } else if (this.activeTool === 'player_spawn') {
+          ctx.save();
+          ctx.globalAlpha = 0.5;
+          this.assets.drawEntityAtTile(ctx, 'player', this.hoveredTileX, this.hoveredTileY, ts);
+          ctx.restore();
+        } else if (this.activeTool === 'enemy_spawn' && this.selectedEnemySpriteId) {
+          ctx.save();
+          ctx.globalAlpha = 0.5;
+          this.assets.drawEntityAtTile(ctx, this.selectedEnemySpriteId, this.hoveredTileX, this.hoveredTileY, ts);
+          ctx.restore();
+        } else if (this.activeTool === 'boss_spawn') {
+          const bossId = this.selectedBossId || 'boss_chipset_sentinel';
+          const bossDef = this.enemiesById.get(bossId);
+          const spriteId = bossDef?.sprite_variants[0] || bossId;
+          ctx.save();
+          ctx.globalAlpha = 0.7;
+          this.assets.drawSprite(ctx, spriteId, hx, hy, 0, ts, ts);
+          ctx.restore();
+
+          // Золотая корона превью
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(hx + ts / 2, hy - 6, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('👑', hx + ts / 2, hy - 5);
+        } else if (this.activeTool === 'bevel') {
+          ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
+          ctx.beginPath();
+          ctx.moveTo(hx, hy + ts);
+          ctx.lineTo(hx + ts, hy + ts);
+          ctx.lineTo(hx + ts, hy);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = '#4ade80';
+          ctx.lineWidth = 2 / this.zoom;
+          ctx.stroke();
+        } else if (this.activeTool === 'passage') {
+          const half = Math.floor(this.passageWidth / 2);
+          const startY = Math.max(0, this.hoveredTileY - half);
+          const endY = Math.min(this.level.height - 1, startY + this.passageWidth - 1);
+          const pwH = (endY - startY + 1) * ts;
+
+          ctx.fillStyle = 'rgba(234, 179, 8, 0.25)';
+          ctx.fillRect(hx, startY * ts, ts, pwH);
+          ctx.strokeStyle = '#eab308';
+          ctx.lineWidth = 2 / this.zoom;
+          ctx.strokeRect(hx, startY * ts, ts, pwH);
+
+          if (this.passageAutoWalls) {
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
+            if (startY > 0) ctx.fillRect(hx, (startY - 1) * ts, ts, ts);
+            if (endY < this.level.height - 1) ctx.fillRect(hx, (endY + 1) * ts, ts, ts);
+          }
+        } else if (this.activeTool === 'walkability') {
+          if (this.walkabilityMode === 'passable') {
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.4)';
+            ctx.fillRect(hx, hy, ts, ts);
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2 / this.zoom;
+            ctx.strokeRect(hx, hy, ts, ts);
+          } else {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx.fillRect(hx, hy, ts, ts);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2 / this.zoom;
+            ctx.strokeRect(hx, hy, ts, ts);
+          }
+        } else if (this.activeTool === 'room') {
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+          ctx.fillRect(hx, hy, ts, ts);
+        } else if (this.activeTool === 'mob_zone') {
+          ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
+          ctx.fillRect(hx, hy, ts, ts);
+        } else if (this.activeTool === 'transition') {
+          ctx.fillStyle = 'rgba(14, 165, 233, 0.3)';
+          ctx.fillRect(hx, hy, ts, ts * 2);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.strokeRect(hx, hy, ts, ts * 2);
+        }
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.strokeRect(hx, hy, ts, ts);
+      }
     }
 
     ctx.restore();
@@ -1772,6 +2467,206 @@ export class EditorCanvas {
       ctx.textAlign = 'center';
       ctx.fillText(`➔ ${labelText.slice(0, 16)}`, gx + gw / 2, gy - 6);
     });
+  }
+
+  // --- Отрисовка комнат (Rooms) ---
+  private renderRooms(ctx: CanvasRenderingContext2D) {
+    if (!this.level || !this.level.rooms || this.level.rooms.length === 0) return;
+    const ts = this.level.tile_size;
+
+    this.level.rooms.forEach((room, idx) => {
+      const isSelected = idx === this.selectedRoomIndex;
+      const rx = room.x * ts;
+      const ry = room.y * ts;
+      const rw = room.width * ts;
+      const rh = room.height * ts;
+
+      // Полупрозрачный фон комнаты
+      ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.16)' : 'rgba(56, 189, 248, 0.06)';
+      ctx.fillRect(rx, ry, rw, rh);
+
+      // Контур комнаты
+      ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = isSelected ? 2.5 / this.zoom : 1.5 / this.zoom;
+      ctx.setLineDash([6 / this.zoom, 4 / this.zoom]);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.setLineDash([]);
+
+      // Угловые скосы, если включены
+      if (room.beveled) {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+        // 4 скошенных треугольника по углам
+        ctx.beginPath(); ctx.moveTo(rx, ry + ts); ctx.lineTo(rx + ts, ry); ctx.lineTo(rx, ry); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(rx + rw - ts, ry); ctx.lineTo(rx + rw, ry + ts); ctx.lineTo(rx + rw, ry); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(rx, ry + rh - ts); ctx.lineTo(rx + ts, ry + rh); ctx.lineTo(rx, ry + rh); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(rx + rw - ts, ry + rh); ctx.lineTo(rx + rw, ry + rh - ts); ctx.lineTo(rx + rw, ry + rh); ctx.closePath(); ctx.fill();
+      }
+
+      // Бейдж комнаты
+      const label = `🏛️ ${room.name} [${room.width}×${room.height}]`;
+      const badgeW = Math.min(rw - 8, 140);
+      if (badgeW > 20) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.fillRect(rx + 4, ry + 4, badgeW, 16);
+        ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rx + 4, ry + 4, badgeW, 16);
+
+        ctx.fillStyle = isSelected ? '#7dd3fc' : '#94a3b8';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label.slice(0, 18), rx + 8, ry + 12);
+      }
+    });
+  }
+
+  // --- Отрисовка зон спавна мобов на полу (Mob Spawn Zones) ---
+  private renderMobZones(ctx: CanvasRenderingContext2D) {
+    if (!this.level || !this.level.spawn_zones || this.level.spawn_zones.length === 0) return;
+    const ts = this.level.tile_size;
+
+    this.level.spawn_zones.forEach((zone, idx) => {
+      const isSelected = idx === this.selectedMobZoneIndex;
+      const zx = zone.x * ts;
+      const zy = zone.y * ts;
+      const zw = zone.width * ts;
+      const zh = zone.height * ts;
+
+      // Полупрозрачная заливка
+      ctx.fillStyle = isSelected ? 'rgba(168, 85, 247, 0.22)' : 'rgba(168, 85, 247, 0.08)';
+      ctx.fillRect(zx, zy, zw, zh);
+
+      // Пунктирный контур
+      ctx.strokeStyle = isSelected ? '#c084fc' : 'rgba(168, 85, 247, 0.5)';
+      ctx.lineWidth = isSelected ? 2.5 / this.zoom : 1.5 / this.zoom;
+      ctx.setLineDash([5 / this.zoom, 3 / this.zoom]);
+      ctx.strokeRect(zx, zy, zw, zh);
+      ctx.setLineDash([]);
+
+      // Подсветка доступных точек пола внутри этой зоны
+      const floors = this.getValidFloorTilesInZone(zone);
+      ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
+      for (const f of floors) {
+        // Зеленая полоса пола и маркер спавна
+        ctx.fillRect(f.x * ts + 2, (f.y + 1) * ts - 4, ts - 4, 4);
+        ctx.beginPath();
+        ctx.arc((f.x + 0.5) * ts, (f.y + 0.7) * ts, 2.5 / this.zoom, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Бейдж зоны спавна
+      const label = `👾 ${zone.name || zone.enemy_id} (×${zone.count}, пол: ${floors.length})`;
+      const badgeW = Math.min(zw - 8, 160);
+      if (badgeW > 20) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.fillRect(zx + 4, zy + 4, badgeW, 16);
+        ctx.strokeStyle = isSelected ? '#c084fc' : 'rgba(168, 85, 247, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(zx + 4, zy + 4, badgeW, 16);
+
+        ctx.fillStyle = isSelected ? '#f0abfc' : '#d8b4fe';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label.slice(0, 22), zx + 8, zy + 12);
+      }
+    });
+  }
+
+  // --- Оверлей кубиков проходимости (Walkability Grid) ---
+  private renderWalkabilityGrid(ctx: CanvasRenderingContext2D) {
+    if (!this.level) return;
+    const ts = this.level.tile_size;
+
+    for (let cy = 0; cy < this.level.height; cy++) {
+      for (let cx = 0; cx < this.level.width; cx++) {
+        const ox = cx * ts;
+        const oy = cy * ts;
+        const isSolid = this.isSolidAtPixel((cx + 0.5) * ts, (cy + 0.5) * ts);
+        const slope = this.getSlope(cx, cy);
+
+        if (isSolid) {
+          if (slope) {
+            // Диагональный скос
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+            ctx.beginPath();
+            if (slope === 'up_right') {
+              ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy + ts); ctx.lineTo(ox + ts, oy);
+            } else if (slope === 'up_left') {
+              ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + ts); ctx.lineTo(ox + ts, oy + ts);
+            } else if (slope === 'ceil_right') {
+              ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy); ctx.lineTo(ox + ts, oy + ts);
+            } else if (slope === 'ceil_left') {
+              ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy); ctx.lineTo(ox, oy + ts);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Линия проходимого подъема
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2 / this.zoom;
+            ctx.beginPath();
+            if (slope === 'up_right') {
+              ctx.moveTo(ox, oy + ts); ctx.lineTo(ox + ts, oy);
+            } else if (slope === 'up_left') {
+              ctx.moveTo(ox, oy); ctx.lineTo(ox + ts, oy + ts);
+            }
+            ctx.stroke();
+          } else {
+            // Непроходимый блок (Стена / Потолок)
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+            ctx.fillRect(ox, oy, ts, ts);
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+            ctx.lineWidth = 1 / this.zoom;
+            ctx.strokeRect(ox, oy, ts, ts);
+
+            // Маленький красный значок блокировки
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(ox + ts / 2, oy + ts / 2, 2.5 / this.zoom, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // Проходимая область (Воздух или Пол)
+          const isFloorBelow = cy < this.level.height - 1 && this.isSolidAtPixel((cx + 0.5) * ts, (cy + 1.5) * ts);
+          if (isFloorBelow) {
+            // ЗЕЛЕНЫЙ КУБИК: Поверхность пола, по которой игрок ходит
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+            ctx.fillRect(ox, oy, ts, ts);
+
+            // Зеленый индикатор пола
+            ctx.fillStyle = '#22c55e';
+            ctx.fillRect(ox, oy + ts - 3, ts, 3);
+
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)';
+            ctx.lineWidth = 1 / this.zoom;
+            ctx.strokeRect(ox, oy, ts, ts);
+
+            // Иконка шага/проходимости
+            ctx.fillStyle = '#4ade80';
+            ctx.beginPath();
+            ctx.arc(ox + ts / 2, oy + ts * 0.7, 2.5 / this.zoom, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            // Проходимый воздух (для прыжков и маневров)
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.06)';
+            ctx.fillRect(ox, oy, ts, ts);
+
+            ctx.strokeStyle = 'rgba(14, 165, 233, 0.18)';
+            ctx.lineWidth = 1 / this.zoom;
+            ctx.strokeRect(ox, oy, ts, ts);
+          }
+        }
+      }
+    }
+  }
+
+  public toggleWalkability(): boolean {
+    this.showWalkability = !this.showWalkability;
+    this.render();
+    return this.showWalkability;
   }
 
   private renderBoundaryControls(levelW: number, levelH: number) {

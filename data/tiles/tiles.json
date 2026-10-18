@@ -39,6 +39,38 @@
       "sprite_id": "tile_tileset4",
       "solid": true,
       "one_way": false
+    },
+    {
+      "id": "platform_slope_ur",
+      "display_name": "Скос платформы вправо (/)",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false,
+      "slope": "up_right"
+    },
+    {
+      "id": "platform_slope_ul",
+      "display_name": "Скос платформы влево (\\)",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false,
+      "slope": "up_left"
+    },
+    {
+      "id": "platform_slope_cr",
+      "display_name": "Скос потолка вправо",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false,
+      "slope": "ceil_right"
+    },
+    {
+      "id": "platform_slope_cl",
+      "display_name": "Скос потолка влево",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false,
+      "slope": "ceil_left"
     }
   ]
 }
