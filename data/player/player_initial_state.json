@@ -2,9 +2,9 @@
   "$schema": "../schemas/player_state.schema.json",
   "version": "1.0.0",
   "entity_id": "player_obsolete_model",
-  "display_name": "Синий человечек",
-  "sprite_id": "player3",
-  "rig_id": "player3_rig",
+  "display_name": "Модель-7 «Утиль»",
+  "sprite_id": "player2",
+  "rig_id": "player2_rig",
   "health": {
     "current": 100,
     "max": 100,

@@ -2,6 +2,10 @@
   "$schema": "../schemas/level.schema.json",
   "id": "loc2",
   "display_name": "Локация 2",
+  "hero": {
+    "sprite_id": "player3",
+    "rig_id": "player3_rig"
+  },
   "debug_key": 2,
   "background_id": "bg_textalite",
   "tile_size": 32,

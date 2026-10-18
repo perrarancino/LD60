@@ -40,7 +40,7 @@ export interface PunchPose {
  * Бросок: замах (рука уходит назад и вверх за голову, в ней шестерёнка), рывок вперёд по дуге над головой, в конце рывка — отпускание
  * (RELEASE), затем рука доводится вперёд и возвращается. Тайминг, с.
  */
-export const THROW_WINDUP = 0.16;
+export const THROW_WINDUP = 0.2;
 export const THROW_SWING = 0.075;
 export const THROW_HOLD = 0.11;
 export const THROW_RELEASE = THROW_WINDUP + THROW_SWING * 0.92; // шестерёнка покидает руку
@@ -444,17 +444,18 @@ export class PlayerRig {
       }
 
       if (thr && side === thr.arm) {
-        // Бросок: рука по дугам — вниз -> назад-вверх за голову (замах) -> вперёд вдоль прицела (рывок над головой); дальше доводится
+        // Бросок: рука по дугам — вниз -> вверх впереди (замах, кисть над плечом) -> вперёд вдоль прицела (рывок над головой); дальше доводится
         const t = thr.time;
         const reach = limb.length;
         const rest = { x: rootX + dirWorld(restDir).x * reach * 0.9, y: rootY + dirWorld(restDir).y * reach * 0.9 };
-        const cock = { x: rootX - thr.dirX * reach * 0.62, y: rootY - reach * 0.78 };
+        const cock = { x: rootX - thr.dirX * reach * 0.2, y: rootY - reach * 0.97 }; // кисть над плечом, чуть позади — рука поднята вертикально
         const fwd = { x: rootX + thr.dirX * reach * 0.98, y: rootY + thr.dirY * reach * 0.98 };
         const sweep = thr.dirX >= 0 ? 1 : -1;
         let tx: number;
         let ty: number;
         if (t < THROW_WINDUP) {
-          [tx, ty] = this.sweepVec(rootX, rootY, rest, cock, smoothstep(0, 1, t / THROW_WINDUP), sweep);
+          // рука поднимается вверх ВПЕРЁД по обычному повороту (а не заводится назад за спину), затем бросок над головой
+          [tx, ty] = this.sweepVec(rootX, rootY, rest, cock, smoothstep(0, 1, t / THROW_WINDUP), -sweep);
         } else {
           [tx, ty] = this.sweepVec(rootX, rootY, cock, fwd, easeOutQuad(clamp((t - THROW_WINDUP) / THROW_SWING, 0, 1)), sweep);
         }

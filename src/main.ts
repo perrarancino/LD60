@@ -335,8 +335,10 @@ class GameApp {
     if (levelDef.background_id && !bgDef) throw new Error(`Уровень ссылается на неизвестный фон "${levelDef.background_id}"`);
 
     // Загружаем только те спрайты, которые реально нужны уровню
-    const rigDef = RIGS.find((r) => r.id === playerData.rig_id);
-    if (!rigDef) throw new Error(`Герой ссылается на неизвестный риг "${playerData.rig_id}"`);
+    const heroSpriteId = levelDef.hero?.sprite_id ?? playerData.sprite_id; // на разных уровнях играют разные герои (поле hero уровня)
+    const heroRigId = levelDef.hero?.rig_id ?? playerData.rig_id;
+    const rigDef = RIGS.find((r) => r.id === heroRigId);
+    if (!rigDef) throw new Error(`Герой ссылается на неизвестный риг "${heroRigId}"`);
     await this.sprites.load([
       PUNCH_FX.sprite,
       SMOKE_FX.sprite,
@@ -345,7 +347,7 @@ class GameApp {
       'mat_wire',
       'mat_disc',
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
-      playerData.sprite_id,
+      heroSpriteId,
       ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id),
@@ -464,7 +466,7 @@ class GameApp {
       this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
     }
 
-    this.player = new Player(playerData.sprite_id, rigDef, this.sprites);
+    this.player = new Player(heroSpriteId, rigDef, this.sprites);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
 

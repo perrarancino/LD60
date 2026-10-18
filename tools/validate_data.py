@@ -131,6 +131,10 @@ for path in sorted((DATA / "levels").glob("*.json")):
             check(ch in lv["legend"], f"{n}: символ '{ch}' нет в легенде")
     for ch, tid in lv["legend"].items():
         check(tid is None or tid in tiles, f"{n}: легенда '{ch}' -> неизвестный тайл {tid}")
+    hero = lv.get("hero")
+    if hero:
+        check(hero["sprite_id"] in sprites, f"{n}: hero: нет спрайта {hero['sprite_id']}")
+        check(hero["rig_id"] in rigs, f"{n}: hero: нет рига {hero['rig_id']}")
     for en in lv["enemies"]:
         check(en["enemy_id"] in enemies, f"{n}: неизвестный враг {en['enemy_id']}")
         check(en["sprite_id"] in enemies.get(en["enemy_id"], {}).get("sprite_variants", []),

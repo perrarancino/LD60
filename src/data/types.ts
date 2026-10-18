@@ -115,6 +115,7 @@ export interface GradeDef {
 export interface LevelDef {
   id: string;
   display_name?: string;
+  hero?: { sprite_id: string; rig_id: string }; // кто играет на этом уровне (по умолчанию — герой из player_initial_state.json)
   debug_key?: number; // отладка: клавиша 1–4 в игре переключает на этот уровень
   background_id?: string;
   tile_size: number;

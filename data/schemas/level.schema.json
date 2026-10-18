@@ -7,6 +7,11 @@
   "properties": {
     "id": { "type": "string" },
     "display_name": { "type": "string" },
+    "hero": {
+      "type": "object", "required": ["sprite_id", "rig_id"],
+      "description": "Кто играет на этом уровне (по умолчанию — герой из data/player/player_initial_state.json)",
+      "properties": { "sprite_id": { "type": "string" }, "rig_id": { "type": "string" } }
+    },
     "debug_key": { "type": "integer", "minimum": 1, "maximum": 9, "description": "Отладка: клавиша 1–9 в игре переключает на этот уровень" },
     "background_id": { "type": "string", "description": "Id параллакс-фона из data/backgrounds/ (необязательно)" },
     "tile_size": { "type": "integer", "minimum": 1 },
