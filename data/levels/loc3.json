@@ -3,6 +3,7 @@
   "id": "loc3",
   "display_name": "Локация 3 (заготовка)",
   "debug_key": 3,
+  "start_armor": 2,
   "background_id": "bg_textalite",
   "tile_size": 32,
   "width": 36,

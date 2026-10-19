@@ -138,9 +138,9 @@ export class Player {
   private knockCd = 0; // с: защита от повторного сбивания
   private extraJumps = 0; // двойной прыжок (проводные ноги)
 
-  constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary) {
+  constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary, altRig: RigDef | null = null) {
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
-    this.rig = new PlayerRig(rigDef, sprites);
+    this.rig = new PlayerRig(rigDef, sprites, altRig);
     this.sprite = this.rig.container;
     this.body.setHitbox(this.spriteDef, false);
   }

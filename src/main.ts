@@ -23,7 +23,7 @@ import { FpsCounter } from './core/FpsCounter.ts';
 import { pal } from './core/Palette.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import { EventBus } from './core/EventBus.ts';
-import { Armor } from './systems/ArmorSystem.ts';
+import { Armor, MODELS } from './systems/ArmorSystem.ts';
 import { LootSystem } from './systems/LootSystem.ts';
 import { ProjectileSystem } from './entities/ProjectileSystem.ts';
 import { Hud } from './ui/Hud.ts';
@@ -342,10 +342,14 @@ class GameApp {
     if (levelDef.background_id && !bgDef) throw new Error(`Уровень ссылается на неизвестный фон "${levelDef.background_id}"`);
 
     // Загружаем только те спрайты, которые реально нужны уровню
-    const heroSpriteId = levelDef.hero?.sprite_id ?? playerData.sprite_id; // на разных уровнях играют разные герои (поле hero уровня)
-    const heroRigId = levelDef.hero?.rig_id ?? playerData.rig_id;
-    const rigDef = RIGS.find((r) => r.id === heroRigId);
-    if (!rigDef) throw new Error(`Герой ссылается на неизвестный риг "${heroRigId}"`);
+    // Герой собирается из частей двух моделей (прежний герой и герой второй локации) — какие части надеты, решает броня (терминалы)
+    const modelRigs = MODELS.map((m) => {
+      const rig = RIGS.find((r) => r.id === m.rig_id);
+      if (!rig) throw new Error(`Модель героя ссылается на неизвестный риг "${m.rig_id}"`);
+      return rig;
+    });
+    const heroSpriteId = MODELS[0].sprite_id;
+    const rigDef = modelRigs[0];
     await this.sprites.load([
       PUNCH_FX.sprite,
       SMOKE_FX.sprite,
@@ -355,7 +359,8 @@ class GameApp {
       ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       heroSpriteId,
-      ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
+      ...MODELS.map((m) => m.sprite_id),
+      ...modelRigs.flatMap((r) => r.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])])),
       ...Level.spriteIds(levelDef, tileset),
       ...levelDef.enemies.map((e) => e.sprite_id),
       // спрайты врагов из зон спавна
@@ -497,7 +502,7 @@ class GameApp {
       this.worldLayer.addChild(term.container);
     }
 
-    this.player = new Player(heroSpriteId, rigDef, this.sprites);
+    this.player = new Player(heroSpriteId, rigDef, this.sprites, modelRigs[1] ?? null);
     this.player.setArmor(Armor.get().equipped);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);

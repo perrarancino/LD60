@@ -3,9 +3,11 @@ import type { Level } from '../world/Level.ts';
 import type { Hittable } from '../entities/Hittable.ts';
 import { pal } from '../core/Palette.ts';
 
+/** Точка молнии: w — «толщина» в этой точке (0..1): 1 — жила с каймой, меньше — тоньше, у острия — тонкая жила в один пиксель. */
 interface Pt {
   x: number;
   y: number;
+  w?: number;
 }
 
 const OUTER = pal('gold', 4);
@@ -15,10 +17,10 @@ const SPARK_COLORS = [pal('gold', 5), pal('gold', 6), pal('gold', 7)];
 export const LIGHTNING_SPARKS = SPARK_COLORS;
 
 /**
- * Рисует ломаные молнии пикселями арта (как хвост электрокрысы): жила в 1 пиксель, вокруг — кайма в 1 пиксель; рампа gold палитры проекта.
- * Пиксели дедуплицируются (приоритет: жила > кайма > свечение) и склеиваются в горизонтальные полоски — мало прямоугольников на кадр.
+ * Рисует молнии пикселями арта: жила в 1 пиксель (светлое золото), вокруг жилы редкая кайма в шахматном порядке — молния получается острой и тонкой, а не толстой
+ * линией; кайма и свечение только там, где w велико (у острия и на ответвлениях — одна жила). Пиксели дедуплицируются и склеиваются в горизонтальные полоски.
  */
-export function drawBolts(g: Graphics, lines: Pt[][], glow = true): void {
+export function drawBolts(g: Graphics, lines: Pt[][]): void {
   const grid = new Map<number, number>();
   const put = (x: number, y: number, level: number) => {
     const k = (x + 8192) * 16384 + (y + 8192);
@@ -30,22 +32,22 @@ export function drawBolts(g: Graphics, lines: Pt[][], glow = true): void {
       let y0 = Math.round(pts[i].y);
       const x1 = Math.round(pts[i + 1].x);
       const y1 = Math.round(pts[i + 1].y);
+      const w0 = pts[i].w ?? 1;
+      const w1 = pts[i + 1].w ?? 1;
       const dx = Math.abs(x1 - x0);
       const dy = -Math.abs(y1 - y0);
       const sx = x0 < x1 ? 1 : -1;
       const sy = y0 < y1 ? 1 : -1;
+      const steps = Math.max(dx, -dy) + 1;
       let err = dx + dy;
-      for (;;) {
+      for (let s = 0; ; s++) {
+        const w = w0 + (w1 - w0) * (s / Math.max(1, steps - 1));
         put(x0, y0, 3);
-        put(x0 + 1, y0, 2);
-        put(x0 - 1, y0, 2);
-        put(x0, y0 + 1, 2);
-        put(x0, y0 - 1, 2);
-        if (glow) {
-          put(x0 + 1, y0 + 1, 1);
-          put(x0 - 1, y0 - 1, 1);
-          put(x0 + 1, y0 - 1, 1);
-          put(x0 - 1, y0 + 1, 1);
+        if (w > 0.55) {
+          // кайма: соседи по сторонам через один (шахматка) — тонкая «колючая» оболочка
+          if ((x0 + y0) % 2 === 0) { put(x0 + 1, y0, 2); put(x0 - 1, y0, 2); }
+          else { put(x0, y0 + 1, 2); put(x0, y0 - 1, 2); }
+          if (w > 0.9 && (x0 * 3 + y0) % 5 === 0) { put(x0 + 1, y0 + 1, 1); put(x0 - 1, y0 - 1, 1); }
         }
         if (x0 === x1 && y0 === y1) break;
         const e2 = 2 * err;
@@ -80,22 +82,69 @@ export function drawBolts(g: Graphics, lines: Pt[][], glow = true): void {
   }
 }
 
-/** Рваная молния от a к b: узлы через ~step px, поперечный сдвиг случайный (у концов затихает). */
-export function jaggedPath(a: Pt, b: Pt, step: number, amp: number): Pt[] {
+interface SharpOpts {
+  amp?: number; // поперечный размах зигзага, px
+  step?: [number, number]; // расстояние между изломами, px
+  tipEnd?: boolean; // острие на конце: толщина падает к нулю
+  tipStart?: boolean; // острие в начале
+}
+
+/**
+ * Острая молния от a к b: резкие изломы через 8–16 px, знак поперечного сдвига в основном чередуется (зигзаг), иногда повторяется — «ступенька», у концов размах
+ * затихает. Между изломами — прямые отрезки, поэтому углы острые, а не волнистые.
+ */
+export function sharpPath(a: Pt, b: Pt, o: SharpOpts = {}): Pt[] {
+  const amp = o.amp ?? 6;
+  const [s0, s1] = o.step ?? [8, 16];
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
-  const n = Math.max(1, Math.round(len / step));
-  const nx = -dy / Math.max(1e-6, len);
-  const ny = dx / Math.max(1e-6, len);
-  const out: Pt[] = [{ x: a.x, y: a.y }];
-  for (let i = 1; i < n; i++) {
-    const t = i / n;
-    const env = Math.sin(Math.PI * t) ** 0.6;
-    const off = (Math.random() * 2 - 1) * amp * env;
-    out.push({ x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off });
+  const ux = dx / Math.max(1e-6, len);
+  const uy = dy / Math.max(1e-6, len);
+  const nx = -uy;
+  const ny = ux;
+  const taper = (t: number) => Math.min(o.tipStart ? Math.min(1, t * 5) : 1, o.tipEnd ? Math.min(1, (1 - t) * 3.2) : 1);
+  const out: Pt[] = [{ x: a.x, y: a.y, w: o.tipStart ? 0.05 : 1 }];
+  let pos = 0;
+  let sign = Math.random() < 0.5 ? 1 : -1;
+  for (;;) {
+    pos += s0 + Math.random() * (s1 - s0);
+    if (pos >= len - 4) break;
+    const t = pos / len;
+    if (Math.random() > 0.22) sign = -sign;
+    const env = Math.min(1, Math.sin(Math.PI * t) * 1.6) ** 0.7;
+    const off = sign * amp * (0.45 + 0.55 * Math.random()) * env;
+    out.push({ x: a.x + ux * pos + nx * off, y: a.y + uy * pos + ny * off, w: taper(t) });
   }
-  out.push({ x: b.x, y: b.y });
+  out.push({ x: b.x, y: b.y, w: o.tipEnd ? 0.05 : 1 });
+  return out;
+}
+
+/** Острое ответвление от точки p в сторону ang: 2–3 излома, тонкое (одна жила). */
+function branch(p: Pt, ang: number, len: number): Pt[] {
+  const out: Pt[] = [{ x: p.x, y: p.y, w: 0.4 }];
+  let x = p.x;
+  let y = p.y;
+  let a = ang;
+  const n = 2 + (Math.random() < 0.4 ? 1 : 0);
+  for (let i = 0; i < n; i++) {
+    a += (Math.random() - 0.5) * 1.2;
+    const l = (len / n) * (0.7 + Math.random() * 0.6);
+    x += Math.cos(a) * l;
+    y += Math.sin(a) * l;
+    out.push({ x, y, w: 0.3 * (1 - i / n) });
+  }
+  return out;
+}
+
+/** Звёздочка из острых лучей (вспышка в точке): n лучей случайной длины, тонкая жила. */
+function star(x: number, y: number, n: number, r: number): Pt[][] {
+  const out: Pt[][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const l = r * (0.5 + Math.random() * 0.8);
+    out.push([{ x, y, w: 0.8 }, { x: x + Math.cos(a) * l, y: y + Math.sin(a) * l, w: 0.05 }]);
+  }
   return out;
 }
 
@@ -151,12 +200,14 @@ type DamageFn = (target: Hittable, x: number, y: number, dirX: number, part?: nu
 type BurstFn = (x: number, y: number, count: number) => void;
 
 const TICK = 0.22; // с: как часто луч наносит урон
-const JITTER_HZ = 28; // как часто пересчитывается рваная форма луча
+const JITTER_HZ = 30; // как часто пересчитывается рваная форма луча
 const MAX_PATH_SEGMENTS = 5;
 
 /**
  * Луч молнии из руки (ПКМ при броне на руках): идёт от кисти по прицелу, отражается от стен под нужным углом (как лазер: угол падения = углу отражения),
- * бьёт по всем врагам на пути, форма нестабильна — рваная жёлтая молния пересчитывается ~28 раз в секунду, иногда мигает. Тратит энергию (за это отвечает игра).
+ * бьёт по всем врагам на пути. Форма — острая зигзагообразная молния (sharpPath): изломы пересчитываются ~30 раз в секунду, от жилы отходят острые
+ * ответвления, в кисти, точках отражения и попаданий вспыхивают звёздочки, острие на конце тонкое; луч нестабилен — звено иногда гаснет на миг.
+ * Тратит энергию (за это отвечает игра).
  */
 export class LightningBeam {
   public readonly container = new Container();
@@ -165,7 +216,6 @@ export class LightningBeam {
   private lines: Pt[][] = [];
   private jitterT = 0;
   private tick = 0;
-  private time = 0;
   private active = false;
 
   constructor(private readonly onDamage: DamageFn, private readonly burst: BurstFn) {
@@ -181,7 +231,6 @@ export class LightningBeam {
   public update(
     dt: number, origin: { x: number; y: number; dirX: number; dirY: number } | null, level: Level, hittables: Iterable<Hittable>, p: BeamParams
   ): void {
-    this.time += dt;
     this.g.clear();
     if (!origin) {
       this.active = false;
@@ -210,25 +259,28 @@ export class LightningBeam {
     }
     this.path = path;
 
-    // рваная форма: пересчитывается с частотой потрескивания; иногда луч «мигает» — часть звеньев не рисуется
+    // острая форма: пересчитывается с частотой потрескивания; звено иногда гаснет на миг
     this.jitterT -= dt;
     if (this.jitterT <= 0) {
       this.jitterT = 1 / JITTER_HZ;
       this.lines = [];
+      const last = path.length - 2;
       for (let i = 0; i < path.length - 1; i++) {
-        const seg = jaggedPath(path[i], path[i + 1], 6 + Math.random() * 3, 3.2 + Math.random() * 1.6);
-        if (Math.random() < 0.06) continue; // нестабильность: звено на миг гаснет
+        const a = path[i];
+        const z = path[i + 1];
+        const len = Math.hypot(z.x - a.x, z.y - a.y);
+        if (len < 2) continue;
+        const open = i === last && !hits.some((h) => h.x === z.x && h.y === z.y); // конец луча без стены — острие
+        const seg = sharpPath(a, z, { amp: 5 + Math.random() * 3, tipEnd: open || i === last, tipStart: false });
+        if (Math.random() < 0.05) continue;
         this.lines.push(seg);
-        // короткие ответвления
-        for (let k = 0; k < seg.length - 2; k++) {
-          if (Math.random() < 0.12) {
-            const a = seg[k];
-            const ang = Math.atan2(path[i + 1].y - path[i].y, path[i + 1].x - path[i].x) + (Math.random() < 0.5 ? -1 : 1) * (0.7 + Math.random() * 0.6);
-            const l = 5 + Math.random() * 8;
-            this.lines.push([a, { x: a.x + Math.cos(ang) * l, y: a.y + Math.sin(ang) * l }]);
-          }
+        const ang = Math.atan2(z.y - a.y, z.x - a.x);
+        for (let k = 1; k < seg.length - 1; k++) {
+          if (Math.random() < 0.2) this.lines.push(branch(seg[k], ang + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.8), 8 + Math.random() * 10));
         }
       }
+      for (const h of hits) this.lines.push(...star(h.x, h.y, 4, 7));
+      this.lines.push(...star(origin.x, origin.y, 3, 6));
     }
     if (this.lines.length) drawBolts(this.g, this.lines);
 
@@ -258,6 +310,7 @@ export class LightningBeam {
           h.onHit(sx / sl, sy / sl, c.part);
           this.onDamage(h, found.x, found.y, Math.sign(sx) || 1, c.part, dmg);
           this.burst(found.x, found.y, 3);
+          this.lines.push(...star(found.x, found.y, 4, 8)); // вспышка в точке попадания держится до пересчёта формы
           break;
         }
       }
@@ -276,6 +329,8 @@ export class LightningBeam {
 }
 
 interface Bolt {
+  a: Pt;
+  b: Pt;
   lines: Pt[][];
   life: number;
   maxLife: number;
@@ -291,8 +346,8 @@ interface Flash {
 }
 
 /**
- * Вспышки молнии: цепные разряды от точки удара к ближайшим врагам (каждый ~0.18 с, форма переиначивается) и яркая вспышка в точке удара.
- * Используется каждым третьим ударом героя с броней на руках.
+ * Вспышки молнии: цепные острые разряды от точки удара к ближайшим врагам (форма переиначивается ~25 раз в секунду) и яркая вспышка-звезда в точке удара.
+ * Используется каждым третьим ударом героя с бронёй на руках.
  */
 export class LightningFx {
   public readonly container = new Container();
@@ -304,17 +359,27 @@ export class LightningFx {
     this.container.addChild(this.g);
   }
 
-  /** Разряд от a к b (форма пересчитывается раз в ~0.04 с в течение life). */
-  public bolt(a: Pt, b: Pt, life = 0.18): void {
-    this.bolts.push({ lines: [jaggedPath(a, b, 6, 5)], life, maxLife: life, t: 0 });
+  private shape(a: Pt, b: Pt): Pt[][] {
+    const main = sharpPath(a, b, { amp: 8, step: [7, 13], tipEnd: true });
+    const out: Pt[][] = [main];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    for (let k = 1; k < main.length - 1; k++) {
+      if (Math.random() < 0.25) out.push(branch(main[k], ang + (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.8), 7 + Math.random() * 9));
+    }
+    return out;
   }
 
-  /** Вспышка в точке: круг, расходящийся и тающий, с короткими лучами. */
+  /** Разряд от a к b. */
+  public bolt(a: Pt, b: Pt, life = 0.18): void {
+    this.bolts.push({ a, b, lines: this.shape(a, b), life, maxLife: life, t: 0 });
+  }
+
+  /** Вспышка в точке: яркое ядро и звезда из острых лучей. */
   public flash(x: number, y: number, r = 26, life = 0.2): void {
     this.flashes.push({ x, y, r, life, maxLife: life });
-    for (let i = 0; i < 5; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const l = r * (0.7 + Math.random() * 0.8);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + Math.random() * 0.6;
+      const l = r * (0.8 + Math.random() * 0.9);
       this.bolt({ x, y }, { x: x + Math.cos(a) * l, y: y + Math.sin(a) * l }, life);
     }
   }
@@ -330,9 +395,7 @@ export class LightningFx {
       if (b.life <= 0) { this.bolts.splice(i, 1); continue; }
       if (b.t > 0.04) {
         b.t = 0;
-        const a = b.lines[0][0];
-        const z = b.lines[0][b.lines[0].length - 1];
-        b.lines = [jaggedPath(a, z, 6, 5)];
+        b.lines = this.shape(b.a, b.b);
       }
       lines.push(...b.lines);
     }
@@ -341,9 +404,7 @@ export class LightningFx {
       f.life -= dt;
       if (f.life <= 0) { this.flashes.splice(i, 1); continue; }
       const k = 1 - f.life / f.maxLife;
-      const rr = f.r * (0.3 + 0.7 * k);
-      g.circle(f.x, f.y, rr * 0.55).fill({ color: CORE, alpha: 0.85 * (1 - k) });
-      g.circle(f.x, f.y, rr).fill({ color: MID, alpha: 0.35 * (1 - k) });
+      g.circle(f.x, f.y, f.r * (0.18 + 0.22 * k)).fill({ color: CORE, alpha: 0.95 * (1 - k) }); // яркое ядро вспышки
     }
     if (lines.length) drawBolts(g, lines);
   }

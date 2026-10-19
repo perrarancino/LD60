@@ -2,12 +2,8 @@
   "$schema": "../schemas/level.schema.json",
   "id": "loc2",
   "display_name": "Локация 2",
-  "hero": {
-    "sprite_id": "player3",
-    "rig_id": "player3_rig"
-  },
   "debug_key": 2,
-  "start_armor": 4,
+  "start_armor": 2,
   "background_id": "bg_loc2",
   "light": {
     "rim_color": "#3de9e6",

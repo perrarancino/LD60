@@ -1,15 +1,8 @@
 import { Texture } from 'pixi.js';
-import { pal, type Ramp } from '../core/Palette.ts';
+import { pal } from '../core/Palette.ts';
 
-/** Рампа цветов брони по ступеням (тёмный -> светлый), цвета палитры проекта. Ступень 1 бронзовая, 2 серебряная, 3 золотая, 4 синяя. */
-const RAMPS: number[][] = [
-  [pal('gold', 1), pal('gold', 2), pal('gold', 3), pal('gold', 4), pal('ember', 5)], // бронза
-  [pal('steel', 1), pal('steel', 3), pal('steel', 4), pal('steel', 5), pal('steel', 7)], // серебро
-  [pal('gold', 3), pal('gold', 4), pal('gold', 5), pal('gold', 6), pal('gold', 7)], // золото
-  [pal('cobalt', 2), pal('cobalt', 3), pal('cobalt', 4), pal('electric', 5), pal('electric', 7)] // синяя
-];
-export const TIER_COLOR: Record<number, number> = { 1: pal('gold', 4), 2: pal('steel', 5), 3: pal('gold', 6), 4: pal('cobalt', 5) };
-export type { Ramp };
+/** Рампа голого шасси (тёмный -> светлый): серый «металлолом» без брони, цвета палитры проекта. */
+const BARE = [pal('steel', 1), pal('steel', 2), pal('steel', 3), pal('steel', 4), pal('steel', 6)];
 
 /** Пиксели части тела из текстуры (кадр целиком). */
 export function textureImage(tex: Texture): ImageData {
@@ -23,11 +16,10 @@ export function textureImage(tex: Texture): ImageData {
 }
 
 /**
- * «Броня» части: те же пиксели, перекрашенные в рампу ступени по яркости рисунка (детали рисунка сохраняются), с блестящей кромкой
- * (светлый край сверху-слева) и тёмным краем снизу-справа — как металлическая пластина. Форма (прозрачность) не меняется — по ней режутся руки-канаты.
+ * Голое шасси: рисунок части, перекрашенный в серую рампу по яркости (детали сохраняются), светлая кромка сверху-слева и тёмный край снизу-справа.
+ * Форма (прозрачность) не меняется — по ней режутся руки-канаты.
  */
-export function armorImage(src: ImageData, tier: number): ImageData {
-  const ramp = RAMPS[Math.max(0, Math.min(RAMPS.length - 1, tier - 1))];
+export function bareImage(src: ImageData): ImageData {
   const { width: w, height: h, data } = src;
   const out = new ImageData(w, h);
   const lum: number[] = [];
@@ -45,11 +37,10 @@ export function armorImage(src: ImageData, tier: number): ImageData {
       if (data[i + 3] === 0) continue;
       const l = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
       const t = Math.max(0, Math.min(1, (l - lo) / Math.max(1, hi - lo)));
-      let idx = Math.min(3, Math.floor(t * 4)); // 0..3: тёмный — светлый, 4 оставлен для кромки
-      if (!opaque(x, y - 1) || !opaque(x - 1, y)) idx = 4; // светлая кромка сверху-слева
-      else if (!opaque(x, y + 1) || !opaque(x + 1, y)) idx = 0; // тёмный край снизу-справа
-      else if (((x + y * 2) % 11 === 0) && idx < 3) idx += 1; // редкие блики: пластины
-      const c = ramp[idx];
+      let idx = Math.min(3, Math.floor(t * 4));
+      if (!opaque(x, y - 1) || !opaque(x - 1, y)) idx = 4;
+      else if (!opaque(x, y + 1) || !opaque(x + 1, y)) idx = 0;
+      const c = BARE[idx];
       out.data[i] = (c >> 16) & 255;
       out.data[i + 1] = (c >> 8) & 255;
       out.data[i + 2] = c & 255;

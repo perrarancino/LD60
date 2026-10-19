@@ -7,11 +7,6 @@
   "properties": {
     "id": { "type": "string" },
     "display_name": { "type": "string" },
-    "hero": {
-      "type": "object", "required": ["sprite_id", "rig_id"],
-      "description": "Кто играет на этом уровне (по умолчанию — герой из data/player/player_initial_state.json)",
-      "properties": { "sprite_id": { "type": "string" }, "rig_id": { "type": "string" } }
-    },
     "debug_key": { "type": "integer", "minimum": 1, "maximum": 9, "description": "Отладка: клавиша 1–9 в игре переключает на этот уровень" },
     "background_id": { "type": "string", "description": "Id параллакс-фона из data/backgrounds/ (необязательно)" },
     "tile_size": { "type": "integer", "minimum": 1 },
@@ -43,7 +38,7 @@
         }
       }
     },
-    "start_armor": { "type": "integer", "minimum": 1, "maximum": 4, "description": "Герой входит на уровень уже в броне: все части не ниже этой ступени (1 бронзовая ... 4 синяя); купленное выше не трогается" },
+    "start_armor": { "type": "integer", "minimum": 1, "maximum": 2, "description": "Герой входит на уровень в частях этой модели: 1 — прежний герой, 2 — герой второй локации (части выдаются и надеваются, где надето что-то слабее)" },
     "terminals": {
       "type": "array",
       "description": "Терминалы брони: герой подходит и нажимает E — открывается окно покупки и смены брони за металлолом. Спрайт ставится нижним центром в нижнюю границу клетки (x, y).",

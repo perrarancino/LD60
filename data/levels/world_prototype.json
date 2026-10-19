@@ -2,6 +2,7 @@
   "$schema": "../schemas/level.schema.json",
   "id": "world_prototype",
   "display_name": "Прототип карты",
+  "start_armor": 1,
   "background_id": "bg_textalite",
   "tile_size": 32,
   "width": 166,
@@ -123,6 +124,5 @@
   "decor": [],
   "zones": [],
   "transitions": [],
-  "cables": [],
-  "$schema": "../schemas/level.schema.json"
+  "cables": []
 }

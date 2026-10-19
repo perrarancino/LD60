@@ -122,7 +122,6 @@ export interface GradeDef {
 export interface LevelDef {
   id: string;
   display_name?: string;
-  hero?: { sprite_id: string; rig_id: string }; // кто играет на этом уровне (по умолчанию — герой из player_initial_state.json)
   debug_key?: number; // отладка: клавиша 1–4 в игре переключает на этот уровень
   background_id?: string;
   tile_size: number;
@@ -133,7 +132,7 @@ export interface LevelDef {
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
   terminals?: TerminalDef[]; // терминалы брони
-  start_armor?: number; // при входе на уровень все части брони не ниже этой ступени (1..4)
+  start_armor?: number; // герой входит на уровень в частях этой модели (1 — прежний герой, 2 — герой второй локации)
   grade?: GradeDef;
   light?: { rim_color?: string; fog_color?: string }; // цвета света от фона на уровне (#rrggbb); по умолчанию зелёные
   zones?: DecorZoneDef[];

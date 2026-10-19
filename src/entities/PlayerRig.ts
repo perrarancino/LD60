@@ -5,7 +5,7 @@ import type { RigDef, RigPartDef } from '../data/types.ts';
 import { splitFace } from './FaceSplit.ts';
 import type { Ragdoll, RagdollGeometry } from './Ragdoll.ts';
 import { RopeLimb } from './RopeLimb.ts';
-import { armorImage, imageTexture, textureImage } from './armorSkin.ts';
+import { bareImage, imageTexture, textureImage } from './armorSkin.ts';
 import type { Slot } from '../systems/ArmorSystem.ts';
 
 /** Фаза залезания на уступ. */
@@ -92,8 +92,17 @@ interface Part {
   def: RigPartDef;
   sprite: Sprite | null; // у рук-канатов вместо спрайта — limb
   limb: RopeLimb | null;
-  image?: ImageData; // исходные пиксели слоя (для перекраски в броню)
-  baseTexture?: Texture; // текстура без брони (у рук-канатов её нет)
+}
+
+/** Вид части в данной «броне» (0 — голое шасси, 1 и 2 — части моделей героя): картинка, точка привязки и то, что от неё зависит. */
+interface PartSkin {
+  texture?: Texture; // обычная часть (у рук-канатов — по image)
+  image?: ImageData; // руки-канаты: пиксели слоя
+  pivot: { x: number; y: number }; // точка привязки части на её картинке (на тело ставится в pivot рига)
+  length?: number; // ноги: длина
+  face?: Texture; // голова: слой лица (глаза)
+  gaze?: { x: number; y: number }; // голова: откуда смотрят глаза
+  center?: { x: number; y: number }; // голова: центр по пикселям (от него направление на курсор)
 }
 
 const ROLE_SLOT: Record<string, Slot> = { head: 'head', torso: 'torso', arm: 'arms', leg: 'legs' };
@@ -177,13 +186,16 @@ export class PlayerRig {
   /** Кисть бросающей руки в мире (обновляется, пока идёт бросок): отсюда вылетает шестерёнка. */
   public readonly hand = { x: 0, y: 0, active: false };
   private readonly gear: Sprite | null; // шестерёнка в руке (видна на замахе, пока не отпущена)
-  private readonly tiers: Record<Slot, number> = { head: 0, torso: 0, arms: 0, legs: 0 }; // надетая броня по частям
-  private readonly skins = new Map<string, { texture: Texture; image: ImageData }>(); // готовая броня: часть + ступень
+  private readonly tiers: Record<Slot, number> = { head: 1, torso: 1, arms: 1, legs: 1 }; // надетая «броня» по слотам: 0 шасси, 1 модель 1, 2 модель 2
+  private readonly skins = new Map<string, PartSkin>(); // виды частей: `${имя части}:${ступень}`
+  private headGaze: { x: number; y: number } | undefined;
+  private readonly partTier = new Map<Part, number>();
   private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
 
-  constructor(private readonly def: RigDef, sprites: SpriteLibrary) {
+  /** def — основная модель (ступень 1); alt — вторая модель героя (ступень 2): её части можно ставить на любой слот. */
+  constructor(private readonly def: RigDef, sprites: SpriteLibrary, alt: RigDef | null = null) {
     try {
       this.gear = sprites.createSprite('bullet1');
       this.gear.pivot.set(this.gear.width / 2, this.gear.height / 2);
@@ -199,7 +211,7 @@ export class PlayerRig {
       if (p.role === 'arm' && p.rope) {
         const image = sprites.imageData(p.sprite_id);
         const limb = new RopeLimb(image, p.pivot, p.rope.segments);
-        part = { def: p, sprite: null, limb, image };
+        part = { def: p, sprite: null, limb };
         this.tilt.addChild(limb.container);
       } else if (p.role === 'head' && p.face) {
         // Череп и лицо — отдельные спрайты: лицо сдвигается по черепу, и голова «смотрит» на курсор
@@ -217,12 +229,12 @@ export class PlayerRig {
         sprite.pivot.set(p.pivot.x, p.pivot.y);
         faceSprite.pivot.set(p.pivot.x, p.pivot.y);
         this.faceSprite = faceSprite;
-        part = { def: p, sprite, limb: null, baseTexture: sprite.texture };
+        part = { def: p, sprite, limb: null };
         this.tilt.addChild(sprite, faceSprite);
       } else {
         const sprite = sprites.createSprite(p.sprite_id);
         sprite.pivot.set(p.pivot.x, p.pivot.y);
-        part = { def: p, sprite, limb: null, baseTexture: sprite.texture };
+        part = { def: p, sprite, limb: null };
         this.tilt.addChild(sprite);
       }
       this.parts.push(part);
@@ -240,67 +252,103 @@ export class PlayerRig {
     this.torso = torso;
     this.head = head;
     this.headCenter = this.opaqueCenter(sprites.imageData(head.def.sprite_id));
+    this.headGaze = head.def.gaze_origin;
+    for (const [i, model] of [def, ...(alt ? [alt] : [])].entries()) {
+      for (const p of model.parts) this.skins.set(`${p.name}:${i + 1}`, this.makeSkin(p, sprites));
+    }
+    for (const part of this.parts) this.partTier.set(part, 1);
     if (this.gear) this.tilt.addChild(this.gear); // шестерёнка в руке — поверх рук
     this.update(0, {
       bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, kick: null, wall: 0, wallX: 0
     });
   }
 
+  /** Вид части из слоёв модели (рига) — для смены частей между моделями. */
+  private makeSkin(p: RigPartDef, sprites: SpriteLibrary): PartSkin {
+    if (p.role === 'arm' && p.rope) return { image: sprites.imageData(p.sprite_id), pivot: { x: p.pivot.x, y: p.pivot.y } };
+    const skin: PartSkin = { texture: sprites.createSprite(p.sprite_id).texture, pivot: { x: p.pivot.x, y: p.pivot.y }, length: p.length };
+    if (p.role === 'head') {
+      skin.center = this.opaqueCenter(sprites.imageData(p.sprite_id));
+      skin.gaze = p.gaze_origin;
+      if (p.face?.sprite_id) skin.face = sprites.createSprite(p.face.sprite_id).texture;
+    }
+    return skin;
+  }
+
+  /** Вид части на ступени: 1 и 2 — части моделей героя, 0 — голое серое шасси (рисунок модели 1, перекрашенный). */
+  private skin(name: string, tier: number): PartSkin {
+    const key = `${name}:${tier}`;
+    let skin = this.skins.get(key);
+    if (skin) return skin;
+    const base = this.skins.get(`${name}:1`)!;
+    skin = { ...base };
+    if (base.image) skin.image = bareImage(base.image);
+    else skin.texture = imageTexture(bareImage(textureImage(base.texture!)));
+    this.skins.set(key, skin);
+    return skin;
+  }
+
   /**
-   * Надеть броню (ступени по частям, 0 — без брони): части перекрашиваются в рампу ступени (armorSkin); форма не меняется.
-   * Глаза и лицо не трогаются.
+   * Собрать героя из частей: на каждый слот (голова, туловище, руки, ноги) — своя ступень: 0 голое шасси, 1 часть первой модели, 2 часть второй.
+   * Части подгоняются друг к другу: картинка встаёт точкой привязки (шея, плечо, бедро) в точку привязки рига, у ног меняется длина, у головы — взгляд.
    */
   public setArmor(tiers: Record<Slot, number>): void {
     for (const part of this.parts) {
       const slot = ROLE_SLOT[part.def.role ?? ''];
       if (!slot) continue;
       const tier = tiers[slot];
+      if (this.partTier.get(part) === tier) continue;
+      this.partTier.set(part, tier);
+      const sk = this.skin(part.def.name, tier);
       if (part.limb) {
-        part.limb.setImage(tier > 0 ? this.armorTexture(part, tier).image : part.image!);
+        // рука-канат пересобирается из картинки другой модели; цепочка начинается заново у плеча
+        const old = part.limb;
+        const fresh = new RopeLimb(sk.image!, sk.pivot, part.def.rope!.segments);
+        this.tilt.addChildAt(fresh.container, this.tilt.getChildIndex(old.container));
+        this.tilt.removeChild(old.container);
+        old.container.destroy({ children: true, texture: true });
+        part.limb = fresh;
       } else if (part.sprite) {
-        part.sprite.texture = tier > 0 ? this.armorTexture(part, tier).texture : part.baseTexture!;
+        part.sprite.texture = sk.texture!;
+        part.sprite.pivot.set(sk.pivot.x, sk.pivot.y);
+        const foot = this.feet.find((f) => f.part === part);
+        if (foot && sk.length) foot.length = sk.length;
+        if (part === this.head) {
+          if (this.faceSprite && sk.face) {
+            this.faceSprite.texture = sk.face;
+            this.faceSprite.pivot.set(sk.pivot.x, sk.pivot.y);
+          }
+          if (sk.center) this.headCenter = sk.center;
+          this.headGaze = sk.gaze;
+        }
       }
     }
     Object.assign(this.tiers, tiers);
   }
 
-  /** Текстура и пиксели брони части на ступени (кэшируются). */
-  private armorTexture(part: Part, tier: number): { texture: Texture; image: ImageData } {
-    const key = `${part.def.sprite_id}:${tier}`;
-    let skin = this.skins.get(key);
-    if (!skin) {
-      const src = part.image ?? (part.image = textureImage(part.baseTexture!));
-      const image = armorImage(src, tier);
-      skin = { texture: imageTexture(image), image };
-      this.skins.set(key, skin);
-    }
-    return skin;
-  }
-
   /**
-   * Снимки частей слота, которые сейчас на герое в броне (для отвалившихся обломков): текстура, положение точки привязки в мире, поворот.
-   * Если на слоте нет брони (ступень 0), отваливаться нечему — пусто.
+   * Снимки частей слота, которые сейчас на герое (для отвалившихся обломков): текстура, положение точки привязки в мире, поворот.
    */
   public detachPieces(slot: Slot, bodyX: number, bodyY: number, facing: 1 | -1): {
     texture: Texture; x: number; y: number; rotation: number; flip: 1 | -1; pivot: { x: number; y: number };
   }[] {
     const tier = this.tiers[slot];
-    if (tier <= 0) return [];
     const out = [];
     for (const part of this.parts) {
       if (ROLE_SLOT[part.def.role ?? ''] !== slot) continue;
+      const sk = this.skin(part.def.name, tier);
       const pv = part.def.pivot;
-      const texture = this.armorTexture(part, tier).texture;
       if (part.sprite) {
         out.push({
-          texture, x: bodyX + part.sprite.x * facing, y: bodyY + part.sprite.y, rotation: part.sprite.rotation * facing, flip: facing,
-          pivot: { x: pv.x, y: pv.y }
+          texture: sk.texture!, x: bodyX + part.sprite.x * facing, y: bodyY + part.sprite.y, rotation: part.sprite.rotation * facing, flip: facing,
+          pivot: { x: sk.pivot.x, y: sk.pivot.y }
         });
       } else {
         // рука-канат: обломок — вся рука целиком у плеча
+        sk.texture ??= imageTexture(sk.image!);
         out.push({
-          texture, x: bodyX + (pv.x - this.def.anchor.x) * facing, y: bodyY + pv.y - this.def.anchor.y, rotation: 0, flip: facing,
-          pivot: { x: pv.x, y: pv.y }
+          texture: sk.texture, x: bodyX + (pv.x - this.def.anchor.x) * facing, y: bodyY + pv.y - this.def.anchor.y, rotation: 0, flip: facing,
+          pivot: { x: sk.pivot.x, y: sk.pivot.y }
         });
       }
     }
@@ -444,7 +492,7 @@ export class PlayerRig {
 
     if (this.faceSprite && face) {
       // Направление на курсор от глаз (в системе контейнера: вперёд = +x), затем — в системе черепа (с учётом поворота головы)
-      const eye = this.head.def.gaze_origin ?? this.headCenter;
+      const eye = this.headGaze ?? this.headCenter;
       const vx = eye.x - nk.x;
       const vy = eye.y - nk.y;
       const c = Math.cos(headTot);

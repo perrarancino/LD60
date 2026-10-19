@@ -13,6 +13,8 @@ export interface TierDef {
 }
 export const TIERS: TierDef[] = armorData.tiers;
 export const MAX_TIER = TIERS.length;
+/** Две модели героя: части первой — прежний герой, второй — герой второй локации (спрайт и риг). */
+export const MODELS: { sprite_id: string; rig_id: string }[] = armorData.models;
 
 /** Из какого выпавшего ресурса что падает: категория моба по имени (spider, critter, worm, mother, boss). */
 export type DropKind = 'default' | 'spider' | 'critter' | 'worm' | 'mother' | 'boss';
@@ -48,8 +50,10 @@ export class Armor {
       if (!d) return;
       this.scrap = Number(d.scrap) || 0;
       for (const slot of SLOTS) {
-        this.owned[slot] = Math.max(0, Math.min(MAX_TIER, Number(d.owned?.[slot]) || 0));
-        this.equipped[slot] = Math.max(0, Math.min(this.owned[slot], Number(d.equipped?.[slot]) || 0));
+        const o = d.owned?.[slot];
+        if (Array.isArray(o)) for (let i = 0; i < MAX_TIER; i++) this.owned[slot][i] = !!o[i];
+        const e = Math.max(0, Math.min(MAX_TIER, Number(d.equipped?.[slot]) || 0));
+        this.equipped[slot] = e === 0 || this.has(slot, e) ? e : 0;
       }
       this.hp = this.maxHp;
       this.energy = this.maxEnergy;
@@ -63,9 +67,12 @@ export class Armor {
   }
 
   public scrap = 0;
-  /** Самая высокая купленная ступень по части (0 — ничего не куплено). */
-  public readonly owned: Record<Slot, number> = { head: 0, torso: 0, arms: 0, legs: 0 };
-  /** Надетая ступень по части (0 — без брони). */
+  /** Что куплено: по части — для каждой модели (индекс 0 — модель 1, 1 — модель 2). */
+  public readonly owned: Record<Slot, boolean[]> = {
+    head: new Array<boolean>(MAX_TIER).fill(false), torso: new Array<boolean>(MAX_TIER).fill(false),
+    arms: new Array<boolean>(MAX_TIER).fill(false), legs: new Array<boolean>(MAX_TIER).fill(false)
+  };
+  /** Надетая модель по части: 0 — голое шасси, 1 — часть первой модели, 2 — второй. */
   public readonly equipped: Record<Slot, number> = { head: 0, torso: 0, arms: 0, legs: 0 };
   public hp = armorData.base.max_hp;
   public energy = armorData.base.max_energy;
@@ -82,24 +89,28 @@ export class Armor {
     return armorData.price[tier - 1] ?? 9999;
   }
 
-  /** Ступень tier этой части можно купить сейчас (следующая по порядку и хватает металлолома). */
+  public has(slot: Slot, tier: number): boolean {
+    return tier >= 1 && tier <= MAX_TIER && this.owned[slot][tier - 1];
+  }
+
+  /** Часть этой модели можно купить сейчас: ещё не куплена и хватает металлолома. */
   public canBuy(slot: Slot, tier: number): boolean {
-    return tier === this.owned[slot] + 1 && tier <= MAX_TIER && this.scrap >= this.price(tier);
+    return tier >= 1 && tier <= MAX_TIER && !this.has(slot, tier) && this.scrap >= this.price(tier);
   }
 
   public buy(slot: Slot, tier: number): boolean {
     if (!this.canBuy(slot, tier)) return false;
     this.scrap -= this.price(tier);
-    this.owned[slot] = tier;
+    this.owned[slot][tier - 1] = true;
     this.equip(slot, tier);
     this.save();
     EventBus.get().emit('armor:scrap', this.scrap);
     return true;
   }
 
-  /** Надеть купленную ступень (0 — снять броню). Прежняя надетая часть отваливается (событие armor:changed). */
+  /** Надеть купленную часть модели tier (0 — голое шасси). Прежняя надетая часть отваливается (событие armor:changed). */
   public equip(slot: Slot, tier: number): boolean {
-    if (tier < 0 || tier > this.owned[slot] || tier === this.equipped[slot]) return false;
+    if (tier < 0 || tier > MAX_TIER || (tier > 0 && !this.has(slot, tier)) || tier === this.equipped[slot]) return false;
     const before = this.maxHp;
     const from = this.equipped[slot];
     this.equipped[slot] = tier;
@@ -111,14 +122,13 @@ export class Armor {
     return true;
   }
 
-  /** Выдать всем частям ступень не ниже tier (и надеть): герой приходит на уровень уже прокачанным. Что куплено выше — не трогает. */
+  /** Герой приходит на уровень в частях модели tier: они выдаются и надеваются на все части, где надето что-то слабее (надетое лучше не трогается). */
   public grantTier(tier: number): void {
     const t = Math.min(MAX_TIER, Math.max(0, tier));
+    if (t <= 0) return;
     for (const slot of SLOTS) {
-      if (this.owned[slot] < t) {
-        this.owned[slot] = t;
-        this.equipped[slot] = t;
-      }
+      this.owned[slot][t - 1] = true;
+      if (this.equipped[slot] < t) this.equipped[slot] = t;
     }
     this.hp = this.maxHp;
     this.energy = this.maxEnergy;

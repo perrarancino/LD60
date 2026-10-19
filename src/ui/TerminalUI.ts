@@ -61,20 +61,18 @@ export class TerminalUI {
     const a = Armor.get();
     const t = this.theme;
     const btn = (slot: Slot, tier: number) => {
-      const owned = a.owned[slot];
       const equipped = a.equipped[slot] === tier;
       const def = tier > 0 ? TIERS[tier - 1] : null;
-      const name = def ? def.name : 'Без брони';
-      let state: 'eq' | 'own' | 'buy' | 'poor' | 'lock';
+      const name = def ? def.name : 'Шасси';
+      let state: 'eq' | 'own' | 'buy' | 'poor';
       if (equipped) state = 'eq';
-      else if (tier <= owned) state = 'own';
-      else if (tier === owned + 1) state = a.scrap >= a.price(tier) ? 'buy' : 'poor';
-      else state = 'lock';
-      const price = tier > owned ? `<br><span style="opacity:.85">⚙ ${a.price(tier)}</span>` : '';
+      else if (tier === 0 || a.has(slot, tier)) state = 'own';
+      else state = a.scrap >= a.price(tier) ? 'buy' : 'poor';
+      const price = tier > 0 && !a.has(slot, tier) ? `<br><span style="opacity:.85">⚙ ${a.price(tier)}</span>` : '';
       const color = def ? def.color : hex(pal('steel', 4));
       const bg = state === 'eq' ? hex(pal('steel', 2)) : state === 'buy' ? t.bg : hex(pal('steel', 0));
       const border = state === 'eq' ? color : state === 'buy' ? t.accent2 : state === 'own' ? hex(pal('steel', 4)) : hex(pal('steel', 1));
-      const opacity = state === 'lock' || state === 'poor' ? 0.5 : 1;
+      const opacity = state === 'poor' ? 0.5 : 1;
       const cursor = state === 'own' || state === 'buy' ? 'pointer' : 'default';
       return `<button data-slot="${slot}" data-tier="${tier}" data-state="${state}" style="
         flex: 1; min-width: 0; padding: 5px 2px 4px; font: inherit; font-size: 11px; color: ${color}; background: ${bg}; border: 2px solid ${border};
@@ -84,7 +82,7 @@ export class TerminalUI {
 
     const rows = SLOTS.map((slot) => {
       const cur = a.equipped[slot];
-      const desc = cur > 0 ? a.describe(slot, cur) : 'Без брони — базовые показатели';
+      const desc = cur > 0 ? a.describe(slot, cur) : 'Голое шасси — базовые показатели';
       const tiers = [0, ...Array.from({ length: MAX_TIER }, (_, i) => i + 1)];
       return `<div style="margin-bottom: 9px;">
         <div style="display:flex; justify-content: space-between; margin-bottom: 3px;">
@@ -113,7 +111,7 @@ export class TerminalUI {
       const tier = Number(el.dataset.tier);
       el.addEventListener('mouseenter', () => {
         const hint = this.root.querySelector('#term-hint');
-        if (hint) hint.textContent = tier > 0 ? `${TIERS[tier - 1].name}: ${a.describe(slot, tier)}` : 'Снять броню с этой части';
+        if (hint) hint.textContent = tier > 0 ? `${TIERS[tier - 1].name}: ${a.describe(slot, tier)}` : 'Снять часть: голое серое шасси';
       });
       el.addEventListener('click', () => {
         const st = el.dataset.state;
