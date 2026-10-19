@@ -435,7 +435,8 @@ export interface BackgroundShaderDef {
   speed?: number; // скорость течения краски (1 — обычная)
   spin?: number; // сила закрутки (1 — обычная)
   contrast?: number; // контраст краски (3.5 — как в оригинале)
-  pixel?: number; // размер «пикселя» шейдера в px арта (по умолчанию 3)
+  pixel?: number; // размер «пикселя» шейдера в px арта (по умолчанию 3; 0 — не пикселизовать)
+  zoom?: number; // частота пятен (по умолчанию 30; меньше — крупнее и спокойнее)
 }
 
 export interface BackgroundDef {

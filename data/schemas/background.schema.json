@@ -21,7 +21,8 @@
         "speed": { "type": "number", "minimum": 0 },
         "spin": { "type": "number", "minimum": 0 },
         "contrast": { "type": "number", "minimum": 0.5 },
-        "pixel": { "type": "number", "minimum": 1, "description": "Размер «пикселя» шейдера в px арта" }
+        "pixel": { "type": "number", "minimum": 0, "description": "Размер «пикселя» шейдера в px арта (0 — гладко, без пикселизации)" },
+        "zoom": { "type": "number", "minimum": 4, "description": "Частота пятен (по умолчанию 30): меньше — крупнее и спокойнее" }
       }
     },
     "layers": {

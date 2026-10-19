@@ -154,6 +154,7 @@ export class Fog {
   private readonly mode: 'current' | 'explored';
   private readonly vis: Float32Array; // 0..1 по комнатам: насколько комната сейчас открыта
   private ready = false;
+  private heroPos: { x: number; y: number } | null = null;
 
   constructor(private readonly rooms: RoomMap, fog: FogDef | boolean | undefined) {
     this.mode = typeof fog === 'object' && fog?.mode === 'explored' ? 'explored' : 'current';
@@ -166,7 +167,10 @@ export class Fog {
   }
 
   /** Обновляет открытость комнат и перерисовывает туман в области обзора (мир, px). */
-  public update(dt: number, camLeft: number, camTop: number, viewW: number, viewH: number): void {
+  public update(dt: number, camLeft: number, camTop: number, viewW: number, viewH: number, heroX?: number, heroY?: number): void {
+    if (heroX !== undefined && heroY !== undefined) {
+      this.heroPos = { x: heroX, y: heroY };
+    }
     const rooms = this.rooms;
     for (let i = 0; i < this.vis.length; i++) {
       const open = rooms.current.has(i) || (this.mode === 'explored' && rooms.visited.has(i));
@@ -216,8 +220,27 @@ export class Fog {
 
   /** Непрозрачность тумана в клетке: 1 — чёрная, 0 — видно. */
   private alphaAt(cx: number, cy: number): number {
+    const at = this.rooms.roomsAt(cx, cy);
+    if (at.length === 0) {
+      // Клетки вне комнат (коридоры, проходы, открытые зоны) открыты, не закрываются туманом комнат
+      return 0;
+    }
     let open = 0;
-    for (const r of this.rooms.roomsAt(cx, cy)) if (this.vis[r] > open) open = this.vis[r];
+    for (const r of at) if (this.vis[r] > open) open = this.vis[r];
+
+    // Страховка: мягкий радиус обзора вокруг героя (~110 px = ~3.5 тайла), чтобы возле дверей или стыков не было темноты
+    if (this.heroPos && open < 1) {
+      const ts = this.rooms.tileSize;
+      const dx = (cx + 0.5) * ts - this.heroPos.x;
+      const dy = (cy + 0.5) * ts - this.heroPos.y;
+      const dist = Math.hypot(dx, dy);
+      const HERO_R = 110;
+      if (dist < HERO_R) {
+        const vision = Math.max(0, 1 - dist / HERO_R);
+        open = Math.max(open, vision);
+      }
+    }
+
     return Math.round((1 - open) * 32) / 32;
   }
 }

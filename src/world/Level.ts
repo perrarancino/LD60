@@ -173,10 +173,14 @@ export class Level {
     return this.heightTiles * this.tileSize;
   }
 
+  /** Динамическая проверка препятствий (например, закрытых дверей-шторок) */
+  public obstacleCheck?: (cx: number, cy: number) => boolean;
+
   /** Клетка твёрдая? За левой/правой границей и над уровнем — стена, под уровнем — пустота. */
   public isSolid(cx: number, cy: number): boolean {
     if (cx < 0 || cx >= this.widthTiles) return true;
     if (cy < 0 || cy >= this.heightTiles) return false;
+    if (this.obstacleCheck && this.obstacleCheck(cx, cy)) return true;
     return this.solid[cy][cx];
   }
 
@@ -193,6 +197,7 @@ export class Level {
     if (cx < 0 || cx >= this.widthTiles) return true;
     if (cy < 0) return true;
     if (cy >= this.heightTiles) return false;
+    if (this.obstacleCheck && this.obstacleCheck(cx, cy)) return true;
     if (!this.solid[cy]?.[cx]) return false;
 
     const slope = this.slopes[cy]?.[cx];

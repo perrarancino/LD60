@@ -36,6 +36,7 @@ uniform vec2 uRes;
 uniform vec2 uOffset;
 uniform float uTime;
 uniform float uPixel;
+uniform float uZoom;
 uniform float uSpin;
 uniform float uContrast;
 uniform vec3 uC1;
@@ -43,7 +44,8 @@ uniform vec3 uC2;
 uniform vec3 uC3;
 
 void main(void) {
-  vec2 frag = floor(vTextureCoord * uRes / uPixel) * uPixel;
+  vec2 frag = vTextureCoord * uRes;
+  if (uPixel > 0.5) frag = floor(frag / uPixel) * uPixel; // крупные пиксели; pixel = 0 — гладко, по физическим пикселям
   vec2 uv = (frag - 0.5 * uRes) / length(uRes) - uOffset;
   float len = length(uv);
 
@@ -52,7 +54,7 @@ void main(void) {
   vec2 mid = 0.5 * uRes / length(uRes);
   uv = vec2(len * cos(ang) + mid.x, len * sin(ang) + mid.y) - mid;
 
-  uv *= 30.0;
+  uv *= uZoom; // частота пятен: меньше — крупнее и спокойнее
   float t = uTime;
   vec2 uv2 = vec2(uv.x + uv.y);
   for (int i = 0; i < 5; i++) {
@@ -103,6 +105,7 @@ export class ShaderBackground {
           uOffset: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
           uTime: { value: 0, type: 'f32' },
           uPixel: { value: sh.pixel ?? 3, type: 'f32' },
+          uZoom: { value: sh.zoom ?? 30, type: 'f32' },
           uSpin: { value: 0.25 * (sh.spin ?? 1), type: 'f32' },
           uContrast: { value: sh.contrast ?? 3.5, type: 'f32' },
           uC1: { value: hex(sh.colors[0]), type: 'vec3<f32>' },

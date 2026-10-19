@@ -21,6 +21,8 @@ export interface ObjectEvents {
   collected(x: number, y: number, item: string): void;
 }
 
+import { WorldProgression } from '../systems/WorldProgression.ts';
+
 interface Placed {
   def: LevelObjectDef;
   kind: ObjectKind;
@@ -28,6 +30,8 @@ interface Placed {
   sprite: Sprite;
   overlay: Sprite | null; // вставленный предмет на подставке
   t: number;
+  isOpen: boolean;
+  openProgress: number; // 0..1
 }
 
 const prop = (o: LevelObjectDef, key: string): string => String(o.props?.[key] ?? '');
@@ -63,7 +67,7 @@ export class LevelObjects {
         node.addChild(overlay);
       }
       this.container.addChild(node);
-      this.placed.push({ def, kind, node, sprite, overlay, t: Math.random() * 6 });
+      this.placed.push({ def, kind, node, sprite, overlay, t: Math.random() * 6, isOpen: false, openProgress: 0 });
     }
   }
 
@@ -71,10 +75,29 @@ export class LevelObjects {
     return this.quest.flag(`socket:${this.level.id}:${def.id}`);
   }
 
-  private doorOpen(def: LevelObjectDef): boolean {
+  public doorOpen(def: LevelObjectDef): boolean {
+    if (this.level.id === 'world_prototype') {
+      if (!WorldProgression.get().canOpenDoor(def.id)) return false;
+    }
     const item = prop(def, 'requires_item');
     const flag = prop(def, 'requires_flag');
     return (!item || this.quest.has(item)) && (!flag || this.quest.flag(flag));
+  }
+
+  /** Проверяет, блокирует ли какая-либо закрытая дверь клетку (cx, cy) */
+  public isDoorBlocking(cx: number, cy: number): boolean {
+    const ts = this.level.tile_size;
+    for (const p of this.placed) {
+      if (p.kind.behavior !== 'door') continue;
+      if (p.isOpen && p.openProgress > 0.6) continue; // открытая дверь не блокирует проход
+      const dcx = Math.floor(p.def.x / ts);
+      const dcyBottom = Math.floor((p.def.y - 1) / ts);
+      const dcyTop = dcyBottom - 1;
+      if (cx === dcx && (cy === dcyBottom || cy === dcyTop)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Точка (низ двери, мир px) двери с id, null — такой нет. */
@@ -149,7 +172,18 @@ export class LevelObjects {
         continue;
       }
 
-      if (kind.behavior === 'door') p.sprite.tint = this.doorOpen(def) ? 0xffffff : LOCKED_TINT;
+      if (kind.behavior === 'door') {
+        if (this.level.id === 'world_prototype') {
+          const arenaLocked = WorldProgression.get().isDoorArenaLocked(def.id);
+          p.isOpen = !arenaLocked && this.doorOpen(def);
+        }
+
+        // Плавное открытие/закрытие шторки двери вверх
+        const targetProgress = p.isOpen ? 1 : 0;
+        p.openProgress += (targetProgress - p.openProgress) * Math.min(1, dt * 10);
+        p.sprite.y = Math.round(-p.openProgress * 52);
+        p.sprite.tint = this.doorOpen(def) ? 0xffffff : LOCKED_TINT;
+      }
     }
 
     return { hovered: anyHovered, interacted: mouseInteracted };
@@ -174,15 +208,25 @@ export class LevelObjects {
         this.events.denied(def.x, def.y - 40);
         return;
       }
+
+      // Если дверь была закрыта — поднимаем шторку
+      if (!p.isOpen) {
+        p.isOpen = true;
+        this.events.collected(def.x, def.y - 30, 'door');
+        return;
+      }
+
+      // Если дверь уже открыта и ведет на другой уровень или дверь — переход
       const toLevel = prop(def, 'to_level');
       const toDoor = prop(def, 'to_door');
       if (toLevel && toLevel !== this.level.id) {
         this.events.travel(toLevel, toDoor);
         return;
       }
-      const to = this.doorPoint(toDoor);
-      if (to) this.events.teleport(to.x, to.y);
-      else this.events.denied(def.x, def.y - 40);
+      if (toDoor) {
+        const to = this.doorPoint(toDoor);
+        if (to) this.events.teleport(to.x, to.y);
+      }
       return;
     }
     if (kind.behavior === 'socket') {

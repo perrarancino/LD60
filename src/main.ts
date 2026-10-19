@@ -42,7 +42,8 @@ import { Hud } from './ui/Hud.ts';
 import { TerminalUI } from './ui/TerminalUI.ts';
 import { Terminal } from './entities/Terminal.ts';
 import { CipherCluesView } from './entities/CipherCluesView.ts';
-import { CipherTerminalUI } from './ui/CipherTerminalUI.ts';
+import { PasswordTerminalEntity } from './entities/PasswordTerminalEntity.ts';
+import { WorldProgression } from './systems/WorldProgression.ts';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
@@ -174,7 +175,7 @@ class GameApp {
   private terminals: Terminal[] = [];
   private cipherPuzzle!: CipherTerminalPuzzle;
   private cipherCluesView!: CipherCluesView;
-  private cipherTerminalUI!: CipherTerminalUI;
+  private passwordTerminal: PasswordTerminalEntity | null = null;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
   private fog: Fog | null = null;
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
@@ -186,6 +187,7 @@ class GameApp {
   private beam!: LightningBeam; // луч молнии из руки
   private flashLayer = new Graphics(); // вспышка на весь экран
   private flashAlpha = 0;
+  private flashColor = pal('gold', 7); // цвет вспышки на весь экран (молния героя — золотая, удары краба — розовая)
   private flashDone = -1; // номер удара, для которого вспышка уже сработала
   private deathTimer = 0; // с до возрождения (герой погиб)
   private readonly contactDmg = new Map<Hittable, number>(); // контактный урон мобов по герою
@@ -220,7 +222,10 @@ class GameApp {
     this.hud = new Hud();
     this.terminalUI = new TerminalUI();
     this.cipherPuzzle = PuzzleSystem.get().cipherTerminalPuzzle;
-    this.cipherTerminalUI = new CipherTerminalUI(this.cipherPuzzle);
+
+    window.addEventListener('keydown', (e) => {
+      this.passwordTerminal?.handleKeyInput(e);
+    });
 
     // Смена брони: прежняя надетая часть отваливается физическим обломком (падает, подпрыгивает, потом исчезает), герой перекрашивается
     EventBus.get().on('armor:changed', (e: { slot: 'head' | 'torso' | 'arms' | 'legs'; from: number; to: number }) => {
@@ -469,6 +474,7 @@ class GameApp {
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
+    WorldProgression.get().reset();
 
     // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
     this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
@@ -579,7 +585,7 @@ class GameApp {
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
-      this.bindRoom(enemy, spawn);
+      enemy.leash = this.bindRoom(enemy, spawn);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
       this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
@@ -604,6 +610,16 @@ class GameApp {
       collected: (x, y) => this.fx.burst(x, y, { count: 14, colors: LIGHTNING_SPARKS, speed: [40, 130], spread: Math.PI * 2, life: [0.2, 0.45], size: [1, 2] })
     });
     this.worldLayer.addChild(this.objects.container);
+    this.level.obstacleCheck = (cx, cy) => this.objects?.isDoorBlocking(cx, cy) ?? false;
+
+    // Терминал пароля на спрайте
+    const pwdObj = levelDef.objects?.find((o) => o.type === 'password');
+    if (pwdObj) {
+      this.passwordTerminal = new PasswordTerminalEntity(pwdObj, this.sprites, this.cipherPuzzle);
+      this.worldLayer.addChild(this.passwordTerminal.container);
+    } else {
+      this.passwordTerminal = null;
+    }
 
     this.player = new Player(heroSpriteId, rigDef, this.sprites, modelRigs[1] ?? null);
     this.player.setArmor(Armor.get().equipped);
@@ -689,7 +705,11 @@ class GameApp {
   /** Привязывает моба к его комнате (замечает героя и бьёт только в ней); возвращает привязку для самого моба. */
   private bindRoom(target: Hittable, spawn: EnemySpawnDef): Leash | null {
     const leash = this.homeLeash(spawn);
-    if (leash) this.leashOf.set(target, leash);
+    if (leash) {
+      this.leashOf.set(target, leash);
+      const roomDef = this.rooms.defs.find((r) => r.id === leash.id);
+      WorldProgression.get().registerEnemy(leash.id, roomDef?.name ?? leash.id);
+    }
     return leash;
   }
 
@@ -797,6 +817,10 @@ class GameApp {
   private removeWhole(target: Hittable): void {
     if (this.gone.has(target)) return; // уже убран (например, добит цепной молнией): повторное уничтожение роняло игровой цикл
     this.gone.add(target);
+
+    const leash = this.leashOf.get(target);
+    if (leash) WorldProgression.get().onEnemyKilled(leash.id);
+
     const drop = <T>(list: T[], item: unknown) => {
       const i = list.indexOf(item as T);
       if (i >= 0) list.splice(i, 1);
@@ -844,6 +868,9 @@ class GameApp {
       mob.view.destroy({ children: true });
       return;
     }
+
+    const leash = this.leashOf.get(target);
+    if (leash) WorldProgression.get().onEnemyKilled(leash.id);
     let enemyType = 'enemy';
     if (target instanceof Spider) enemyType = 'spider';
     else if (target instanceof SpiderMother) enemyType = 'mother';
@@ -889,6 +916,7 @@ class GameApp {
     const armor = Armor.get();
     armor.loseScrapOnDeath();
     armor.revive();
+    WorldProgression.get().resetEngagement();
     const sp = activeLevelDef.player_spawn;
     this.player.spawnAt(sp.x, sp.y, this.level.tileSize);
     this.fx.burst(this.player.body.x, this.player.body.y - 28, { count: 22, colors: LIGHTNING_SPARKS, speed: [60, 190], spread: Math.PI * 2, life: [0.25, 0.5], size: [1, 3] });
@@ -923,6 +951,7 @@ class GameApp {
     const [lo, hi] = this.combat.punch_damage;
     const dmg = Math.max(1, Math.round(((lo + hi) / 2) * armor.punchMult * armor.flashMult));
     this.boltFx.flash(x, y, 30, 0.22);
+    this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.28;
     this.shake = Math.max(this.shake, CRIT_SHAKE + 0.8);
     this.damage(primary, x, y, dirX, part, dmg);
@@ -1074,6 +1103,10 @@ class GameApp {
         for (const c of this.bossSummons) if (this.gone.has(c)) this.bossSummons.delete(c);
         for (const sp of this.thrownSpiders) if (sp.expired || this.gone.has(sp)) this.thrownSpiders.delete(sp);
         return this.bossSummons.size + this.thrownSpiders.size;
+      },
+      flash: (alpha) => {
+        this.flashColor = pal('virus', 6);
+        this.flashAlpha = Math.max(this.flashAlpha, alpha);
       },
       shake: (power) => {
         this.shake = Math.max(this.shake, power);
@@ -1262,9 +1295,8 @@ class GameApp {
     const armor = Armor.get();
     getSharedOutlineFilter().update(dt, this.scale);
     const terminalOpen = this.terminalUI.isOpen;
-    const cipherOpen = this.cipherTerminalUI.isOpen;
-    const frozen = terminalOpen || cipherOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
-    armor.invulnerable = terminalOpen || cipherOpen || this.deathTimer > 0;
+    const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
+    armor.invulnerable = terminalOpen || this.deathTimer > 0;
     armor.update(dt);
 
     // 1. Игрок и ввод
@@ -1285,7 +1317,7 @@ class GameApp {
       t.update(dt, hovered);
     }
 
-    if (input.mouseLeftPressed && hoveredTerm && !terminalOpen && !cipherOpen && this.deathTimer <= 0) {
+    if (input.mouseLeftPressed && hoveredTerm && !terminalOpen && this.deathTimer <= 0) {
       const dist = Math.hypot(pb.x - hoveredTerm.x, pb.y - hoveredTerm.y);
       if (dist <= 96) {
         this.terminalUI.open(hoveredTerm.style);
@@ -1296,32 +1328,19 @@ class GameApp {
       }
     }
 
-    // Терминал ввода шифра (комната Пароль): клик мыши открывает окно
-    const cipherLoc = this.cipherPuzzle.getState().terminalLocation;
-    const cipherDist = aim ? Math.hypot(aim.x - cipherLoc.x, aim.y - cipherLoc.y) : 999;
-    const cipherHovered = !frozen && cipherDist <= (cipherLoc.interactionRadius || 36);
-    if (cipherHovered) anyHovered = true;
-    if (input.mouseLeftPressed && cipherHovered && !terminalOpen && !cipherOpen && this.deathTimer <= 0) {
-      const heroDist = Math.hypot(pb.x - cipherLoc.x, pb.y - cipherLoc.y);
-      if (heroDist <= (cipherLoc.interactionRadius || 48) + 32) {
-        this.cipherTerminalUI.open();
-        mouseInteracted = true;
-      } else {
-        this.fx.burst(cipherLoc.x, cipherLoc.y - 10, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
-        mouseInteracted = true;
-      }
-    }
-
     // Объекты уровня: двери, предметы, подставки (подсветка при наведении, взаимодействие по клику мыши)
     const objRes = this.objects?.update(
       dt,
       { x: pb.x, y: pb.y },
       frozen,
       aim,
-      input.mouseLeftPressed && !mouseInteracted && !terminalOpen && !cipherOpen && this.deathTimer <= 0
+      input.mouseLeftPressed && !mouseInteracted && !terminalOpen && this.deathTimer <= 0
     );
     if (objRes?.hovered) anyHovered = true;
     if (objRes?.interacted) mouseInteracted = true;
+
+    // Терминал ввода шифра — интерактивный спрайт: кнопки нажимаются кликом прямо на нём (PasswordTerminalEntity)
+    if (!frozen && aim && this.passwordTerminal?.hitTest(aim.x, aim.y) && this.passwordTerminal.isNearbyHero({ x: pb.x, y: pb.y })) anyHovered = true;
 
     // Металлолом: подсветка и притягивание по клику мыши
     const lootRes = this.loot.updateMouse(aim, input.mouseLeftPressed && !mouseInteracted, pb.x, pb.y);
@@ -1349,6 +1368,12 @@ class GameApp {
       attackPressed: mouseInteracted ? false : input.attackPressed,
       attackHeld: mouseInteracted ? false : input.attackHeld
     };
+
+    // Перехват клика по кнопкам терминала пароля (если герой рядом и кликнул по кнопке на спрайте)
+    if (input.mouseLeftPressed && aim && this.passwordTerminal?.onClick(aim.x, aim.y)) {
+      live.attackPressed = false;
+      live.attackHeld = false;
+    }
 
     // луч молнии: ПКМ зажата, броня на руках, есть энергия
     this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
@@ -1378,6 +1403,9 @@ class GameApp {
       });
     }
 
+    // Терминал ввода шифра: интерактивный спрайт (курсор — через setCursor выше)
+    this.passwordTerminal?.update(dt, { x: pb.x, y: pb.y }, aim);
+
     if (this.deathTimer > 0) {
       this.deathTimer -= dt;
       if (this.deathTimer <= 0) this.respawnPlayer();
@@ -1385,8 +1413,12 @@ class GameApp {
     // герой мигает, пока неуязвим после попадания
     this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
-    // Комнаты: в какой стоит герой (от этого зависят мобы и туман)
-    if (this.rooms.any) this.rooms.updateHero(Math.floor(pb.x / this.level.tileSize), Math.floor((pb.y - 16) / this.level.tileSize));
+    // Комнаты: в какой стоит герой (от этого зависят мобы, арены и туман)
+    if (this.rooms.any) {
+      this.rooms.updateHero(Math.floor(pb.x / this.level.tileSize), Math.floor((pb.y - 16) / this.level.tileSize));
+      const heroRoomIds = [...this.rooms.current].map((idx) => this.rooms.defs[idx]?.id).filter(Boolean) as string[];
+      WorldProgression.get().updateHeroRooms(heroRoomIds);
+    }
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -1408,7 +1440,7 @@ class GameApp {
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 2.6);
       this.flashLayer.clear();
-      if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: pal('gold', 7), alpha: this.flashAlpha });
+      if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: this.flashColor, alpha: this.flashAlpha });
     }
     this.hud.update();
     {
@@ -1448,13 +1480,15 @@ class GameApp {
         const l = Math.abs(c.container.x - b.x) < 500 ? c.tailLight() : null;
         if (l) extra.push(l);
       }
+      // Мягкий свет от сенсоров робота: подсвечивает окружение и коридоры вокруг героя
+      extra.push({ x: b.x, y: b.y - 18, r: 80, i: 0.35, c: [0.35, 0.75, 1.0] });
       for (const boss of this.crabBosses) extra.push(...boss.lights());
       this.lighting.extraLights = extra;
     }
     this.lighting?.update();
     if (this.fog) {
       this.fog.container.position.copyFrom(this.worldLayer.position);
-      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH);
+      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, b.x, b.y - 20);
     }
     if (this.grade) {
       const span = Math.max(1, this.level.pixelWidth - this.viewW);
