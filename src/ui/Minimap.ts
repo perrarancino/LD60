@@ -8,7 +8,7 @@ const ROWS = 28;
 const MARGIN = 6; // отступ от края экрана
 
 /**
- * Миникарта слева сверху: пиксельная, без подложки и затемнений — только тонкая рамка, внутри зелёные пиксели стен (рампа pcb палитры) тех клеток,
+ * Миникарта слева сверху: пиксельная, без подложки и затемнений — без рамки — только зелёные пиксели стен (рампа pcb палитры) тех клеток,
  * которые герой уже видел; верхняя кромка стен ярче. Мигающий пиксель — герой. Окно COLS x ROWS тайлов плавно едет за героем (по пикселю, а не по тайлу).
  * Если explored не задан (отладка) — рисуется вся карта.
  */
@@ -16,7 +16,6 @@ export class Minimap {
   public readonly container = new Container();
   private readonly map = new Graphics();
   private readonly mask = new Graphics();
-  private readonly frame = new Graphics();
   private readonly marker = new Graphics();
   private lastKey = '';
   private time = 0;
@@ -26,8 +25,7 @@ export class Minimap {
     const h = ROWS * PITCH;
     this.mask.rect(0, 0, w, h).fill(0xffffff);
     this.map.mask = this.mask;
-    this.frame.rect(-1, -1, w + 2, h + 2).stroke({ width: 1, color: pal('pcb', 5), alpha: 0.95, alignment: 1 });
-    this.container.addChild(this.mask, this.map, this.frame, this.marker);
+    this.container.addChild(this.mask, this.map, this.marker);
     this.container.position.set(MARGIN, MARGIN);
     this.container.visible = false;
   }
