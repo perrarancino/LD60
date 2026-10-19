@@ -1287,12 +1287,14 @@ class GameApp {
         const l = Math.abs(c.container.x - b.x) < 500 ? c.tailLight() : null;
         if (l) extra.push(l);
       }
+      // Мягкий свет от сенсоров робота: подсвечивает окружение и коридоры вокруг героя
+      extra.push({ x: b.x, y: b.y - 18, r: 80, i: 0.35, c: [0.35, 0.75, 1.0] });
       this.lighting.extraLights = extra;
     }
     this.lighting?.update();
     if (this.fog) {
       this.fog.container.position.copyFrom(this.worldLayer.position);
-      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH);
+      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, b.x, b.y - 20);
     }
     if (this.grade) {
       const span = Math.max(1, this.level.pixelWidth - this.viewW);
