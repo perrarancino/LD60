@@ -33,6 +33,14 @@ const CHASE_BOOST = 2.1; // во сколько раз быстрее бежит
 const CHASE_TURN_CD = 0.8; // с: не чаще раза за это время решает, что герой остался позади, и разворачивается
 const CHASE_BEHIND = 24; // px: герой должен остаться позади на столько, чтобы паук развернулся
 
+// ---- Прыжок на героя: заметил, присел и бросился дугой (после посадки — снова ползёт)
+const LEAP_MIN = 36; // px: ближе не прыгает (кусает ползком)
+const LEAP_MAX = 185; // px: дальше не достанет
+const LEAP_WINDUP = 0.3; // с: приседает перед прыжком
+const LEAP_COOLDOWN: [number, number] = [1.6, 3.2];
+const LEAP_SPEED_MAX = 430; // px/с: потолок скорости прыжка
+const HERO_CHEST = 22; // px: в какую точку над ногами героя целится
+
 // ---- Выплюнутый паучок: летит по дуге, потом садится на поверхность и ползёт как обычный
 const GRAVITY = 520; // px/с²
 const FLY_STEP = 2; // px: максимальный шаг интегрирования полёта (чтобы не пролететь сквозь тайл)
@@ -65,6 +73,7 @@ interface Foot {
 const easeOutBack = (t: number) => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
  * Паук-ползун. Тело ползёт по любой поверхности тайлов — полу, стенам, потолку, огибая внутренние и внешние углы
@@ -123,6 +132,9 @@ export class Spider implements Hittable {
   public sight = 0;
   private chasing = false;
   private chaseCd = 0;
+  private leapCd = rand(LEAP_COOLDOWN);
+  private windup = 0; // >0 — присел перед прыжком, осталось секунд
+  private flightGrow = true; // «вылет из глубины» нужен выплюнутым паучкам, не прыжку
   private readonly react = new HitReaction(this.container);
 
   constructor(
@@ -249,7 +261,7 @@ export class Spider implements Hittable {
     this.container.position.set(this.visPos.x, this.visPos.y);
     this.container.rotation = this.visAngle;
     // «вылет из глубины»: быстро вырастает с лёгким перелётом (упругий выход), на посадке — сплющивается и пружинит обратно
-    const grow = this.flying ? 0.2 + 0.8 * easeOutBack(Math.min(1, this.flightTime / FLY_GROW)) : 1;
+    const grow = this.flying && this.flightGrow ? 0.2 + 0.8 * easeOutBack(Math.min(1, this.flightTime / FLY_GROW)) : 1;
     const sq = this.squash * this.squash;
     this.container.scale.set(this.mirror * this.scale * grow * (1 + 0.3 * sq), this.scale * grow * (1 - 0.4 * sq));
   }
@@ -270,7 +282,8 @@ export class Spider implements Hittable {
   }
 
   /** Выплёвывает паучка: он летит из точки (x, y) со скоростью (vx, vy) и садится на первую же поверхность. */
-  public launch(x: number, y: number, vx: number, vy: number): void {
+  public launch(x: number, y: number, vx: number, vy: number, grow = true): void {
+    this.flightGrow = grow;
     this.flying = true;
     this.flightTime = 0;
     this.pos = { x, y };
@@ -389,6 +402,7 @@ export class Spider implements Hittable {
     this.squash = Math.max(0, this.squash - dt / 0.35);
 
     this.updateChase(dt);
+    this.updateLeap(dt);
 
     // Поведение: бежит рывками, замирает; иногда разворачивается (гонясь за героем — не останавливается и не разворачивается без причины)
     this.stateTimer -= dt;
@@ -402,9 +416,9 @@ export class Spider implements Hittable {
       this.turnTimer = 4 + Math.random() * 6;
     }
     // плавный разгон и торможение
-    const moveTarget = this.running || this.chasing ? 1 : 0;
+    const moveTarget = this.windup <= 0 && (this.running || this.chasing) ? 1 : 0;
     this.move += (moveTarget - this.move) * (1 - Math.exp(-(this.running || this.chasing ? 9 : 14) * dt));
-    const speedNow = this.speed * this.move * (this.chasing ? CHASE_BOOST : 1);
+    const speedNow = this.windup > 0 ? 0 : this.speed * this.move * (this.chasing ? CHASE_BOOST : 1);
 
     this.crawl(dt, speedNow);
 
@@ -434,6 +448,59 @@ export class Spider implements Hittable {
       this.t = { x: -this.t.x, y: -this.t.y };
       this.chaseCd = CHASE_TURN_CD;
     }
+  }
+
+  /** Центр тела (мир): над точкой контакта на высоту HIT_LIFT. */
+  private bodyCenter(): Vec {
+    return { x: this.s.x + this.n.x * HIT_LIFT * this.scale, y: this.s.y + this.n.y * HIT_LIFT * this.scale };
+  }
+
+  /** Между точками нет твёрдых клеток (шаг 6 px). */
+  private clearLine(a: Vec, b: Vec): boolean {
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const n = Math.ceil(d / 6);
+    for (let i = 1; i < n; i++) {
+      if (this.solid(a.x + ((b.x - a.x) * i) / n, a.y + ((b.y - a.y) * i) / n)) return false;
+    }
+    return true;
+  }
+
+  /** Прыжок на героя: заметил в пределах дальности и на прямой видимости — присел, замер и бросился дугой; по пути задевает героя (контактный урон). */
+  private updateLeap(dt: number): void {
+    this.leapCd -= dt;
+    if (this.windup > 0) {
+      this.windup -= dt;
+      this.squash = Math.max(this.squash, 0.75);
+      if (this.windup <= 0) this.leap();
+      return;
+    }
+    if (this.leapCd > 0 || !this.chasing || !this.hero || this.scale < 0.5) return;
+    const h = this.hero();
+    if (!h) return;
+    const c = this.bodyCenter();
+    const target = { x: h.x, y: h.y - HERO_CHEST };
+    const dist = Math.hypot(target.x - c.x, target.y - c.y);
+    if (dist < LEAP_MIN || dist > LEAP_MAX || !this.clearLine(c, target)) return;
+    this.windup = LEAP_WINDUP;
+  }
+
+  private leap(): void {
+    const h = this.hero?.();
+    this.leapCd = rand(LEAP_COOLDOWN);
+    if (!h) return;
+    const c = this.bodyCenter();
+    const dx = h.x - c.x;
+    const dy = h.y - HERO_CHEST - c.y;
+    const flight = clamp(Math.hypot(dx, dy) / 300, 0.28, 0.62);
+    let vx = dx / flight;
+    let vy = (dy - 0.5 * GRAVITY * flight * flight) / flight;
+    const v = Math.hypot(vx, vy);
+    if (v > LEAP_SPEED_MAX) {
+      vx *= LEAP_SPEED_MAX / v;
+      vy *= LEAP_SPEED_MAX / v;
+    }
+    this.launch(c.x, c.y, vx, vy, false);
+    this.fx?.burst(c.x, c.y, { count: 6, colors: [0xb9ff97, 0x56f436], speed: [20, 60], spread: Math.PI * 2, life: [0.15, 0.3], size: [1, 2] });
   }
 
   /** Движение тела вдоль поверхности, огибание внутренних и внешних углов. */

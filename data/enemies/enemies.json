@@ -94,7 +94,7 @@
     "stats": {
       "max_health": 40,
       "contact_damage": 6,
-      "movement_speed": 38.0
+      "movement_speed": 41.8
     },
     "behavior_type": "burrower",
     "attack": {
@@ -159,7 +159,7 @@
     "stats": {
       "max_health": 250,
       "contact_damage": 0,
-      "movement_speed": 125.0
+      "movement_speed": 137.5
     },
     "behavior_type": "flying_worm",
     "attack": {

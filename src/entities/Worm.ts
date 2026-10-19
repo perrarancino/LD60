@@ -12,7 +12,7 @@ import type { Leash } from '../world/Rooms.ts';
 const WALL_PROBE_HEIGHT = 4; // px над поверхностью, на которой проверяем стену впереди
 const EDGE_PROBE = 1.5; // px под поверхностью — проверка опоры под головой (внешний угол)
 const EDGE_WRAP_DEPTH = 1; // px: на сколько голова «сползает» по грани за край
-const FOLLOW_POS = 20; // 1/с: сглаживание видимой позиции головы (скругляет углы и стыки с туннелем)
+const FOLLOW_POS = 12; // 1/с: сглаживание видимой позиции головы (скругляет углы и стыки с туннелем)
 
 // ---- Походка: волна сжатия бежит от хвоста к голове
 const INCH_RATE = 1.1; // циклов в секунду
@@ -39,6 +39,20 @@ const BITE_SPEED = 6.5; // во сколько раз быстрее обычн�
 const BITE_REACH = 10; // px: запас к радиусу головы при проверке укуса
 const BITE_REST = 0.55; // с: после рывка червь «выдыхается»
 
+// ---- Полёт: червь вылетает из-под земли и летает по воздуху плавными дугами (поворот ограничен), потом ныряет обратно в землю
+const FLY_TURN = 3.0; // рад/с: как круто голова поворачивает
+const FLY_BOOST = 3.4; // во сколько раз быстрее ползания летит
+const FLY_PASS_BOOST = 1.25; // добавка скорости на пролёте сквозь героя
+const FLY_ACCEL = 3; // 1/с: как быстро скорость догоняет желаемую
+const FLY_PASSES = 2; // сколько пролётов у героя за один вылет
+const FLY_PASS_DIST = 44; // px: ближе этого к цели голова перестаёт доворачивать и проносится мимо
+const FLY_PASS_TIME: [number, number] = [0.6, 0.95]; // с: сколько длится пролёт
+const FLY_TIME_HERO = 5; // с: вылет за героем длится не дольше
+const FLY_TIME_IDLE: [number, number] = [2, 3.4]; // с: вылет «для разминки»
+const FLY_SIGHT: [number, number] = [90, 300]; // px: на таком расстоянии от героя червь решается лететь на него
+const FLY_COOLDOWN: [number, number] = [5, 9]; // с: пауза между вылетами
+const FLY_HIT_CD = 1.1; // с: пауза между попаданиями в полёте
+const SMOOTH_MOVE = 9; // 1/с: плавность разгона и торможения ползания
 const AXES: Vec[] = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
 const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
 
@@ -56,7 +70,7 @@ export class Worm implements PartDamageable {
   private readonly radius: number; // половина толщины
   private readonly speed: number;
 
-  private state: 'crawl' | 'tunnel' = 'crawl';
+  private state: 'crawl' | 'tunnel' | 'fly' = 'crawl';
 
   // Ползание: точка контакта S, нормаль n (от поверхности), направление t; центр головы P = S + n * radius
   private s: Vec = { x: 0, y: 0 };
@@ -91,6 +105,19 @@ export class Worm implements PartDamageable {
   private chaseCd = 0;
   private chasing = false;
   private recoil = 0; // 0..1: насколько голова отведена назад (только вид)
+  private mul = 1; // сглаженный множитель скорости ползания (рывок, замирание, погоня — без щелчков)
+
+  // Полёт
+  private heading = 0;
+  private flySpeed = 0;
+  private flyT = 0;
+  private flyLimit = 0;
+  private flyMode: 'seek' | 'pass' = 'seek';
+  private flyPassT = 0;
+  private flyPasses = 0;
+  private flyHitCd = 0;
+  private flyCd = rand(FLY_COOLDOWN);
+  private flyDiving = false;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -223,11 +250,9 @@ export class Worm implements PartDamageable {
     dt = Math.min(dt, 1 / 30);
     this.phase += Math.PI * 2 * INCH_RATE * dt;
 
-    if (this.state === 'crawl') {
-      this.updateCrawl(dt);
-    } else {
-      this.updateTunnel(dt);
-    }
+    if (this.state === 'crawl') this.updateCrawl(dt);
+    else if (this.state === 'fly') this.updateFly(dt);
+    else this.updateTunnel(dt);
 
     // Видимая голова догоняет истинную: углы и стыки с туннелем скругляются; перед укусом голова отводится назад
     const kp = 1 - Math.exp(-FOLLOW_POS * dt);
@@ -240,13 +265,13 @@ export class Worm implements PartDamageable {
   private updateCrawl(dt: number): void {
     this.cornerCooldown -= dt;
     this.burrowTimer -= dt;
+    this.flyCd -= dt;
 
     // Ползёт «гусеницей»: скорость пульсирует, в среднем равна movement_speed; заметив героя — быстрее и к нему
     this.stepBite(dt);
-    let step = this.speed * (1 + INCH_SPEED * Math.sin(this.phase)) * dt;
-    if (this.biteState === 'windup' || this.biteState === 'rest') step = 0;
-    else if (this.biteState === 'dash') step = this.speed * BITE_SPEED * dt;
-    else if (this.chasing) step *= CHASE_BOOST;
+    const mulTarget = this.biteState === 'windup' || this.biteState === 'rest' ? 0 : this.biteState === 'dash' ? BITE_SPEED : this.chasing ? CHASE_BOOST : 1;
+    this.mul += (mulTarget - this.mul) * (1 - Math.exp(-(this.biteState === 'dash' ? 30 : SMOOTH_MOVE) * dt));
+    let step = this.speed * (this.biteState === 'dash' ? 1 : 1 + INCH_SPEED * Math.sin(this.phase)) * this.mul * dt;
 
     // Голова не лезет в тело (своё или чужого червя): стоит, а если не отпускает — зарывается и уходит
     const ahead = { x: this.p.x + this.t.x * (step + 3), y: this.p.y + this.t.y * (step + 3) };
@@ -268,9 +293,122 @@ export class Worm implements PartDamageable {
     } else if (this.stuck > STUCK_TIME && !yielding) {
       this.tryBurrow(0, true);
       if (this.state === 'crawl') this.stuck = 0; // не вышло — подождём ещё
+    } else if (this.flyCd <= 0 && this.tryFly()) {
+      return;
     } else if (this.burrowTimer <= 0 && !this.chasing) {
+      if (Math.random() < 0.4 && this.tryFly(true)) return; // иногда вместо зарывания — вылет в воздух
       this.tryBurrow(step, false);
     }
+  }
+
+  /** Герой (прямоугольник мира), если червь его видит: в одной комнате. */
+  private heroBox(): { left: number; right: number; top: number; bottom: number } | null {
+    return this.leash && !this.leash.hero() ? null : this.hero?.() ?? null;
+  }
+
+  /** Вылет из-под поверхности: голова уходит от неё по нормали с доворотом к герою и летит по воздуху. idle — без цели (разминка). */
+  private tryFly(idle = false): boolean {
+    this.flyCd = rand(FLY_COOLDOWN);
+    const box = this.heroBox();
+    let dx = this.n.x * 0.9;
+    let dy = this.n.y * 0.9;
+    if (box && !idle) {
+      const cx = (box.left + box.right) / 2;
+      const cy = (box.top + box.bottom) / 2;
+      const gap = Math.hypot(this.p.x - cx, this.p.y - cy);
+      if (gap < FLY_SIGHT[0] || gap > FLY_SIGHT[1]) return false;
+      dx += ((cx - this.p.x) / gap) * 0.7;
+      dy += ((cy - this.p.y) / gap) * 0.7;
+      this.flyLimit = FLY_TIME_HERO;
+    } else {
+      if (!idle) return false;
+      dx += (Math.random() - 0.5) * 1.2;
+      this.flyLimit = rand(FLY_TIME_IDLE);
+    }
+    this.heading = Math.atan2(dy, dx);
+    this.flySpeed = this.speed * Math.max(1, this.mul);
+    this.flyT = 0;
+    this.flyMode = 'seek';
+    this.flyPasses = 0;
+    this.flyHitCd = 0.3;
+    this.flyDiving = false;
+    this.biteState = 'none';
+    this.state = 'fly';
+    return true;
+  }
+
+  /**
+   * Полёт: голова доворачивает к герою с ограниченной скоростью поворота (плавные дуги, не по тайлам), проносится сквозь него и снова заходит;
+   * после FLY_PASSES пролётов или по таймеру ныряет вниз — войдя в твёрдую клетку, прокладывает ход и выныривает. Тело внутри блоков скрыто маской.
+   */
+  private updateFly(dt: number): void {
+    this.flyT += dt;
+    this.flyHitCd -= dt;
+    const ts = this.level.tileSize;
+    const box = this.heroBox();
+    const hx = box ? (box.left + box.right) / 2 : this.p.x + Math.cos(this.heading) * 100;
+    const hy = box ? (box.top + box.bottom) / 2 : this.p.y + Math.sin(this.heading) * 100;
+    if (!this.flyDiving && (this.flyT > this.flyLimit || this.flyPasses > FLY_PASSES)) this.flyDiving = true;
+
+    let tx = hx;
+    let ty = hy;
+    let steer = true;
+    if (this.flyDiving) {
+      tx = this.p.x;
+      ty = this.p.y + 200; // вниз, в землю
+    } else if (this.flyMode === 'pass') {
+      this.flyPassT -= dt;
+      steer = false; // проносится мимо без доворота
+      if (this.flyPassT <= 0) this.flyMode = 'seek';
+    } else if (box && Math.hypot(hx - this.p.x, hy - this.p.y) < FLY_PASS_DIST) {
+      this.flyMode = 'pass';
+      this.flyPassT = rand(FLY_PASS_TIME);
+      this.flyPasses++;
+    } else if (!box) {
+      // без цели: лёгкое виляние по курсу
+      tx = this.p.x + Math.cos(this.heading + Math.sin(this.flyT * 1.7) * 0.8) * 100;
+      ty = this.p.y + Math.sin(this.heading + Math.sin(this.flyT * 1.7) * 0.8) * 100;
+    }
+    // края уровня и чужая комната: возвращаемся к центру
+    const W = this.level.pixelWidth;
+    if (this.p.x < 40 || this.p.x > W - 40 || this.p.y < 24 || (this.leash && !this.leash.contains(this.p.x, this.p.y))) {
+      tx = W / 2;
+      ty = Math.max(this.p.y, 90);
+      steer = true;
+    }
+    if (steer) {
+      const want = Math.atan2(ty - this.p.y, tx - this.p.x);
+      const d = Math.atan2(Math.sin(want - this.heading), Math.cos(want - this.heading));
+      const lim = FLY_TURN * dt * (this.flyDiving ? 1.4 : 1);
+      this.heading += Math.max(-lim, Math.min(lim, d));
+    }
+    const boost = FLY_BOOST * (this.flyMode === 'pass' ? FLY_PASS_BOOST : 1) * (this.flyDiving ? 0.8 : 1);
+    this.flySpeed += (this.speed * boost - this.flySpeed) * (1 - Math.exp(-FLY_ACCEL * dt));
+    this.p = { x: this.p.x + Math.cos(this.heading) * this.flySpeed * dt, y: this.p.y + Math.sin(this.heading) * this.flySpeed * dt };
+    this.t = { x: Math.cos(this.heading), y: Math.sin(this.heading) };
+
+    // укус на лету: голова задела героя
+    if (box && this.flyHitCd <= 0 && this.onBite) {
+      const gap = Math.hypot(this.p.x - Math.max(box.left, Math.min(this.p.x, box.right)), this.p.y - Math.max(box.top, Math.min(this.p.y, box.bottom)));
+      if (gap < this.radius + BITE_REACH) {
+        this.flyHitCd = FLY_HIT_CD;
+        this.onBite(this.p.x, this.p.y, (box.left + box.right) / 2 >= this.p.x ? 1 : -1, this.biteDamage);
+      }
+    }
+
+    // нырнул в землю: ход под землёй и выход
+    if (this.flyDiving && this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts))) {
+      const plan = this.planTunnel(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts));
+      if (plan) {
+        this.waypoints = plan.points;
+        this.exitDir = plan.dir;
+        this.state = 'tunnel';
+        this.flyCd = rand(FLY_COOLDOWN);
+      } else {
+        this.heading += 0.5 * dt; // ход не нашёлся — продолжаем нырять глубже
+      }
+    }
+    if (this.flyT > this.flyLimit + 8) this.flyDiving = true;
   }
 
   /** Укус: ползёт к герою, у цели замирает, отводит голову и бросается вперёд по поверхности; задел — урон, потом передышка. */
@@ -302,7 +440,7 @@ export class Worm implements PartDamageable {
       }
       case 'windup':
         this.biteT += dt;
-        this.recoil = Math.min(1, this.biteT / BITE_WINDUP);
+        { const k = Math.min(1, this.biteT / BITE_WINDUP); this.recoil = k * k * (3 - 2 * k); } // плавный отвод головы назад
         if (this.biteT >= BITE_WINDUP) {
           this.biteState = 'dash';
           this.biteT = 0;
@@ -451,7 +589,23 @@ export class Worm implements PartDamageable {
     cells.reverse();
     const points = cells.map(([cx, cy]) => ({ x: (cx + 0.5) * ts, y: (cy + 0.5) * ts }));
     points.push({ x: (ex.cx + ex.dir.x + 0.5) * ts, y: (ex.cy + ex.dir.y + 0.5) * ts });
-    return { points, dir: ex.dir };
+    return { points: this.smoothPath(points), dir: ex.dir };
+  }
+
+  /** Скругляет углы хода (срезание углов Чайкина): червь едет плавными дугами, а не ломаной по центрам клеток; срезы остаются внутри угловой клетки. */
+  private smoothPath(pts: Vec[]): Vec[] {
+    let cur = pts;
+    for (let it = 0; it < 2 && cur.length > 2; it++) {
+      const out: Vec[] = [cur[0]];
+      for (let i = 0; i < cur.length - 1; i++) {
+        const a = cur[i];
+        const b = cur[i + 1];
+        out.push({ x: a.x + (b.x - a.x) * 0.25, y: a.y + (b.y - a.y) * 0.25 }, { x: a.x + (b.x - a.x) * 0.75, y: a.y + (b.y - a.y) * 0.75 });
+      }
+      out.push(cur[cur.length - 1]);
+      cur = out;
+    }
+    return cur;
   }
 
   private updateTunnel(dt: number): void {
@@ -487,6 +641,7 @@ export class Worm implements PartDamageable {
     this.cornerCooldown = 0.3;
     this.state = 'crawl';
     this.burrowTimer = rand(CRAWL_TIME);
+    this.mul = 0.6;
   }
 
   // ---------- Столкновения с телами ----------

@@ -747,7 +747,7 @@ class GameApp {
       // Ползающий враг (паук): процедурное тело по поверхностям тайлов
       const rig = RIGS.find((r) => r.id === def.rig_id);
       if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-      const spider = new Spider(def, spawn, this.level, rig, this.sprites);
+      const spider = new Spider(def, spawn, this.level, rig, this.sprites, { fx: this.fx });
       spider.leash = this.bindRoom(spider, spawn);
       this.spiders.push(spider);
       this.worldLayer.addChild(spider.container);
@@ -817,7 +817,8 @@ class GameApp {
       this.contactDmg.set(worm, def.stats.contact_damage);
       return worm;
     }
-    const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
+    const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites, this.level);
+    enemy.hero = () => ({ x: this.player.body.x, y: this.player.body.y });
     enemy.leash = this.bindRoom(enemy, spawn);
     this.enemies.push(enemy);
     this.worldLayer.addChild(enemy.sprite);

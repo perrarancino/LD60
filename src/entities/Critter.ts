@@ -29,6 +29,11 @@ const WHIP_HIT_R = 11; // px: на таком расстоянии от хвос
 const WHIP_GIVE_UP = 5; // с: гонится за героем так долго и не дотянулся — отстаёт на время
 const KEEP_AWAY_NEAR = 40; // px: если герой подошёл ближе этого во время перезарядки хвоста, крыса отступает
 const KEEP_AWAY_FAR = 60; // px: отступает до этого безопасного расстояния, затем останавливается и ждёт
+const WALK_SEE_HEIGHT = 150; // px: ходок замечает героя и на такой разнице высот (спрыгивает к нему, запрыгивает на уступ)
+const WALK_JUMP = 300; // px/с: прыжок ходока на героя (≈ 53 px вверх)
+const WALK_JUMP_UP = 400; // px/с: прыжок через стенку, провал и на уступ повыше (≈ 94 px)
+const WALK_LEAP_RANGE = 170; // px: с такого расстояния ходок прыгает на героя
+const WALK_LEAP_VX = 190; // px/с: потолок скорости по горизонтали в прыжке на героя
 const LUNGE_SQUASH = -0.34; // сжатие тела на приседании перед броском
 const LUNGE_RETREAT = 0.6; // с: после броска прыгун отскакивает от героя
 const LUNGE_HOP_RUN = 1.5; // во сколько раз длиннее прыжки-подскоки, когда идёт на героя
@@ -88,6 +93,9 @@ export class Critter implements Hittable {
   private move = 0; // 0..1: насколько сейчас в движении (для анимации)
   private air = false;
   private hopTimer = rand(0.3, 1.2);
+  private walkAir = false; // ходок в прыжке: по горизонтали не управляется до приземления
+  private walkAirT = 0;
+  private walkJumpCd = rand(0.6, 1.8);
   private lookX = 0; // куда смотрит страж: −1..1 (в системе взгляда)
   private heading = Math.random() * Math.PI * 2; // курс птички
   private pos: Vec = { x: 0, y: 0 };
@@ -248,12 +256,12 @@ export class Critter implements Hittable {
     return !this.leash || this.leash.contains(x, y);
   }
 
-  private heroNear(range: number): Vec | null {
+  private heroNear(range: number, height = SEE_HEIGHT): Vec | null {
     if (this.leash && !this.leash.hero()) return null; // герой в другой комнате — моб его не замечает
     const h = this.target();
     if (!h) return null;
     const p = this.position;
-    return Math.abs(h.x - p.x) < range && Math.abs(h.y - p.y) < SEE_HEIGHT ? h : null;
+    return Math.abs(h.x - p.x) < range && Math.abs(h.y - p.y) < height ? h : null;
   }
 
   // ---------- Обновление ----------
@@ -408,7 +416,7 @@ export class Critter implements Hittable {
   private updateWalker(dt: number): void {
     if (this.flyingToss(dt)) return;
     const b = this.body;
-    const hero = this.heroNear(this.cfg.sight ?? 180);
+    const hero = this.heroNear(this.cfg.sight ?? 180, WALK_SEE_HEIGHT);
     const whip = this.cfg.tail?.whip;
     if (whip) this.stepWhip(dt, hero, whip);
 
@@ -452,7 +460,8 @@ export class Critter implements Hittable {
       const dist = Math.abs(hero.x - b.x);
       if (dist > 8) want = (hero.x > b.x ? 1 : -1) as 1 | -1;
       speed = this.speed * CHASE_BOOST;
-      const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
+      const heroBelow = hero.y > b.y + 30; // герой ниже — с края платформы можно просто спрыгнуть
+      const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want) && !heroBelow) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
       if (blocked) {
         speed = 0;
       }
@@ -472,7 +481,34 @@ export class Critter implements Hittable {
       if (speed > 0) this.setFacing(want);
     }
 
-    b.vx += (want * speed - b.vx) * (1 - Math.exp(-14 * dt));
+    this.walkJumpCd -= dt;
+    if (this.walkAir) {
+      this.walkAirT += dt;
+      if (b.grounded && this.walkAirT > 0.12) {
+        this.walkAir = false;
+        this.walkJumpCd = Math.max(this.walkJumpCd, rand(0.5, 1.2));
+      }
+    } else if (b.grounded && this.wState === 'none' && hero && this.walkJumpCd <= 0) {
+      // Прыжки ходока: на героя, на уступ повыше и через стенку или провал на пути к нему
+      const dx = hero.x - b.x;
+      const dist = Math.abs(dx);
+      const above = b.y - hero.y;
+      const blockedAhead = b.blockedX === want || (!this.groundAhead(want) && hero.y <= b.y + 30);
+      let jump: { vy: number; vx: number } | null = null;
+      if (above > 36 && dist < 130) jump = { vy: WALK_JUMP_UP, vx: clamp(dx * 1.2, -WALK_LEAP_VX, WALK_LEAP_VX) };
+      else if (blockedAhead && dist > 20) jump = { vy: WALK_JUMP_UP, vx: want * Math.max(90, this.speed * CHASE_BOOST) };
+      else if (dist > 34 && dist < WALK_LEAP_RANGE && Math.abs(above) < 50) jump = { vy: WALK_JUMP, vx: clamp(dx / ((2 * WALK_JUMP) / GRAVITY), -WALK_LEAP_VX, WALK_LEAP_VX) };
+      if (jump) {
+        b.vy = -jump.vy;
+        b.vx = jump.vx;
+        this.setFacing((jump.vx >= 0 ? 1 : -1) as 1 | -1);
+        this.dir = this.facing;
+        this.walkAir = true;
+        this.walkAirT = 0;
+        this.walkJumpCd = rand(1.4, 2.8);
+      }
+    }
+    if (!this.walkAir) b.vx += (want * speed - b.vx) * (1 - Math.exp(-14 * dt));
     this.gravity(dt);
     this.move += ((Math.abs(b.vx) / Math.max(1, this.speed) > 0.1 ? 1 : 0) - this.move) * (1 - Math.exp(-MOVE_RATE * dt));
     this.stepPhase += Math.abs(b.vx) * dt * (this.cfg.stride ?? 0.12);
