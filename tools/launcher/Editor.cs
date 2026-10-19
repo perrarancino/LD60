@@ -57,11 +57,12 @@ static class EditorLauncher
         {
             projectRoot = FindProject();
             if (projectRoot == null) return 0;
+            // Вшитая копия редактора есть всегда. Пересборка исходников (npm run build) — только если есть сами исходники и установлен Node.js;
+            // у тех, у кого Node нет, работает вшитая копия — без ошибок про npm.
+            LoadEmbedded();
             if (File.Exists(Path.Combine(projectRoot, "package.json")) && Directory.Exists(Path.Combine(projectRoot, "src")) &&
-                File.Exists(Path.Combine(projectRoot, "editor.html")))
+                File.Exists(Path.Combine(projectRoot, "editor.html")) && HasNpm())
                 distDir = Path.Combine(projectRoot, "dist");
-            else
-                LoadEmbedded();
 
             int port = FreePort();
             var listener = new HttpListener();
@@ -159,6 +160,22 @@ static class EditorLauncher
             }
         }
         if (!Embedded.ContainsKey("/editor.html")) throw new InvalidOperationException("В сборке нет editor.html.");
+    }
+
+    /// Установлен ли Node.js (npm в PATH).
+    static bool HasNpm()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("cmd.exe", "/c where npm") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var p = Process.Start(psi))
+            {
+                p.StandardOutput.ReadToEnd();
+                p.WaitForExit(10000);
+                return p.ExitCode == 0;
+            }
+        }
+        catch { return false; }
     }
 
     static DateTime NewestSourceTime()
@@ -416,6 +433,11 @@ static class EditorLauncher
             if (distDir != null && (path == "/editor.html" || path == "/index.html"))
             {
                 string error = EnsureFresh();
+                if (error != null && Embedded.ContainsKey("/editor.html"))
+                {
+                    distDir = null; // сборка не удалась (нет зависимостей, ошибка в коде) — работаем с вшитой копией
+                    error = null;
+                }
                 if (error != null)
                 {
                     string page = "<!doctype html><meta charset=utf-8><title>Ошибка сборки</title>" +
