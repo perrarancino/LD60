@@ -4,37 +4,37 @@
   "display_name": "Уровень 3 · комната 1: Хвосты",
   "background_id": "bg_loc2",
   "tile_size": 32,
-  "width": 22,
+  "width": 19,
   "height": 24,
   "legend": {
     ".": null,
     "a": "loc2"
   },
   "rows": [
-    "aaaaaaaaaaaaaaaaaaaaaa",
-    "a....................a",
-    "a....................a",
-    "a....................a",
-    "a...........aaaaaaaaaa",
-    "a....................a",
-    "a....................a",
-    "aaaaaaaaaa...........a",
-    "a....................a",
-    "a....................a",
-    "a...........aaaaaaaaaa",
-    "a....................a",
-    "a....................a",
-    "aaaaaaaaaa...........a",
-    "a....................a",
-    "a....................a",
-    "a...........aaaaaaaaaa",
-    "a....................a",
-    "a....................a",
-    "aaaaaaaaaa...........a",
-    "a....................a",
-    "a....................a",
-    "aaaaaaaaaaaaaaaaaaaaaa",
-    "aaaaaaaaaaaaaaaaaaaaaa"
+    "aaaaaaaaaaaaaaaaaaa",
+    "a.................a",
+    "a.................a",
+    "a.................a",
+    "a..........aaaaaaaa",
+    "a.................a",
+    "a.................a",
+    "aaaaaaaaa.........a",
+    "a.................a",
+    "a.................a",
+    "a..........aaaaaaaa",
+    "a.................a",
+    "a.................a",
+    "aaaaaaaaa.........a",
+    "a.................a",
+    "a.................a",
+    "a..........aaaaaaaa",
+    "a.................a",
+    "a.................a",
+    "aaaaaaaaa.........a",
+    "a.................a",
+    "a.................a",
+    "aaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaa"
   ],
   "player_spawn": {
     "x": 16,
@@ -44,8 +44,9 @@
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 6,
-      "y": 6
+      "x": 7,
+      "y": 6,
+      "wave": 2
     },
     {
       "enemy_id": "electro_rat",
@@ -56,19 +57,20 @@
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 3,
+      "x": 4,
       "y": 6
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 18,
-      "y": 9
+      "x": 16,
+      "y": 9,
+      "wave": 2
     },
     {
       "enemy_id": "ward",
       "sprite_id": "enemy_ward",
-      "x": 3,
+      "x": 6,
       "y": 12,
       "wave": 2
     },
@@ -82,9 +84,8 @@
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 3,
-      "y": 18,
-      "wave": 2
+      "x": 4,
+      "y": 18
     },
     {
       "enemy_id": "vorobei",
@@ -92,17 +93,6 @@
       "x": 7,
       "y": 18,
       "wave": 2
-    }
-  ],
-  "rooms": [
-    {
-      "id": "arena",
-      "name": "Хвосты",
-      "x": 0,
-      "y": 0,
-      "width": 22,
-      "height": 24,
-      "location": 3
     }
   ],
   "fog": false,
@@ -113,5 +103,15 @@
   "rogue": {
     "clear_gears": 10,
     "hp_mult": 1.4
-  }
+  },
+  "rooms": [
+    {
+      "id": "room_1",
+      "name": "Комната 1",
+      "x": 0,
+      "y": 0,
+      "width": 19,
+      "height": 24
+    }
+  ]
 }

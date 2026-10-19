@@ -55,29 +55,10 @@
     {
       "enemy_id": "bonzai_boss",
       "sprite_id": "boss_bonzai",
-      "x": 34,
+      "x": 22,
       "y": 8,
       "is_boss": true,
       "boss_id": "bonzai_boss"
-    }
-  ],
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 640
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 1424,
-      "y": 640,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
     }
   ],
   "rogue": {

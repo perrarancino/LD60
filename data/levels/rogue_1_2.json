@@ -4,7 +4,7 @@
   "display_name": "Уровень 1 · комната 2: Патруль",
   "background_id": "bg_textalite",
   "tile_size": 32,
-  "width": 28,
+  "width": 26,
   "height": 14,
   "legend": {
     ".": null,
@@ -19,49 +19,30 @@
     "i": "textalite_2"
   },
   "rows": [
-    "abbacadaccbaaaaadbdacdbbdcab",
-    "e....fg..hi...ff...ig..ee..g",
-    "e....hi..fi...hf...eg..hg..e",
-    "f....ii..gi...fg...ih..fe..g",
-    "f..........................f",
-    "h..........................h",
-    "f..........................e",
-    "g..........................i",
-    "h..........................g",
-    "i.........aaadcbac.........h",
-    "h..........................h",
-    "h..........................g",
-    "edaabbaabbcaaccccdddbdbacccg",
-    "eiiefhgifhgghiihgfgigigeieif"
+    "bacadaccbaaaaadbdacdbbdcab",
+    "i..fg..hi...ff...ig..ee..g",
+    "e..hi..fi...hf...eg..hg..e",
+    "h..ii..gi...fg...ih..fe..g",
+    "i........................f",
+    "e........................h",
+    "g........................e",
+    "f........................i",
+    "h........................g",
+    "i.......aaadcbac.........h",
+    "f........................h",
+    "h........................g",
+    "aabbaabbcaaccccdddbdbacccg",
+    "iefhgifhgghiihgfgigigeieif"
   ],
   "player_spawn": {
     "x": 3,
     "y": 11
   },
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 384
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 848,
-      "y": 384,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "enemies": [
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 25,
+      "x": 24,
       "y": 12,
       "surface": "floor",
       "length": 4,
@@ -70,7 +51,7 @@
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 4,
+      "x": 7,
       "y": 12,
       "surface": "floor",
       "length": 5,
@@ -79,15 +60,7 @@
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 21,
-      "y": 1,
-      "surface": "ceiling",
-      "wave": 2
-    },
-    {
-      "enemy_id": "spider",
-      "sprite_id": "enemy_spider",
-      "x": 15,
+      "x": 22,
       "y": 4,
       "surface": "ceiling",
       "wave": 2
@@ -95,46 +68,73 @@
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 17,
+      "x": 13,
+      "y": 4,
+      "surface": "ceiling"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 2,
       "y": 1,
-      "surface": "ceiling",
+      "surface": "ceiling"
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 20,
+      "y": 12
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 13,
+      "y": 9,
       "wave": 2
     },
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 23,
-      "y": 12
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 19,
-      "y": 12
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 17,
+      "x": 10,
       "y": 12
     },
     {
       "enemy_id": "spider_mother",
       "sprite_id": "enemy_spider_mother",
-      "x": 11,
-      "y": 1,
+      "x": 7,
+      "y": 5,
       "anchor_y": -2
-    }
-  ],
-  "rooms": [
+    },
     {
-      "id": "arena",
-      "name": "Патруль",
-      "x": 0,
-      "y": 0,
-      "width": 28,
-      "height": 14,
-      "location": 1
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 17,
+      "y": 5,
+      "anchor_y": -2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 9,
+      "y": 8,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 15,
+      "y": 11,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 4,
+      "y": 4,
+      "surface": "ceiling",
+      "wave": 2
     }
   ],
   "fog": false,
@@ -163,5 +163,15 @@
   "rogue": {
     "clear_gears": 14,
     "hp_mult": 1
-  }
+  },
+  "rooms": [
+    {
+      "id": "room_1",
+      "name": "Комната 1",
+      "x": 0,
+      "y": 0,
+      "width": 26,
+      "height": 14
+    }
+  ]
 }

@@ -11,18 +11,15 @@
   "legend": {
     ".": null,
     "#": "textalite_5",
-    "@": "textalite_1",
     "%": "textalite_2",
-    "&": "textalite_3",
     "$": "textalite_9",
     "A": "textalite_7",
-    "B": "textalite_0",
     "C": "textalite_8",
     "D": "textalite_6",
     "E": "textalite_4"
   },
   "rows": [
-    "#................................................#",
+    "#D#DDA#$DDAA#DD#$ADA$D#DADADDA#ADD#A$DDADADD#ADDD#",
     "#................................................#",
     "#................................................#",
     "#................................................#",
@@ -98,25 +95,6 @@
       0
     ]
   },
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 608
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 1552,
-      "y": 608,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "rogue": {
     "clear_gears": 30,
     "hp_mult": 1
