@@ -30,6 +30,9 @@ export interface RoomCombatState {
 export class WorldProgression {
   private static instance: WorldProgression;
 
+  /** Отладка (уровень открыт клавишей 1–5): все двери открыты, арены не запирают. */
+  public debugOpenAll = false;
+
   /** Активные боевые комнаты по их id */
   private roomStates = new Map<string, RoomCombatState>();
 
@@ -136,6 +139,7 @@ export class WorldProgression {
 
   /** Проверяет, заблокирована ли дверь из-за активного боя в комнате */
   public isDoorArenaLocked(doorId: string): boolean {
+    if (this.debugOpenAll) return false;
     const rooms = this.doorToRooms.get(doorId);
     if (!rooms) return false;
     for (const r of rooms) {
@@ -148,6 +152,7 @@ export class WorldProgression {
    * Проверяет, может ли дверь быть открыта по правилам прогрессии карты.
    */
   public canOpenDoor(doorId: string): boolean {
+    if (this.debugOpenAll) return true;
     // 1. Если в комнате этой двери прямо сейчас идет бой — закрыта
     if (this.isDoorArenaLocked(doorId)) return false;
 

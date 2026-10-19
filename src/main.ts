@@ -67,9 +67,11 @@ const LEVELS = Object.values(
 
 const urlParams = new URLSearchParams(window.location.search);
 const requestedLevel = urlParams.get('level');
+/** Уровень открыт отладочной клавишей (1–5): без тумана войны, все двери открыты — карту видно и проходить можно целиком. */
+const DEBUG_MODE = urlParams.get('debug') === '1';
 let activeLevelDef: LevelDef = (requestedLevel
   ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
-  : undefined) ?? (LEVELS.find(l => l.id === 'test_level') || LEVELS[0]);
+  : undefined) ?? (LEVELS.find(l => l.id === 'world_prototype') || LEVELS[0]); // без ?level= игра сразу открывает полную карту (первая локация)
 
 /**
  * Свежая версия уровня с диска: редактор открывает игру с ?live=1, и сервер (vite или exe-редактор) отдаёт уровень, только что сохранённый
@@ -281,9 +283,12 @@ class GameApp {
       // Отладка: клавиши 1–5 переключают уровень (у уровня в JSON задан debug_key): 1 — полная карта (world_prototype) с мобами, 2 — локация 2, 3 — босс-червь, 4 — босс-птица, 5 — краб
       if (/^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const next = LEVELS.find((l) => l.debug_key === Number(e.key));
-        if (next && next.id !== activeLevelDef.id) {
+        if (next && (next.id !== activeLevelDef.id || !DEBUG_MODE)) {
           const url = new URL(window.location.href);
           url.searchParams.set('level', next.id);
+          url.searchParams.set('debug', '1'); // уровень открыт отладочной клавишей: карта видна вся, двери открыты
+          url.searchParams.delete('door');
+          url.searchParams.delete('spawn');
           window.location.href = url.toString();
         }
       }
@@ -498,6 +503,7 @@ class GameApp {
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
     WorldProgression.get().reset();
+    WorldProgression.get().debugOpenAll = DEBUG_MODE;
 
     // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
     this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
@@ -705,7 +711,7 @@ class GameApp {
     this.sceneLayer.removeChild(this.worldLayer);
     this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
-    if (Fog.enabled(levelDef.fog, this.rooms)) {
+    if (!DEBUG_MODE && Fog.enabled(levelDef.fog, this.rooms)) {
       this.fog = new Fog(this.rooms, levelDef.fog); // туман войны: вне комнаты героя мир чёрный (закрывает и свет жуков)
       this.app.stage.addChild(this.fog.container);
     }
