@@ -209,7 +209,9 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
-  private background: ParallaxBackground | ShaderBackground | null = null;
+  private readonly backgrounds: Array<{ id: string; bg: ParallaxBackground | ShaderBackground; alpha: number }> = []; // все фоны уровня: свой у комнаты — включается при входе героя
+  private activeBg = '';
+  private bgBottom = 0; // низ, на котором «стоит» фон: у уровня из комнат — низ комнаты героя (иначе на высокой карте фон остался бы внизу карты, вне кадра)
   private scale = 1;
   private cameraY = 0;
   private groundRefY = 0; // высота ног при последнем касании земли
@@ -332,7 +334,7 @@ class GameApp {
 
     this.drawGrid();
     this.lighting?.resize(physW, physH, this.scale);
-    this.background?.resize(this.viewW, this.viewH);
+    for (const b of this.backgrounds) b.bg.resize(this.viewW, this.viewH);
     if (this.level) this.updateCamera();
   }
 
@@ -413,7 +415,7 @@ class GameApp {
     const sy = this.shake ? snap(this.shake * Math.sin(this.shakePhase * 1.37 + 1.9)) : 0;
     this.worldLayer.position.set(-snap(camX) + sx, -snap(camY) + sy);
     this.numbers.container.position.copyFrom(this.worldLayer.position);
-    this.background?.update(snap(camX), snap(camY), lh, this.scale);
+    for (const b of this.backgrounds) if (b.alpha > 0.001) b.bg.update(snap(camX), snap(camY), this.bgBottom || lh, this.scale);
     // тайлы вне экрана (с запасом в клетку) не рисуются — ни в кадре, ни в проходах света
     const m = this.level.tileSize;
     this.level.cull(snap(camX) - m, snap(camX) + this.viewW + m, snap(camY) - m, snap(camY) + this.viewH + m);
@@ -454,7 +456,7 @@ class GameApp {
       'ui_cursor',
       'ui_cursor_interact',
       ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
-      ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
+      ...this.levelBackgrounds(levelDef).flatMap((b) => ParallaxBackground.spriteIds(b)),
       heroSpriteId,
       ...MODELS.map((m) => m.sprite_id),
       ...modelRigs.flatMap((r) => r.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])])),
@@ -470,11 +472,20 @@ class GameApp {
       })
     ]);
 
-    if (bgDef) {
-      this.background = bgDef.shader ? new ShaderBackground(bgDef) : new ParallaxBackground(bgDef, this.sprites);
+    // Фон уровня и фоны комнат (room.background_id): у каждого свой объект, показывается тот, что у комнаты героя (плавная смена)
+    const bgDefs = this.levelBackgrounds(levelDef);
+    for (const def of bgDefs) {
+      const bg = def.shader ? new ShaderBackground(def) : new ParallaxBackground(def, this.sprites);
+      const isDefault = def.id === levelDef.background_id;
+      this.backgrounds.push({ id: def.id, bg, alpha: isDefault ? 1 : 0 });
+      bg.container.visible = isDefault;
+      this.sceneLayer.addChild(bg.container);
+      bg.resize(this.viewW, this.viewH);
+    }
+    if (bgDefs.length) {
       this.grid.visible = false; // вместо технической сетки — фон
-      this.sceneLayer.addChildAt(this.background.container, 0);
-      this.background.resize(this.viewW, this.viewH);
+      this.activeBg = levelDef.background_id ?? bgDefs[0].id;
+      this.backgrounds.forEach((b, i) => this.sceneLayer.setChildIndex(b.bg.container, i + 1)); // сразу за сеткой (она первая в сцене)
     }
 
     this.worldLayer = new Container();
@@ -707,6 +718,52 @@ class GameApp {
     }
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
+  }
+
+  /** Фоны уровня: его собственный и фоны комнат (без повторов). */
+  private levelBackgrounds(levelDef: LevelDef): BackgroundDef[] {
+    const ids = [levelDef.background_id, ...(levelDef.rooms ?? []).map((r) => r.background_id)].filter((id): id is string => !!id);
+    return [...new Set(ids)].map((id) => {
+      const def = BACKGROUNDS.find((b) => b.id === id);
+      if (!def) throw new Error(`Уровень ссылается на неизвестный фон "${id}"`);
+      return def;
+    });
+  }
+
+  /**
+   * Смена фона по комнате: у комнаты героя задан background_id — плавно включается он (новый проявляется поверх прежнего, потом прежний гаснет);
+   * вне комнат (коридоры) остаётся прежний.
+   */
+  private updateBackgrounds(dt: number): void {
+    // фон стоит на низе комнаты героя (плавно): у многокомнатной карты нижний край мира далеко от героя
+    const ts = this.level.tileSize;
+    let bottom = 0;
+    for (const idx of this.rooms.current) {
+      const r = this.rooms.defs[idx];
+      if (r) bottom = Math.max(bottom, (r.y + r.height) * ts);
+    }
+    if (bottom > 0) this.bgBottom = this.bgBottom ? this.bgBottom + (bottom - this.bgBottom) * (1 - Math.exp(-6 * dt)) : bottom;
+    if (this.backgrounds.length < 2) return;
+    for (const idx of this.rooms.current) {
+      const id = this.rooms.defs[idx]?.background_id ?? activeLevelDef.background_id;
+      if (id && id !== this.activeBg) {
+        this.activeBg = id;
+        const top = this.backgrounds.find((b) => b.id === id);
+        if (top) {
+          this.sceneLayer.setChildIndex(top.bg.container, this.backgrounds.length); // новый — выше прежних
+          top.alpha = Math.min(top.alpha, 0.001);
+        }
+      }
+      break;
+    }
+    const active = this.backgrounds.find((b) => b.id === this.activeBg);
+    if (!active) return;
+    active.alpha = Math.min(1, active.alpha + dt * 1.6);
+    for (const b of this.backgrounds) {
+      if (b !== active && active.alpha >= 1) b.alpha = 0; // новый проявился полностью — прежний убираем
+      b.bg.container.visible = b === active || b.alpha > 0;
+      b.bg.container.alpha = b === active ? active.alpha : 1;
+    }
   }
 
   /** Комната-«дом» моба по его клетке спавна (или явному spawn.room); null — уровень без комнат / моб вне комнат. */
@@ -1531,6 +1588,7 @@ class GameApp {
       this.rooms.updateHero(Math.floor(pb.x / this.level.tileSize), Math.floor((pb.y - 16) / this.level.tileSize));
       const heroRoomIds = [...this.rooms.current].map((idx) => this.rooms.defs[idx]?.id).filter(Boolean) as string[];
       WorldProgression.get().updateHeroRooms(heroRoomIds);
+      this.updateBackgrounds(dt);
     }
 
     // 3. Враги

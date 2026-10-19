@@ -180,7 +180,8 @@
           "mask": { "type": "array", "items": { "type": "string", "pattern": "^[#.]*$" }, "description": "height рядов по width символов: # — клетка комнаты, . — нет. Без mask комната — весь прямоугольник" },
           "color": { "type": "string" },
           "beveled": { "type": "boolean" },
-          "location": { "type": "integer", "minimum": 1, "description": "Номер локации (1, 2, 3...), к которой привязана комната" }
+          "location": { "type": "integer", "minimum": 1, "description": "Номер локации (1, 2, 3...), к которой привязана комната" },
+          "background_id": { "type": "string", "description": "Id фона из data/backgrounds: включается, когда герой входит в комнату (плавная смена); без него — фон уровня" }
         }
       }
     },

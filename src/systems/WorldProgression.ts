@@ -52,7 +52,8 @@ export class WorldProgression {
     ['door_18', ['room_9', 'room_13']],
     ['door_15', ['room_13', 'room_12']],
     ['door_19', ['room_12']],
-    ['door_20', ['room_11']]
+    ['door_20', ['room_11']],
+    ['door_21', ['room_11', 'room_crab']]
   ]);
 
   public static get(): WorldProgression {
@@ -115,6 +116,13 @@ export class WorldProgression {
   private onRoomCleared(roomId: string, name: string): void {
     EventBus.get().emit('room:cleared', { roomId, name });
     console.log(`[WorldProgression] Комната "${name}" (${roomId}) зачищена!`);
+
+    // Финальный босс-краб повержен — игра пройдена
+    if (roomId === 'room_crab') {
+      this.quest.setFlag('game_won');
+      EventBus.get().emit('game:won', {});
+      console.log('[WorldProgression] Краб-Ядро повержен — игра пройдена!');
+    }
 
     // Если это босс орел — ставим флаг финального босса
     if (roomId === 'room_11' || name.toLowerCase().includes('орел')) {
@@ -210,6 +218,10 @@ export class WorldProgression {
         const wiresDone = this.quest.flag('puzzle_wire_solved') || this.quest.flag('wires_solved');
         return fightDone && wiresDone;
       }
+
+      // Дверь 21 (к арене финального краба): после победы над боссом-орлом
+      case 'door_21':
+        return this.quest.flag('final_boss_room_unlocked');
 
       // Двери 19 и 20: после победы в комнате Драка (голубая, room_12)
       case 'door_19':
