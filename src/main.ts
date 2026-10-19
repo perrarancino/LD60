@@ -481,6 +481,9 @@ class GameApp {
       this.contactDmg.set(enemy, def.stats.contact_damage);
     }
 
+    // Уровень может выдать героя уже в броне (поле start_armor)
+    if (levelDef.start_armor) Armor.get().grantTier(levelDef.start_armor);
+
     // Терминалы брони: стоят за героем
     for (const t of levelDef.terminals ?? []) {
       const term = new Terminal(t, this.level.tileSize, this.sprites);

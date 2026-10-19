@@ -111,6 +111,20 @@ export class Armor {
     return true;
   }
 
+  /** Выдать всем частям ступень не ниже tier (и надеть): герой приходит на уровень уже прокачанным. Что куплено выше — не трогает. */
+  public grantTier(tier: number): void {
+    const t = Math.min(MAX_TIER, Math.max(0, tier));
+    for (const slot of SLOTS) {
+      if (this.owned[slot] < t) {
+        this.owned[slot] = t;
+        this.equipped[slot] = t;
+      }
+    }
+    this.hp = this.maxHp;
+    this.energy = this.maxEnergy;
+    this.save();
+  }
+
   public addScrap(n: number): void {
     this.scrap += n;
     this.save();

@@ -133,6 +133,7 @@ export interface LevelDef {
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
   terminals?: TerminalDef[]; // терминалы брони
+  start_armor?: number; // при входе на уровень все части брони не ниже этой ступени (1..4)
   grade?: GradeDef;
   light?: { rim_color?: string; fog_color?: string }; // цвета света от фона на уровне (#rrggbb); по умолчанию зелёные
   zones?: DecorZoneDef[];
