@@ -28,6 +28,7 @@ export class Hud {
   private readonly enFill = document.createElement('div');
   private readonly enBar = document.createElement('div');
   private readonly scrap = document.createElement('span');
+  private readonly scrapRow = document.createElement('div');
   private readonly hurt = document.createElement('div');
   private readonly items = document.createElement('div');
   private lastItems = '';
@@ -68,7 +69,7 @@ export class Hud {
     this.enBar.className = 'bar en';
     this.enBar.append(this.enFill, this.ticks());
     this.enFill.className = 'fill';
-    const scrapRow = document.createElement('div');
+    const scrapRow = this.scrapRow;
     scrapRow.className = 'scrap';
     scrapRow.append(document.createElement('i'), this.scrap);
     this.items.className = 'items';
@@ -115,6 +116,7 @@ export class Hud {
       this.lastScrap = a.scrap;
       this.scrap.textContent = String(a.scrap);
     }
+    this.scrapRow.style.display = a.rogue ? 'none' : ''; // рогалик: счётчика металлолома нет
     this.enBar.classList.toggle('deny', a.denyTimer > 0);
     this.updateItems();
   }

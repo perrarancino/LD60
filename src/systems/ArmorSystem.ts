@@ -13,8 +13,6 @@ export interface TierDef {
 }
 export const TIERS: TierDef[] = armorData.tiers;
 export const MAX_TIER = TIERS.length;
-/** Максимальный уровень прокачки части в рогалике. */
-export const MAX_LEVEL: number = armorData.rogue.max_level;
 /** Две модели героя: части первой — прежний герой, второй — герой второй локации (спрайт и риг). */
 export const MODELS: { sprite_id: string; rig_id: string }[] = armorData.models;
 
@@ -53,7 +51,6 @@ export class Armor {
       const d = JSON.parse(localStorage.getItem(this.key) ?? 'null');
       if (!d) return;
       this.scrap = Number(d.scrap) || 0;
-      if (this.rogue) for (const slot of SLOTS) this.lvl[slot] = Math.max(0, Math.min(MAX_LEVEL, Number(d.lvl?.[slot]) || 0));
       for (const slot of SLOTS) {
         const o = d.owned?.[slot];
         if (Array.isArray(o)) for (let i = 0; i < MAX_TIER; i++) this.owned[slot][i] = !!o[i];
@@ -67,15 +64,13 @@ export class Armor {
 
   private save(): void {
     try {
-      localStorage.setItem(this.key, JSON.stringify({ scrap: this.scrap, owned: this.owned, equipped: this.equipped, lvl: this.lvl, hp: this.hp }));
+      localStorage.setItem(this.key, JSON.stringify({ scrap: this.scrap, owned: this.owned, equipped: this.equipped, hp: this.hp }));
     } catch { /* не сохранилось — не страшно */ }
   }
 
   public scrap = 0;
-  /** Режим рогалика: части качаются уровнями за шестерёнки (таблицы armorData.rogue), а не покупаются ступенями на терминалах. */
+  /** Режим рогалика: герой всегда в броне — медной (модель 1) или синей (модель 2); часть меняется на синюю бесплатным улучшением, ничего не покупается. */
   public rogue = false;
-  /** Уровень прокачки частей (0..MAX_LEVEL), только в режиме рогалика. */
-  public readonly lvl: Record<Slot, number> = { head: 0, torso: 0, arms: 0, legs: 0 };
   /** Что куплено: по части — для каждой модели (индекс 0 — модель 1, 1 — модель 2). */
   public readonly owned: Record<Slot, boolean[]> = {
     head: new Array<boolean>(MAX_TIER).fill(false), torso: new Array<boolean>(MAX_TIER).fill(false),
@@ -92,15 +87,14 @@ export class Armor {
   /** Время с последней нехватки энергии, с — шкала на экране коротко мигает. */
   public denyTimer = 0;
 
-  // ---- Рогалик: прокачка уровнями
+  // ---- Рогалик: бесплатное улучшение части
 
-  /** Включает режим рогалика: отдельное хранилище (забег не трогает сохранение карты), состояние берётся из него (шестерёнки, уровни, здоровье). */
+  /** Включает режим рогалика: отдельное хранилище (забег не трогает сохранение карты), состояние берётся из него; все части не ниже медной. */
   public useRun(fresh = false): void {
     this.rogue = true;
     this.key = Armor.RUN_KEY;
     this.scrap = 0;
     for (const slot of SLOTS) {
-      this.lvl[slot] = 0;
       this.equipped[slot] = 0;
       this.owned[slot].fill(false);
     }
@@ -110,41 +104,30 @@ export class Armor {
       try { localStorage.removeItem(this.key); } catch { /* нечего чистить */ }
     } else {
       this.load();
-      for (const slot of SLOTS) this.applyLevel(slot);
     }
-    this.hp = Math.max(1, Math.min(this.maxHp, this.hp));
+    for (const slot of SLOTS) {
+      if (this.equipped[slot] < 1) {
+        this.owned[slot][0] = true;
+        this.equipped[slot] = 1;
+      }
+    }
+    this.hp = fresh ? this.maxHp : Math.max(1, Math.min(this.maxHp, this.hp));
+    this.energy = this.maxEnergy;
     this.save();
   }
 
-  /** Сколько шестерёнок стоит следующий уровень части; null — часть прокачана полностью. */
-  public upgradeCost(slot: Slot): number | null {
-    const l = this.lvl[slot];
-    return l >= MAX_LEVEL ? null : armorData.rogue.cost[l];
-  }
-
+  /** Часть ещё медная — её можно улучшить до синей. */
   public canUpgrade(slot: Slot): boolean {
-    const c = this.upgradeCost(slot);
-    return c !== null && this.scrap >= c;
+    return this.equipped[slot] === 1;
   }
 
-  /** Купить следующий уровень части. */
+  /** Улучшить часть: медная становится синей (старая часть отваливается), здоровье растёт вместе с максимумом. */
   public upgrade(slot: Slot): boolean {
-    const c = this.upgradeCost(slot);
-    if (c === null || this.scrap < c) return false;
-    this.scrap -= c;
-    this.lvl[slot]++;
-    this.applyLevel(slot);
-    this.hp = Math.min(this.maxHp, this.hp + (slot === 'torso' ? armorData.rogue.torso.max_hp[this.lvl.torso] - armorData.rogue.torso.max_hp[this.lvl.torso - 1] : 0));
+    if (!this.canUpgrade(slot)) return false;
+    this.owned[slot][1] = true;
+    this.equip(slot, 2);
     this.save();
-    EventBus.get().emit('armor:scrap', this.scrap);
     return true;
-  }
-
-  /** Внешний вид и ступень молнии по уровню части: надевается модель tier_of_level[уровень]; прежняя часть отваливается. */
-  private applyLevel(slot: Slot): void {
-    const tier = armorData.rogue.tier_of_level[this.lvl[slot]];
-    if (tier > 0) this.owned[slot][tier - 1] = true;
-    if (this.equipped[slot] !== tier) this.equip(slot, tier);
   }
 
   /** Подлечить на долю от максимума (между комнатами). */
@@ -153,21 +136,13 @@ export class Armor {
     this.save();
   }
 
-  /** Описание следующего уровня части — для окна прокачки. */
-  public describeUpgrade(slot: Slot): string {
-    const r = armorData.rogue;
-    const l = this.lvl[slot];
-    const n = l + 1;
-    if (n > MAX_LEVEL) return 'Максимум';
+  /** Что делает часть тела — для окна улучшения. */
+  public static purpose(slot: Slot): string {
     switch (slot) {
-      case 'head':
-        return `Атака быстрее на ${Math.round((1 - r.head.attack_speed[n]) * 100)}%, энергия +${r.head.energy_bonus[n]}, восстановление +${r.head.regen_bonus[n]}/с`;
-      case 'torso':
-        return `Здоровье ${r.torso.max_hp[n]}, ${Math.round(r.torso.block_chance[n] * 100)}% шанс не получить урон`;
-      case 'arms':
-        return `Удар ×${r.arms.punch_mult[n]}${n === 1 ? ', молния каждого 3-го удара, ПКМ — луч молнии' : ''}`;
-      case 'legs':
-        return `Скорость ×${r.legs.speed[n]}${r.legs.air_jumps[n] > r.legs.air_jumps[n - 1] ? `, прыжков в воздухе: ${r.legs.air_jumps[n]}` : ''}`;
+      case 'head': return 'Быстрее бьёт и больше энергии на броски и луч';
+      case 'torso': return 'Больше здоровья и шанс не получить урон';
+      case 'arms': return 'Сильнее удар, молния и луч молнии (правая кнопка)';
+      case 'legs': return 'Прыжки в воздухе и скорость бега';
     }
   }
 
@@ -238,12 +213,10 @@ export class Armor {
   // ---- Здоровье
 
   public get maxHp(): number {
-    if (this.rogue) return armorData.rogue.torso.max_hp[this.lvl.torso];
     return at(armorData.torso.max_hp, this.equipped.torso, armorData.base.max_hp);
   }
 
   public get blockChance(): number {
-    if (this.rogue) return armorData.rogue.torso.block_chance[this.lvl.torso];
     return at(armorData.torso.block_chance, this.equipped.torso, 0);
   }
 
@@ -275,12 +248,10 @@ export class Armor {
   // ---- Энергия (шкала снарядов и луча)
 
   public get maxEnergy(): number {
-    if (this.rogue) return armorData.base.max_energy + armorData.rogue.head.energy_bonus[this.lvl.head];
     return armorData.base.max_energy + at(armorData.head.energy_bonus, this.equipped.head, 0);
   }
 
   public get energyRegen(): number {
-    if (this.rogue) return armorData.base.energy_regen + armorData.rogue.head.regen_bonus[this.lvl.head];
     return armorData.base.energy_regen + at(armorData.head.regen_bonus, this.equipped.head, 0);
   }
 
@@ -312,22 +283,18 @@ export class Armor {
 
   /** Скорость атаки: множитель перезарядки ударов и бросков (меньше — быстрее). */
   public get attackCooldownMult(): number {
-    if (this.rogue) return armorData.rogue.head.attack_speed[this.lvl.head];
     return at(armorData.head.attack_speed, this.equipped.head, 1);
   }
 
   public get airJumps(): number {
-    if (this.rogue) return armorData.base.air_jumps + armorData.rogue.legs.air_jumps[this.lvl.legs];
     return at(armorData.legs.air_jumps, this.equipped.legs, armorData.base.air_jumps);
   }
 
   public get speedMult(): number {
-    if (this.rogue) return armorData.rogue.legs.speed[this.lvl.legs];
     return at(armorData.legs.speed, this.equipped.legs, 1);
   }
 
   public get punchMult(): number {
-    if (this.rogue) return armorData.rogue.arms.punch_mult[this.lvl.arms];
     return at(armorData.arms.punch_mult, this.equipped.arms, 1);
   }
 

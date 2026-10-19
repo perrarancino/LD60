@@ -168,7 +168,6 @@ export interface GradeDef {
 
 /** Рогалик: настройки уровня (правятся в редакторе). waves заполняет игра при подготовке уровня — из поля wave у врагов. */
 export interface LevelRogueDef {
-  clear_gears?: number; // награда за зачистку, шестерёнок
   hp_mult?: number; // множитель здоровья врагов уровня
   waves?: EnemySpawnDef[][]; // только в игре: волны после первой
 }

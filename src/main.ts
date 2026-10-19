@@ -228,7 +228,7 @@ class GameApp {
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private lastErrorAt = 0;
-  private readonly upgradeUI = new UpgradeUI(); // прокачка перед боссом
+  private readonly upgradeUI = new UpgradeUI(); // улучшение части перед боссом и после него
   private cubes: CubeTransition | null = null; // экран перехода на кубиках (рогалик)
   private waveMobs: Hittable[] = []; // враги текущей волны рогалика: все погибли — следующая волна
   private rogueWaves: EnemySpawnDef[][] = []; // ещё не вышедшие волны
@@ -865,12 +865,10 @@ class GameApp {
     SoundManager.get().playKill();
     this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.18;
-    const n = meta.clear_gears ?? runData.rewards.room_gears;
-    for (let i = 0; i < n; i++) this.loot.spawnItem(b.x + (Math.random() * 40 - 20), b.y - 50 - Math.random() * 20, true);
     this.fx.burst(b.x, b.y - 30, { count: 30, colors: [pal('gold', 5), pal('gold', 6), pal('gold', 7)], speed: [60, 200], spread: Math.PI * 2, life: [0.3, 0.7], size: [1, 3] });
   }
 
-  /** Уход из зачищённой комнаты: перед боссом — окно прокачки, затем экран кубиков и следующая комната (после финального босса — победа и новый забег). */
+  /** Уход из зачищённой комнаты: перед боссом и после него — окно улучшения части, затем экран кубиков и следующая комната (после финального босса — победа и новый забег). */
   private completeRoom(): void {
     if (this.rogueLeaving || !ROGUE) return;
     this.rogueLeaving = true;
@@ -878,17 +876,18 @@ class GameApp {
     const next = run.next;
     const here = run.node;
     const armor = Armor.get();
-    this.loot.collectAll(); // не подобранные шестерёнки не теряются
+    // улучшение части: перед каждым боссом и после него (перед финальным боссом — одно: после второго)
+    const upgrade = !!next && (next.kind === 'boss' || run.current.kind === 'boss') && UpgradeUI.available();
     const go = () => {
       if (!next) {
         this.cubes?.leave(here, 'victory', () => this.newRun());
         return;
       }
-      armor.heal(next.kind === 'boss' ? 1 : runData.rewards.heal_between_rooms);
+      armor.heal(upgrade ? 1 : runData.rewards.heal_between_rooms); // перед боссом и после него — полное здоровье
       run.advance();
       this.cubes?.leave(here, 'next', () => window.location.reload());
     };
-    if (next?.kind === 'boss') this.upgradeUI.open(go);
+    if (upgrade) this.upgradeUI.open(go);
     else go();
   }
 

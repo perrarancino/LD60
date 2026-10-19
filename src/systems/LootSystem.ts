@@ -39,6 +39,7 @@ export class LootSystem {
    * enemyId — вид (spider, mother, worm, boss, critter) или id врага из данных.
    */
   public spawnFromEnemy(x: number, y: number, enemyId: string): void {
+    if (Armor.get().rogue) return; // рогалик: добычи нет, улучшения выдаются за прохождение
     let kind: DropKind = 'default';
     if (enemyId.includes('mother')) kind = 'mother';
     else if (enemyId.includes('boss')) kind = 'boss';

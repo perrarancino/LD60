@@ -313,7 +313,6 @@ export class Panels {
       field('Название', textInput(def.display_name ?? '', (v) => ed.edit(() => { def.display_name = v; }))),
       field('Фон', select(def.background_id ?? '', [['', '—'], ...ed.project.backgrounds.map((b): [string, string] => [b.id, b.id])], (v) => ed.edit(() => { if (v) def.background_id = v; else delete def.background_id; }))),
       field('Броня на входе', select(String(def.start_armor ?? 0), [['0', 'нет'], ['1', 'модель 1'], ['2', 'модель 2']], (v) => ed.edit(() => { if (Number(v)) def.start_armor = Number(v); else delete def.start_armor; }))),
-      field('Награда за зачистку', numberInput(def.rogue?.clear_gears ?? 12, (v) => ed.edit(() => { def.rogue = { ...def.rogue, clear_gears: Math.max(0, Math.round(v)) }; }), { min: 0 }), 'Рогалик: шестерёнок за зачистку комнаты'),
       field('Здоровье врагов ×', numberInput(def.rogue?.hp_mult ?? 1, (v) => ed.edit(() => { def.rogue = { ...def.rogue, hp_mult: Math.max(0.1, v) }; }), { min: 0.1 }), 'Рогалик: множитель здоровья всех врагов уровня'),
       field('Клавиша 1–9', numberInput(def.debug_key ?? 0, (v) => ed.edit(() => { if (v >= 1 && v <= 9) def.debug_key = v; else delete def.debug_key; }), { min: 0, max: 9 }), 'Переход на этот уровень в игре. 0 — нет'),
       field('Свет: кромка', colorField(def.light?.rim_color, (v) => ed.edit(() => { def.light = { ...def.light, rim_color: v }; }))),

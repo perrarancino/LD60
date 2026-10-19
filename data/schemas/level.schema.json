@@ -96,7 +96,7 @@
         { "type": "object", "properties": { "mode": { "type": "string", "enum": ["current", "explored"] } } }
       ]
     },
-    "rogue": { "type": "object", "description": "Рогалик: настройки уровня", "properties": { "clear_gears": { "type": "integer", "minimum": 0, "description": "Награда за зачистку, шестерёнок" }, "hp_mult": { "type": "number", "minimum": 0.1, "description": "Множитель здоровья врагов уровня" } } },
+    "rogue": { "type": "object", "description": "Рогалик: настройки уровня", "properties": { "hp_mult": { "type": "number", "minimum": 0.1, "description": "Множитель здоровья врагов уровня" } } },
     "start_armor": { "type": "integer", "minimum": 1, "maximum": 2, "description": "Герой входит на уровень в частях этой модели: 1 — прежний герой, 2 — герой второй локации (части выдаются и надеваются, где надето что-то слабее)" },
     "terminals": {
       "type": "array",
