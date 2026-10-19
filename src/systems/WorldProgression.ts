@@ -1,6 +1,9 @@
 import { Quest } from './Quest.ts';
 import { EventBus } from '../core/EventBus.ts';
 
+/** Запирать ли двери комнаты, пока в ней идёт бой (раньше запирались — дверь «сама» захлопывалась за героем). */
+const ARENA_LOCKS_DOORS = false as boolean;
+
 export interface RoomCombatState {
   roomId: string;
   name: string;
@@ -139,6 +142,8 @@ export class WorldProgression {
 
   /** Проверяет, заблокирована ли дверь из-за активного боя в комнате */
   public isDoorArenaLocked(doorId: string): boolean {
+    // Двери больше не запираются сами, когда начинается бой в комнате: открываются подходом и закрываются, когда отходишь (Objects.ts).
+    if (ARENA_LOCKS_DOORS === false) return false;
     if (this.debugOpenAll) return false;
     const rooms = this.doorToRooms.get(doorId);
     if (!rooms) return false;
