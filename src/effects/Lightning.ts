@@ -248,7 +248,8 @@ export interface BeamParams {
 type DamageFn = (target: Hittable, x: number, y: number, dirX: number, part?: number, customDmg?: number) => void;
 type BurstFn = (x: number, y: number, count: number) => void;
 
-const TICK = 0.22; // с: как часто луч наносит урон
+const TICK = 0.22; // с: как часто луч наносит урон одной цели
+const BEAM_HIT_PAD = 5; // px: запас попадания вокруг линии луча (нарисованная молния зубчатая и чуть шире прямой)
 const JITTER_HZ = 26; // как часто молния «перерисовывается»
 const MAX_PATH_SEGMENTS = 5;
 const LIGHT_STEP = 44; // px: свет от луча — по точке на каждые столько пикселей пути
@@ -265,10 +266,11 @@ export class LightningBeam {
   private lines: BoltPt[][] = [];
   private ghost: BoltPt[][] = [];
   private jitterT = 0;
-  private tick = 0;
   private active = false;
   private flicker = 1;
   private time = 0;
+  /** Когда луч последний раз бил каждую цель (WeakMap — не держит погибших врагов). */
+  private readonly lastHit = new WeakMap<Hittable, number>();
   /** Источники света луча (мир) — отдаются освещению: Lighting.dynamicLights. */
   public lights: DynLight[] = [];
 
@@ -290,7 +292,6 @@ export class LightningBeam {
     this.time += dt;
     if (!origin) {
       this.active = false;
-      this.tick = 0;
       this.lines = [];
       this.ghost = [];
       return;
@@ -361,31 +362,29 @@ export class LightningBeam {
     for (const h of hits) if (Math.random() < 0.5) this.burst(h.x, h.y, 2);
     if (Math.random() < 0.35) this.burst(origin.x, origin.y, 1);
 
-    // урон: по тикам, один раз на цель за тик
-    this.tick -= dt;
-    if (this.tick <= 0) {
-      this.tick = TICK;
-      const dmg = Math.max(1, Math.round(p.dps * TICK));
-      const done = new Set<Hittable>();
-      for (const h of [...hittables]) {
-        if (done.has(h)) continue;
-        for (const c of h.hitCircles()) {
-          let found: { x: number; y: number; ix: number } | null = null;
-          for (let i = 0; i < path.length - 1; i++) {
-            const n = nearestOnSegment(c.x, c.y, path[i], path[i + 1]);
-            if (n.d <= c.r + 3) { found = { x: n.x, y: n.y, ix: i }; break; }
-          }
-          if (!found) continue;
-          done.add(h);
-          const sx = path[found.ix + 1].x - path[found.ix].x;
-          const sy = path[found.ix + 1].y - path[found.ix].y;
-          const sl = Math.max(1, Math.hypot(sx, sy));
-          h.onHit(sx / sl, sy / sl, c.part);
-          this.onDamage(h, found.x, found.y, Math.sign(sx) || 1, c.part, dmg);
-          this.burst(found.x, found.y, 3);
-          this.lines.push(...star(found.x, found.y, 4, 9)); // вспышка в точке попадания держится до перерисовки
-          break;
+    // Урон: у каждой цели свой тик. Касание всегда наносит урон сразу (раньше общий тик мог «не попасть»,
+    // если луч задевал врага между тиками), а повторно — не чаще TICK. Тик не сбрасывается при отпускании,
+    // поэтому частые включения/выключения луча не дают лишних ударов.
+    const dmg = Math.max(1, Math.round(p.dps * TICK));
+    for (const h of [...hittables]) { // копия: попадание может убить цель и изменить списки врагов
+      const last = this.lastHit.get(h);
+      if (last !== undefined && this.time - last < TICK) continue;
+      for (const c of h.hitCircles()) {
+        let found: { x: number; y: number; ix: number } | null = null;
+        for (let i = 0; i < path.length - 1; i++) {
+          const n = nearestOnSegment(c.x, c.y, path[i], path[i + 1]);
+          if (n.d <= c.r + BEAM_HIT_PAD) { found = { x: n.x, y: n.y, ix: i }; break; }
         }
+        if (!found) continue;
+        this.lastHit.set(h, this.time);
+        const sx = path[found.ix + 1].x - path[found.ix].x;
+        const sy = path[found.ix + 1].y - path[found.ix].y;
+        const sl = Math.max(1, Math.hypot(sx, sy));
+        h.onHit(sx / sl, sy / sl, c.part);
+        this.onDamage(h, found.x, found.y, Math.sign(sx) || 1, c.part, dmg);
+        this.burst(found.x, found.y, 3);
+        this.lines.push(...star(found.x, found.y, 4, 9)); // вспышка в точке попадания держится до перерисовки
+        break;
       }
     }
   }

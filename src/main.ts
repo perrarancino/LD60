@@ -161,6 +161,8 @@ const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухае
 const SHAKE_FREQ = 17; // Гц: частота колебаний тряски
 const BIRD_HP = 5; // здоровье птички босса-птицы: гибнет от любого удара
 const BIRD_DAMAGE = 10; // клевок птички
+const BEAM_MIN_ENERGY = 4; // ниже этого луч гаснет: на нуле он мигал бы каждый кадр
+const BEAM_RESUME_FRACTION = 0.3; // доля полной шкалы, до которой она должна восстановиться, чтобы луч включился снова (пока ПКМ держат)
 const BOSS_FEATHERS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('gold', 5)]; // перья босса-птицы
 const ORB_HP = 4; // шар краба: разбивается любым ударом
 const CRAB_FEATHERS = [pal('virus', 4), pal('virus', 5), pal('virus', 6), pal('gold', 5)]; // искры гибели краба
@@ -253,6 +255,7 @@ class GameApp {
   private debris = new Debris();
   private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
   private beam!: LightningBeam; // луч молнии из руки
+  private beamRecharging = false; // луч разрядился: ждёт восстановления шкалы, пока ПКМ держат
   private enemyBolts!: EnemyBolts; // синие отражающиеся молнии стража
   private readonly bossSpiders = new Set<Spider>(); // паучки из тела босса-червя
   private flashLayer = new Graphics(); // вспышка на весь экран
@@ -1753,8 +1756,16 @@ class GameApp {
       live.attackHeld = false;
     }
 
-    // луч молнии: ПКМ зажата, броня на руках, есть энергия
-    this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
+    // Луч молнии: ПКМ зажата, броня на руках, есть энергия. Разрядившийся луч «перегревается»: не включается
+    // каждый кадр от первых капель восстановления (иначе он быстро мигал и наносил лишний урон) — ждём заметного заряда.
+    const beamHeld = !frozen && armor.hasLightning && input.specialAttackHeld;
+    if (this.beamRecharging) {
+      if (armor.energy >= Math.max(BEAM_MIN_ENERGY + 1, armor.maxEnergy * BEAM_RESUME_FRACTION)) this.beamRecharging = false;
+    } else if (this.beam.on && armor.energy <= BEAM_MIN_ENERGY) {
+      this.beamRecharging = true;
+      armor.denyTimer = 0.35; // шкала мигает: энергия кончилась
+    }
+    this.player.beamWanted = beamHeld && !this.beamRecharging && armor.energy > BEAM_MIN_ENERGY;
     this.player.slowMult = this.bosses.reduce((m, boss) => Math.min(m, boss.heroSlow), 1); // неоновый дождь босса-червя: −15 % к скорости
     this.player.update(dt, live, this.level, aim);
 
@@ -1764,6 +1775,14 @@ class GameApp {
       else armor.spend(armor.gearCost); // не хватило энергии — шкала мигает
     }
     const bo = this.player.beamOrigin;
+    if (bo && aim) {
+      // Направление луча — из кисти точно в курсор. Раньше оно считалось от корпуса и уводило луч в сторону,
+      // из-за чего по близким и мелким врагам молния иногда проходила мимо.
+      const bdx = aim.x - bo.x;
+      const bdy = aim.y - bo.y;
+      const bl = Math.hypot(bdx, bdy);
+      if (bl > 1) { bo.dirX = bdx / bl; bo.dirY = bdy / bl; }
+    }
     if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
 

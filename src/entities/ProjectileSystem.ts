@@ -30,9 +30,26 @@ const GEAR_REHIT = 0.28; // с: пауза, прежде чем катящаяс
 const GEAR_MAX_BOUNCES = 4;
 const GEAR_LIFE = 5; // с
 const GEAR_DAMAGE = 8;
-const GEAR_RADIUS = 5; // px: радиус попадания
+const GEAR_RADIUS = 5; // px: радиус для физики (стены, пол, качение)
+const GEAR_HIT_RADIUS = 6; // px: радиус попадания (примерно как у рисунка 13×13)
 const BULLET_SPARKS = [0xffffff, 0xf6ad55, 0xed8936];
 const GEAR_COOLDOWN = 0.4; // с: пауза между бросками (множится на скорость атаки от брони головы)
+
+/**
+ * Пересечение отрезка пути снаряда с кругом. Быстрый снаряд за кадр проходит несколько пикселей, поэтому проверять
+ * только конечную точку нельзя: шестерёнка «проскакивала» сквозь мелких летающих врагов. Возвращает точку касания.
+ */
+function segmentHitsCircle(
+  ax: number, ay: number, bx: number, by: number, cx: number, cy: number, r: number
+): { x: number; y: number } | null {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((cx - ax) * dx + (cy - ay) * dy) / l2)) : 0;
+  const x = ax + dx * t;
+  const y = ay + dy * t;
+  return Math.hypot(cx - x, cy - y) <= r ? { x, y } : null;
+}
 
 /** Пиксельная медная шестерёнка 13x13: восемь зубцов, отверстие, свет сверху-слева. Рисуется один раз. */
 function makeGearTexture(): Texture {
@@ -145,6 +162,8 @@ export class ProjectileSystem {
         this.bullets.splice(i, 1);
         continue;
       }
+      const prevX = b.x;
+      const prevY = b.y;
 
       // физика: гравитация, шаг по осям, отскок от тайлов, качение по полу
       const onFloor = level.isSolid(Math.floor(b.x / ts), Math.floor((b.y + GEAR_RADIUS + 1) / ts));
@@ -193,24 +212,27 @@ export class ProjectileSystem {
       b.sprite.rotation += (onFloor ? b.vx / (GEAR_RADIUS + 1) : b.rotationSpeed) * dt;
       b.sprite.position.set(Math.round(b.x), Math.round(b.y));
 
-      // Попадание во врагов: летящая и катящаяся шестерёнка проходит сквозь и бьёт каждого снова через GEAR_REHIT
+      // Попадание во врагов: проверяем весь путь за кадр (prev -> текущая точка), чтобы быстрая шестерёнка
+      // не пролетала сквозь врага. Катящаяся шестерёнка проходит сквозь и бьёт каждого снова через GEAR_REHIT.
       const now = GEAR_LIFE - b.life;
-      for (const h of hittables) {
+      for (const h of [...hittables]) { // копия: попадание может убить цель и изменить списки врагов
         const last = b.hitAt.get(h);
         if (last !== undefined && now - last < GEAR_REHIT) continue;
+        let contact: { x: number; y: number } | null = null;
+        let part: number | undefined;
         for (const c of h.hitCircles()) {
-          if (Math.hypot(c.x - b.x, c.y - b.y) <= c.r + GEAR_RADIUS) {
-            const dirX = Math.sign(b.vx) || 1;
-            const dirY = Math.sign(b.vy) || 0;
-            b.hitAt.set(h, now);
-            h.onHit(dirX, dirY, c.part);
-            this.onDamage(h, b.x, b.y, dirX, c.part, b.damage);
-            this.fx.burst(b.x, b.y, {
-              count: 7, colors: BULLET_SPARKS, speed: [60, 150], angle: Math.atan2(b.vy, b.vx), spread: 0.6, life: [0.15, 0.3], size: [1, 2]
-            });
-            break;
-          }
+          contact = segmentHitsCircle(prevX, prevY, b.x, b.y, c.x, c.y, c.r + GEAR_HIT_RADIUS);
+          if (contact) { part = c.part; break; }
         }
+        if (!contact) continue;
+        const dirX = Math.sign(b.vx) || 1;
+        const dirY = Math.sign(b.vy) || 0;
+        b.hitAt.set(h, now);
+        h.onHit(dirX, dirY, part);
+        this.onDamage(h, contact.x, contact.y, dirX, part, b.damage);
+        this.fx.burst(contact.x, contact.y, {
+          count: 7, colors: BULLET_SPARKS, speed: [60, 150], angle: Math.atan2(b.vy, b.vx), spread: 0.6, life: [0.15, 0.3], size: [1, 2]
+        });
       }
     }
   }
