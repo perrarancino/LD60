@@ -65,7 +65,7 @@
     ],
     "rig_id": "spider_rig",
     "stats": {
-      "max_health": 18,
+      "max_health": 1,
       "contact_damage": 3,
       "movement_speed": 48.0
     },

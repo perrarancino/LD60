@@ -15,16 +15,20 @@ interface GearBullet {
   damage: number;
   rotationSpeed: number;
   bounces: number; // сколько раз уже отскочила от стен и пола
-  hits: Set<Hittable>; // кого уже задела: каждого один раз за полёт
+  hitAt: Map<Hittable, number>; // когда задела врага в последний раз (с жизни шестерёнки): катясь, бьёт каждого снова через GEAR_REHIT
+  restT: number; // сколько уже почти стоит
 }
 
 const GEAR_COUNT = 3; // шестерёнок за бросок
 const GEAR_SPREAD = 0.2; // рад: веер между шестерёнками
 const GEAR_SPEED = 300;
 const GEAR_GRAVITY = 520; // px/с²
-const GEAR_BOUNCE = 0.62; // доля скорости после отскока
+const GEAR_BOUNCE = 0.5; // доля скорости после отскока от стены
+const GEAR_FLOOR_BOUNCE = 0.38; // доля вертикальной скорости после удара об пол: быстро переходит в качение
+const GEAR_ROLL_FRICTION = 0.5; // 1/с: торможение качения по полу (катится далеко)
+const GEAR_REHIT = 0.28; // с: пауза, прежде чем катящаяся шестерёнка снова ударит того же врага
 const GEAR_MAX_BOUNCES = 4;
-const GEAR_LIFE = 2.6; // с
+const GEAR_LIFE = 5; // с
 const GEAR_DAMAGE = 8;
 const GEAR_RADIUS = 5; // px: радиус попадания
 const BULLET_SPARKS = [0xffffff, 0xf6ad55, 0xed8936];
@@ -121,7 +125,7 @@ export class ProjectileSystem {
       this.container.addChild(sprite);
       this.bullets.push({
         sprite, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: GEAR_LIFE, damage: GEAR_DAMAGE,
-        rotationSpeed: (Math.random() < 0.5 ? 1 : -1) * (12 + Math.random() * 8), bounces: 0, hits: new Set()
+        rotationSpeed: (Math.random() < 0.5 ? 1 : -1) * (12 + Math.random() * 8), bounces: 0, hitAt: new Map(), restT: 0
       });
     }
     this.fx.burst(x, y, {
@@ -142,54 +146,71 @@ export class ProjectileSystem {
         continue;
       }
 
-      // физика: гравитация, шаг по осям, отскок от тайлов
-      b.vy += GEAR_GRAVITY * dt;
+      // физика: гравитация, шаг по осям, отскок от тайлов, качение по полу
+      const onFloor = level.isSolid(Math.floor(b.x / ts), Math.floor((b.y + GEAR_RADIUS + 1) / ts));
+      if (!onFloor || b.vy < 0) b.vy += GEAR_GRAVITY * dt;
       const nx = b.x + b.vx * dt;
-      if (level.isSolid(Math.floor(nx / ts), Math.floor(b.y / ts))) {
+      if (level.isSolid(Math.floor((nx + Math.sign(b.vx) * GEAR_RADIUS) / ts), Math.floor(b.y / ts))) {
         b.vx = -b.vx * GEAR_BOUNCE;
         this.bounceFx(b);
       } else {
         b.x = nx;
       }
       const ny = b.y + b.vy * dt;
-      if (level.isSolid(Math.floor(b.x / ts), Math.floor(ny / ts))) {
-        b.vy = -b.vy * GEAR_BOUNCE;
-        b.vx *= 0.9;
-        if (Math.abs(b.vy) < 40) b.vy = 0;
-        this.bounceFx(b);
+      if (level.isSolid(Math.floor(b.x / ts), Math.floor((ny + (b.vy >= 0 ? 1 : -1) * GEAR_RADIUS) / ts))) {
+        if (b.vy >= 0) {
+          // пол: от сильного удара подскакивает, от слабого катится
+          if (b.vy > 90) {
+            b.vy = -b.vy * GEAR_FLOOR_BOUNCE;
+            this.bounceFx(b);
+          } else {
+            b.vy = 0;
+            b.y = Math.floor((ny + GEAR_RADIUS) / ts) * ts - GEAR_RADIUS;
+          }
+        } else {
+          b.vy = -b.vy * GEAR_BOUNCE; // потолок
+          this.bounceFx(b);
+        }
       } else {
         b.y = ny;
       }
-      if (b.bounces > GEAR_MAX_BOUNCES) {
+      if (onFloor && b.vy >= 0) {
+        b.vx *= Math.exp(-GEAR_ROLL_FRICTION * dt);
+        if (Math.abs(b.vx) < 14) b.restT += dt;
+        else b.restT = 0;
+        if (b.restT > 0.5) {
+          b.sprite.destroy();
+          this.bullets.splice(i, 1);
+          continue;
+        }
+      }
+      if (b.bounces > GEAR_MAX_BOUNCES + 6) {
         b.sprite.destroy();
         this.bullets.splice(i, 1);
         continue;
       }
-      b.sprite.rotation += b.rotationSpeed * dt * (Math.abs(b.vx) + Math.abs(b.vy) > 60 ? 1 : 0.2);
+      // качение — вращение по скорости (без проскальзывания), в воздухе — по инерции
+      b.sprite.rotation += (onFloor ? b.vx / (GEAR_RADIUS + 1) : b.rotationSpeed) * dt;
       b.sprite.position.set(Math.round(b.x), Math.round(b.y));
 
-      // Попадание во врагов: каждого один раз, шестерёнка отскакивает и летит дальше
+      // Попадание во врагов: летящая и катящаяся шестерёнка проходит сквозь и бьёт каждого снова через GEAR_REHIT
+      const now = GEAR_LIFE - b.life;
       for (const h of hittables) {
-        if (b.hits.has(h)) continue;
-        let done = false;
+        const last = b.hitAt.get(h);
+        if (last !== undefined && now - last < GEAR_REHIT) continue;
         for (const c of h.hitCircles()) {
           if (Math.hypot(c.x - b.x, c.y - b.y) <= c.r + GEAR_RADIUS) {
             const dirX = Math.sign(b.vx) || 1;
             const dirY = Math.sign(b.vy) || 0;
-            b.hits.add(h);
+            b.hitAt.set(h, now);
             h.onHit(dirX, dirY, c.part);
             this.onDamage(h, b.x, b.y, dirX, c.part, b.damage);
             this.fx.burst(b.x, b.y, {
-              count: 8, colors: BULLET_SPARKS, speed: [60, 150], angle: Math.atan2(b.vy, b.vx), spread: 0.6, life: [0.15, 0.3], size: [1, 2]
+              count: 7, colors: BULLET_SPARKS, speed: [60, 150], angle: Math.atan2(b.vy, b.vx), spread: 0.6, life: [0.15, 0.3], size: [1, 2]
             });
-            b.vx = -b.vx * 0.5;
-            b.vy = -Math.abs(b.vy) * 0.6 - 60;
-            b.bounces++;
-            done = true;
             break;
           }
         }
-        if (done) break;
       }
     }
   }

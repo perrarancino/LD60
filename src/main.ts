@@ -58,6 +58,7 @@ import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
 import { BLUE, LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import { EnemyBolts } from './effects/EnemyBolts.ts';
+import { BloodFx } from './effects/BloodFx.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
 import { SoundManager } from './audio/SoundManager.ts';
@@ -233,6 +234,7 @@ class GameApp {
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private lastErrorAt = 0;
+  private blood!: BloodFx; // кровь: всплески при гибели и пятна на тайлах
   private readonly upgradeUI = new UpgradeUI(); // улучшение части перед боссом и после него
   private cubes: CubeTransition | null = null; // экран перехода на кубиках (рогалик)
   private waveMobs: Hittable[] = []; // враги текущей волны рогалика: все погибли — следующая волна
@@ -552,6 +554,8 @@ class GameApp {
     this.level = new Level(levelDef, tileset, this.sprites);
     this.worldLayer.addChild(this.level.backLayer); // декор за тайлами (куллер) и отростки паутины
     this.worldLayer.addChild(this.level.container);
+    this.blood = new BloodFx(this.level);
+    this.worldLayer.addChild(this.blood.stains); // пятна крови — на тайлах, под существами и передним декором
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
@@ -661,6 +665,7 @@ class GameApp {
     this.enemyBolts = new EnemyBolts(this.fx);
     this.worldLayer.addChild(this.enemyBolts.container);
 
+    this.worldLayer.addChild(this.blood.container); // всплески крови и капли
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
     this.spriteFx = new SpriteEffects(this.sprites);
     this.worldLayer.addChild(this.spriteFx.container);
@@ -1057,6 +1062,7 @@ class GameApp {
     };
     const view = (target as unknown as { container: Container }).container;
     const isBoss = target instanceof WormBoss || target instanceof BirdBoss || target instanceof CrabBoss;
+    this.bloodFor(target, view.x, view.y, isBoss ? 1.3 : 1);
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
     SoundManager.get().playKill();
     this.contactDmg.delete(target);
@@ -1079,6 +1085,21 @@ class GameApp {
       for (const bird of this.birds) bird.burst(6);
     }
     view.destroy({ children: true });
+  }
+
+  /** Кровь на гибель: каждая часть тела (круг попадания) взрывается всплеском; капли оставляют пятна на тайлах. */
+  private bloodFor(target: Hittable, x: number, y: number, scale = 1): void {
+    let circles: { x: number; y: number; r: number }[] = [];
+    try {
+      circles = target.hitCircles();
+    } catch { /* части уже убраны */ }
+    if (circles.length === 0) circles = [{ x, y: y - 8, r: 9 }];
+    const dir = Math.sign(x - this.player.body.x) * 0.7;
+    const step = Math.max(1, Math.ceil(circles.length / 8)); // у длинных существ — не больше восьми всплесков
+    for (let i = 0; i < circles.length; i += step) {
+      const c = circles[i];
+      this.blood.burst(c.x, c.y, Math.max(0.45, Math.min(1.7, (c.r / 11) * scale)), dir, -0.3);
+    }
   }
 
   /** Смерть врага: он выходит из игры и исчезает (эффекты смерти — позже). */
@@ -1108,6 +1129,8 @@ class GameApp {
     else if (target instanceof Worm) enemyType = 'worm';
     else if (target instanceof WormBoss) enemyType = 'boss';
     else if (target instanceof Critter) enemyType = 'critter';
+    this.bloodFor(target, mob.view.x, mob.view.y);
+    if (target instanceof SpiderMother) target.releaseAll();
     this.loot.spawnFromEnemy(mob.view.x, mob.view.y, enemyType);
     SoundManager.get().playKill();
 
@@ -1760,6 +1783,12 @@ class GameApp {
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
+    for (let i = this.spiders.length - 1; i >= 0; i--) {
+      if (this.spiders[i].container.destroyed) { // страховка: уничтоженный паук не должен оставаться в списке (иначе ошибка каждый кадр и игра зависает)
+        this.spiders.splice(i, 1);
+        continue;
+      }
+    }
     for (const spider of this.spiders) spider.update(dt);
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
@@ -1791,6 +1820,7 @@ class GameApp {
       this.bossBar.update(dt, crab ? crab.health : bird ? bird.health : worm ? worm.health : null, this.viewW, crab ? 'virus' : bird ? 'cobalt' : 'void');
     }
     this.fx.update(dt);
+    this.blood.update(dt);
     this.spriteFx.update(dt);
     this.numbers.update(dt);
     // Выплюнутые паучки живут ограниченное время

@@ -364,6 +364,12 @@ export class SpiderMother implements Hittable {
     }
   }
 
+  /** Гибель матки: паучки, ещё сидящие в её слое, выходят на передний слой — иначе они уничтожились бы вместе с контейнером матки, оставшись в списках игры. */
+  public releaseAll(): void {
+    for (const b of this.launching) this.releaseBaby(b);
+    this.launching.length = 0;
+  }
+
   /** Вылетевшие паучки сперва ниже матки; когда отлетели — на передний слой (поверх тайлов). */
   private updateBabies(): void {
     if (this.launching.length === 0) return;
