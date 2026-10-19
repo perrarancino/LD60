@@ -1,150 +1,36 @@
 [
   {
-    "id": "boss_chipset_sentinel",
-    "display_name": "Архитектор Моста (Чипсет-Страж)",
+    "id": "worm_boss",
+    "display_name": "Босс: Пожиратель плат (червь-летун)",
     "location_id": "loc_motherboard",
     "is_final_boss": false,
-    "lore": "Могущественный контроллер системной логики материнской платы с радиатором на голове и 4 манипуляторами-ножками. Охраняет первый настроечный резистор на текстолите.",
+    "lore": "Огромный фиолетовый червь с рогатой головой и дрожащими щупальцами. Летает сквозь плату и камень, как рыба в воде, делает петли и проносится мимо добычи. Тело — десяток звеньев; пока ни на кого не нападает.",
     "stats": {
-      "max_health": 350,
-      "contact_damage": 20
+      "max_health": 250,
+      "contact_damage": 0
     },
     "reward": {
       "item_type": "resistor",
-      "item_id": "resistor_motherboard",
-      "display_name": "Резистор тактового генератора платы",
+      "item_id": "resistor_worm",
+      "display_name": "Калибровочный резистор Пожирателя",
       "description": "Первый калибровочный резистор, стабилизирующий тактовую частоту шины хаба."
     },
     "attacks": [
       {
-        "id": "ground_slam",
-        "name": "Удар по земле",
-        "damage": 18,
+        "id": "ram_pass",
+        "name": "Таранный пролёт",
+        "damage": 0,
         "cooldown_seconds": 3.0,
-        "projectile_type": "ground_shockwave",
-        "description": "Босс сокрушительно бьет манипуляторами по текстолиту, пуская сейсмическую ударную волну дрожи по всему полу арены."
+        "projectile_type": "none",
+        "description": "Летает за героем и делает петли, проносясь мимо и подставляя сегменты тела под удары."
       },
       {
-        "id": "crush_jump",
-        "name": "Прыжок-раздавливание",
-        "damage": 25,
+        "id": "body_sweep",
+        "name": "Взмах звеньями",
+        "damage": 0,
         "cooldown_seconds": 4.5,
-        "projectile_type": "slam_aoe",
-        "description": "Взмывает высоко в воздух с помощью гидравлических манипуляторов и обрушивается тяжелым радиатором прямо на позицию игрока."
-      }
-    ]
-  },
-  {
-    "id": "boss_transformer_colossus",
-    "display_name": "Вольт-Колосс (Импульсный Трансформатор)",
-    "location_id": "loc_power_supply",
-    "is_final_boss": false,
-    "lore": "Громоздкий силовой агрегат блока питания с медными обмотками и ферритовым сердечником, генерирующий мощнейшие электромагнитные разряды.",
-    "stats": {
-      "max_health": 420,
-      "contact_damage": 22
-    },
-    "reward": {
-      "item_type": "resistor",
-      "item_id": "resistor_power_supply",
-      "display_name": "Резистор высоковольтного делителя",
-      "description": "Второй калибровочный резистор, выравнивающий напряжение шин питания хаба."
-    },
-    "attacks": [
-      {
-        "id": "homing_projectiles",
-        "name": "Самонаводящиеся снаряды",
-        "damage": 16,
-        "cooldown_seconds": 3.5,
-        "projectile_type": "homing_spark",
-        "description": "Выпускает рой искровых плазменных зарядов, которые активно корректируют траекторию и летят прямо за игроком."
-      },
-      {
-        "id": "chest_cannon",
-        "name": "Мощный выстрел из груди",
-        "damage": 30,
-        "cooldown_seconds": 5.0,
-        "projectile_type": "heavy_energy_beam",
-        "description": "Заряжает центральный ферритовый трансформатор в груди и выпускает колоссальный концентрированный луч энергии через всю арену."
-      }
-    ]
-  },
-  {
-    "id": "boss_hdd_actuator",
-    "display_name": "Магнитный Цербер (Привод Головок)",
-    "location_id": "loc_hard_drive",
-    "is_final_boss": false,
-    "lore": "Стремительный многосуставный актуатор блока магнитных головок, скользящий над зеркальными вращающимися пластинами винчестера.",
-    "stats": {
-      "max_health": 380,
-      "contact_damage": 24
-    },
-    "reward": {
-      "item_type": "resistor",
-      "item_id": "resistor_hard_drive",
-      "display_name": "Резистор согласующей нагрузки SATA",
-      "description": "Третий калибровочный резистор, устраняющий помехи в сигнальных линиях Центрального распределительного щита."
-    },
-    "attacks": [
-      {
-        "id": "rapid_slash_combo",
-        "name": "Серия ударов",
-        "damage": 15,
-        "cooldown_seconds": 3.0,
-        "projectile_type": "fast_claw_strike",
-        "description": "Проводит серию из трёх молниеносных рассекающих ударов на огромной скорости, покрывая ближнюю и среднюю дистанцию."
-      },
-      {
-        "id": "spindle_vortex",
-        "name": "Вихрь шпинделя",
-        "damage": 20,
-        "cooldown_seconds": 5.5,
-        "projectile_type": "centrifugal_wind",
-        "description": "Раскручивает шпиндельный мотор арены до предельных оборотов, создавая турбулентный вихрь, сдувающий робота к смертоносным краям арены."
-      }
-    ]
-  },
-  {
-    "id": "boss_system_core",
-    "display_name": "Ядро Системы (Центральный Процессор)",
-    "location_id": "loc_cpu",
-    "is_final_boss": true,
-    "lore": "Главный вычислительный кристалл сокета ЦП, заражённый деструктивным кодом. Контролирует всю архитектуру компьютера и способен активировать резервные копии врагов со всех локаций.",
-    "special_ability": "Призыв противников со всех локаций (Транзистоиды, Свайры, Дроссель-черви, Дроны)",
-    "stats": {
-      "max_health": 600,
-      "contact_damage": 25
-    },
-    "reward": {
-      "item_type": "game_win_module",
-      "item_id": "master_core_firmware",
-      "display_name": "Первичный чистый код прошивки ядра",
-      "description": "Эталонный исходный код ядра операционной системы. Очищает компьютер от заражения и дарует устаревшему роботу почётный статус архитектора системы."
-    },
-    "attacks": [
-      {
-        "id": "floor_sweep_laser",
-        "name": "Лазер на пол арены",
-        "damage": 25,
-        "cooldown_seconds": 4.0,
-        "projectile_type": "floor_burning_laser",
-        "description": "Опускает излучатель и прожигает лучом лазера всю плоскость пола арены, заставляя игрока спасаться прыжком или держаться на стенах."
-      },
-      {
-        "id": "energy_storm",
-        "name": "Энергетический шторм",
-        "damage": 18,
-        "cooldown_seconds": 4.5,
-        "projectile_type": "radial_energy_spheres",
-        "description": "Выпускает кольцевые сгустки нестабильной энергии во все стороны вокруг себя, устраивая пулевой ад (bullet hell)."
-      },
-      {
-        "id": "orbital_bombardment",
-        "name": "Орбитальная бомбардировка",
-        "damage": 28,
-        "cooldown_seconds": 6.0,
-        "projectile_type": "vertical_plasma_strike",
-        "description": "Инициирует серию вертикальных ударов сверху вниз; на полу заранее проецируются безопасные зоны, в которые необходимо успеть встать."
+        "projectile_type": "none",
+        "description": "Изгибает цепочку сегментов, окружая героя в пространстве арены."
       }
     ]
   }

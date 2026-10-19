@@ -32,6 +32,7 @@ import { Terminal } from './entities/Terminal.ts';
 import { Debris } from './effects/Debris.ts';
 import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import type { InputState } from './core/InputManager.ts';
+import cursorUrl from '../assets/sprites/ui/cursor.png';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -180,6 +181,10 @@ class GameApp {
     });
 
     this.gameContainer.appendChild(this.app.canvas);
+    const cursorStyle = `url("${cursorUrl}") 0 0, auto`;
+    document.body.style.cursor = cursorStyle;
+    this.gameContainer.style.cursor = cursorStyle;
+    this.app.canvas.style.cursor = cursorStyle;
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
     window.addEventListener('pointermove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
@@ -346,6 +351,7 @@ class GameApp {
       SMOKE_FX.sprite,
       'bullet1',
       'mat_scrap',
+      'ui_cursor',
       ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       heroSpriteId,
