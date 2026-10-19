@@ -1,9 +1,11 @@
 """
-Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2.png, 10 кадров 32x32: 0-4 — заливка, 5-9 — верхний
-край) и параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (рампа electric).
+Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2.png, 5 кадров 32x32 — заливка, верхнего края нет) и
+параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (рампа electric).
 Плотность пикселя — как у арта первой локации: кадр тайла 32x32 и слой фона 512x128, без шума и дизеринга, детали от 2 пикселей.
-Тайлы — клёпаные металлические панели корпуса: вентрешётка, перфорация, наклейка с предупреждением, разъём с проводами, вентилятор, радиатор;
-фон — вентиляционная стена, огромные вентиляторы, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы, пучки проводов.
+Тайлы — простые стыкующиеся панели: горизонтальные пластины с канавками (канавки и заклёпки идут через стык тайлов без швов — рисунок
+бесконечно продолжается по горизонтали и по вертикали), в пластинах для разнообразия: вентиляционные прорези, перфорация, рёбра радиатора, микросхема.
+Фон — колонны и балка корпуса, огромные вентиляторы в корпусах, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы,
+пучки проводов, бирюзовое свечение и туман у горизонта.
 Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
 
 Запуск из корня проекта:  python tools/gen_loc2_art.py
@@ -98,142 +100,83 @@ class Canvas:
 # ----------------------------------------------------------------------------------------------------------------------------- Тайлы
 
 TS = 32
+# Рисунок периодичен по x и y с периодом 32 (канавки в строках 15-16 и 31/0, заклёпки через 8 пикселей): тайлы стыкуются в любом порядке.
 
 
-def plate(cv):
-    """Клёпаная панель корпуса: грань cobalt-1, фаска (светлая сверху-слева, тёмная снизу-справа)."""
+def base(cv):
     cv.rect(0, 0, TS, TS, C('cobalt', 1))
-    for i in range(TS):
-        cv.put(i, 0, C('cobalt', 3))
-        cv.put(0, i, C('cobalt', 3))
-        cv.put(i, TS - 1, C('cobalt', 0))
-        cv.put(TS - 1, i, C('cobalt', 0))
-    for i in range(1, TS - 1):
-        cv.put(i, 1, C('cobalt', 2))
-        cv.put(1, i, C('cobalt', 2))
-        cv.put(i, TS - 2, C('cobalt', 0))
-        cv.put(TS - 2, i, C('cobalt', 0))
+    for y0 in (1, 17):  # две пластины по 14 строк: светлая кромка сверху, тёмная снизу
+        cv.rect(0, y0, TS, 1, C('cobalt', 2))
+        cv.rect(0, y0 + 13, TS, 1, C('cobalt', 0))
+    for x in range(TS):
+        cv.put(x, 15, C('cobalt', 0))
+        cv.put(x, 16, C('electric', 3))  # бирюзовый световой канал в канавке
+        cv.put(x, 31, C('cobalt', 0))
+        cv.put(x, 0, C('cobalt', 0))
 
 
-def screw(cv, x, y):
-    cv.rect(x - 1, y - 1, 3, 3, C('cobalt', 3))
-    cv.put(x, y, C('cobalt', 0))
-    cv.put(x - 1, y - 1, C('cobalt', 5))
+def rivets(cv, y0):
+    for x in range(4, TS, 8):
+        cv.rect(x, y0, 2, 2, C('cobalt', 3))
+        cv.put(x, y0, C('cobalt', 5))
 
 
-def slot(cv, x, y, w):
-    cv.rect(x, y, w, 2, C('cobalt', 0))
-    cv.rect(x + 1, y + 2, w - 1, 1, C('cobalt', 3))
+def slots(cv, y0, n=2):
+    for k in range(n):
+        cv.rect(8, y0 + k * 5, 16, 2, C('cobalt', 0))
+        cv.rect(9, y0 + k * 5 + 2, 15, 1, C('cobalt', 3))
 
 
-def v_vent(cv, rng, ox, oy):
-    for k in range(4):
-        slot(cv, 9 + ox, 9 + oy + k * 4, 14)
-
-
-def v_perf(cv, rng, ox, oy):
-    for gy in range(3):
+def perforation(cv, y0):
+    for gy in range(2):
         for gx in range(4):
-            x, y = 8 + ox + gx * 5, 9 + oy + gy * 5
-            cv.rect(x, y, 3, 3, C('cobalt', 0))
-            cv.put(x + 2, y + 2, C('cobalt', 1))
-            cv.rect(x + 1, y + 3, 3, 1, C('cobalt', 2))
+            x, yy = 6 + gx * 6, y0 + gy * 5
+            cv.rect(x, yy, 3, 3, C('cobalt', 0))
+            cv.rect(x + 1, yy + 3, 3, 1, C('cobalt', 2))
 
 
-def v_label(cv, rng, ox, oy):
-    x, y = 7 + ox, 9 + oy
-    cv.rect(x, y, 18, 13, C('cobalt', 6))
-    cv.rect(x + 1, y + 1, 16, 2, C('cobalt', 0))  # полоса предупреждения
-    for k in range(0, 16, 4):
-        cv.rect(x + 1 + k, y + 1, 2, 2, C('electric', 5))
-    for k in range(3):  # строки текста
-        cv.rect(x + 2, y + 5 + k * 3, 14 - (k == 2) * 5, 1, C('cobalt', 3))
-    cv.rect(x + 12, y + 10, 4, 2, C('electric', 4))
-    cv.rect(x, y + 13, 18, 1, C('cobalt', 0))
-
-
-def v_connector(cv, rng, ox, oy):
-    x, y = 6 + ox, 10 + oy
-    cv.rect(x, y, 10, 10, C('cobalt', 0))  # разъём
-    cv.rect(x + 1, y + 1, 8, 1, C('cobalt', 3))
-    for r in range(2):
-        for c in range(2):
-            cv.rect(x + 2 + c * 4, y + 3 + r * 4, 2, 2, C('electric', 4))
-    cols = ((C('electric', 5), C('electric', 7)), (C('cobalt', 5), C('cobalt', 7)), (C('electric', 3), C('electric', 5)))  # три провода: тело и блик
-    for k, (col, hi) in enumerate(cols):
-        wy = y + 1 + k * 3
-        cv.rect(x + 10, wy, 12, 2, col)
-        cv.rect(x + 10, wy, 12, 1, hi)
-    cv.rect(x + 20, y, 2, 10, C('cobalt', 0))  # хомут
-
-
-def v_fan(cv, rng, ox, oy):
-    cx, cy = 16 + ox, 16 + oy
-    cv.disc(cx, cy, 9, C('cobalt', 3))
-    cv.disc(cx, cy, 7, C('cobalt', 0))
-    for b in range(5):  # лопасти, загнутые по ходу
-        a0 = b * 2 * math.pi / 5
-        for r in range(2, 7):
-            for da in (0.0, 0.18, 0.36, 0.54):
-                a = a0 + da + r * 0.16
-                cv.put(cx + math.cos(a) * r, cy + math.sin(a) * r, C('cobalt', 2) if da < 0.5 else C('cobalt', 4))
-    cv.disc(cx, cy, 2, C('cobalt', 4))
-    cv.put(cx, cy, C('electric', 6))
-
-
-def v_heatsink(cv, rng, ox, oy):
+def fins(cv, y0):
     for k in range(6):
-        x = 8 + ox + k * 3
-        cv.rect(x, 9 + oy, 2, 14, C('cobalt', 3))
-        cv.rect(x, 9 + oy, 1, 14, C('cobalt', 5))
-        cv.rect(x + 2, 9 + oy, 1, 14, C('cobalt', 0))
-    cv.rect(7 + ox, 22 + oy, 18, 2, C('electric', 3))  # бирюзовое свечение у основания рёбер
+        x = 7 + k * 3
+        cv.rect(x, y0, 2, 12, C('cobalt', 3))
+        cv.rect(x, y0, 1, 12, C('cobalt', 5))
+        cv.rect(x + 2, y0, 1, 12, C('cobalt', 0))
 
 
-VARIANTS = [v_vent, v_perf, v_label, v_connector, v_fan, v_heatsink]
+def chip(cv, y0):
+    cv.rect(9, y0 + 2, 14, 9, C('cobalt', 0))
+    cv.rect(9, y0 + 2, 14, 1, C('cobalt', 3))
+    cv.rect(11, y0 + 5, 2, 2, C('electric', 5))
+    cv.rect(16, y0 + 5, 6, 1, C('cobalt', 2))
+    cv.rect(16, y0 + 7, 4, 1, C('cobalt', 2))
 
 
-def fill_frame(variant, seed):
-    rng = random.Random(seed)
+def tile_frame(v):
     cv = Canvas(TS, TS)
-    plate(cv)
-    VARIANTS[variant](cv, rng, rng.randint(-1, 1), rng.randint(-1, 1))
-    for x, y in ((4, 4), (27, 4), (4, 27), (27, 27)):
-        screw(cv, x, y)
-    return cv
-
-
-def top_frame(variant, seed):
-    """Верхний край: фланец корпуса — светлая бирюзовая кромка, фаска, индикаторы и прорези; ниже панель с рисунком."""
-    rng = random.Random(seed)
-    cv = Canvas(TS, TS)
-    plate(cv)
-    VARIANTS[variant](cv, rng, rng.randint(-1, 1), 2 + rng.randint(0, 1))
-    for x, y in ((4, 28), (27, 28)):
-        screw(cv, x, y)
-    cv.rect(0, 0, TS, 6, C('cobalt', 4))
-    cv.rect(0, 0, TS, 1, C('electric', 6))
-    cv.rect(0, 1, TS, 1, C('cobalt', 6))
-    cv.rect(0, 2, TS, 1, C('cobalt', 5))
-    cv.rect(0, 5, TS, 1, C('cobalt', 0))
-    for _ in range(rng.randint(2, 3)):  # прорези фланца
-        cv.rect(rng.randint(2, 26), 3, 3, 2, C('cobalt', 0))
-    for _ in range(rng.randint(1, 2)):  # индикаторы
-        x = rng.randint(2, 28)
-        cv.rect(x, 3, 2, 2, C('electric', 5))
-        cv.put(x, 3, C('electric', 7))
-    cv.rect(0, 6, TS, 1, C('cobalt', 0))  # тень под фланцем
+    base(cv)
+    up, lo = 3, 19  # верхняя строка содержимого пластин
+    if v == 0:
+        rivets(cv, 7)
+        rivets(cv, 23)
+    elif v == 1:
+        slots(cv, up + 1, 2)
+        rivets(cv, 23)
+    elif v == 2:
+        rivets(cv, 7)
+        perforation(cv, lo + 2)
+    elif v == 3:
+        rivets(cv, 7)
+        fins(cv, lo + 1)
+    else:
+        chip(cv, up - 1)
+        rivets(cv, 23)
     return cv
 
 
 def make_tiles():
-    sheet = Image.new('RGBA', (TS * 10, TS), (0, 0, 0, 0))
-    fill_order = [0, 1, 2, 3, 4]
-    top_order = [5, 0, 4, 3, 1]
-    for i, v in enumerate(fill_order):
-        sheet.paste(fill_frame(v, 100 + i).image(), (i * TS, 0))
-    for i, v in enumerate(top_order):
-        sheet.paste(top_frame(v, 200 + i).image(), ((5 + i) * TS, 0))
+    sheet = Image.new('RGBA', (TS * 5, TS), (0, 0, 0, 0))
+    for v in range(5):
+        sheet.paste(tile_frame(v).image(), (v * TS, 0))
     return sheet
 
 
@@ -260,42 +203,96 @@ def make_sky():
     return cv
 
 
-def make_vent_wall():
-    """Далёкая вентиляционная стена: перфорация квадратными отверстиями (сверху тёмные, ниже — подсвечены бирюзой изнутри); шаг делит 512."""
+def make_columns():
+    """Далёкие колонны и балка корпуса (шаг 128 делит 512): простые широкие формы, мягкая подсветка бирюзой у основания."""
     cv = Canvas(BW, BH, wrap=True)
-    pitch = 8
-    for row, y in enumerate(range(6, 92, pitch)):
-        t = (y - 6) / 86
-        col = lerp_color(C('cobalt', 1), C('electric', 2), t * t)
-        edge = lerp_color(C('cobalt', 2), C('electric', 3), t * t)
-        for x in range(0, BW, pitch):
-            xx = x + (pitch // 2 if row % 2 else 0)
-            cv.rect(xx, y, 4, 4, col)
-            cv.rect(xx + 1, y + 4, 3, 1, edge)
+    cv.rect(0, 24, BW, 8, C('cobalt', 1))  # балка
+    cv.rect(0, 24, BW, 1, C('cobalt', 2))
+    cv.rect(0, 31, BW, 1, C('cobalt', 0))
+    for x0 in range(0, BW, 128):
+        x = x0 + 57
+        cv.rect(x, 0, 14, BH, C('cobalt', 1))
+        cv.rect(x, 0, 2, BH, C('cobalt', 2))
+        cv.rect(x + 12, 0, 2, BH, C('cobalt', 0))
+        for y in range(10, BH - 14, 18):
+            cv.rect(x + 5, y, 4, 2, C('cobalt', 2))
+        cv.rect(x + 5, 52, 4, 4, C('electric', 4))  # индикатор на колонне
+        cv.rect(x - 4, 24, 22, 8, C('cobalt', 1))  # узел крепления балки
+        cv.rect(x - 4, 24, 22, 1, C('cobalt', 2))
+        cv.rect(x - 4, 31, 22, 1, C('cobalt', 0))
     return cv
 
 
-def fan(cv, cx, cy, r, ring_col, blade_col, hub_col, led_col):
-    """Вентилятор: обод, семь сплошных загнутых лопастей (сектор шириной ~55% шага, закрученный с радиусом), втулка со светодиодом."""
-    cv.ring(cx, cy, r - 2, r, ring_col)
+def fan(cv, cx, cy, R, seed):
+    """Вентилятор в квадратном корпусе: рама с отверстиями под винты, обод, семь изогнутых лопастей, втулка со светодиодом.
+    Рисуется с 4-кратной передискретизацией и сжимается — края гладкие, без «лесенки» лопастей."""
+    S = 4
+    side = 2 * R + 10
+    n = side * S
+    ys, xs = np.mgrid[0:n, 0:n]
+    x = (xs + 0.5) / S - side / 2
+    y = (ys + 0.5) / S - side / 2
+    r = np.hypot(x, y)
+    th = np.arctan2(y, x)
+    half = side / 2
+    k = 6  # скругление рамы
+    qx = np.maximum(np.abs(x) - (half - k), 0)
+    qy = np.maximum(np.abs(y) - (half - k), 0)
+    frame = np.hypot(qx, qy) <= k
+    opening = r <= R
+    rim = (r <= R) & (r > R - 2.2)
     step = 2 * math.pi / 7
-    for yy in range(cy - r, cy + r + 1):
-        for xx in range(cx - r, cx + r + 1):
-            d = math.hypot(xx - cx, yy - cy)
-            if 4 <= d < r - 2:
-                th = (math.atan2(yy - cy, xx - cx) - d * 0.045) % step
-                if th < step * 0.55:
-                    cv.put(xx, yy, blade_col)
-    cv.disc(cx, cy, 4, hub_col)
-    cv.rect(cx - 1, cy - 1, 2, 2, led_col)
+    sweep = (th - r * 0.055) % step
+    blades = (r > R * 0.26) & (r <= R - 2.2) & (sweep < step * (0.5 + 0.12 * (r / R)))
+    lead = blades & (sweep < step * 0.16)
+    hub = r <= R * 0.26
+    hub_ring = hub & (r > R * 0.2)
+    led = (np.abs(x) <= 1) & (np.abs(y) <= 1)
+    screws = np.zeros_like(frame)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            screws |= np.hypot(x - sx * (half - 4.5), y - sy * (half - 4.5)) <= 1.6
+
+    def cov(m):
+        return m.reshape(side, S, side, S).mean(axis=(1, 3)) > 0.5
+
+    layers = [
+        (cov(frame), C('cobalt', 1)),
+        (cov(opening), C('cobalt', 0)),
+        (cov(blades), C('cobalt', 2)),
+        (cov(lead), C('cobalt', 3)),
+        (cov(rim), C('cobalt', 3)),
+        (cov(hub), C('cobalt', 1)),
+        (cov(hub_ring), C('cobalt', 3)),
+        (cov(led), C('electric', 5)),
+    ]
+    fm = layers[0][0]
+    ox, oy = int(cx - side // 2), int(cy - side // 2)
+    for m, col in layers:
+        for yy, xx in zip(*np.nonzero(m)):
+            cv.put(ox + xx, oy + yy, col)
+    for yy, xx in zip(*np.nonzero(fm)):  # светлая кромка рамы сверху-слева, тёмная снизу-справа
+        up = yy == 0 or not fm[yy - 1, xx]
+        lf = xx == 0 or not fm[yy, xx - 1]
+        dn = yy == side - 1 or not fm[yy + 1, xx]
+        rt = xx == side - 1 or not fm[yy, xx + 1]
+        if not opening_at(opening, S, yy, xx, side):
+            if up or lf:
+                cv.put(ox + xx, oy + yy, C('cobalt', 2))
+            elif dn or rt:
+                cv.put(ox + xx, oy + yy, C('cobalt', 0))
+    for yy, xx in zip(*np.nonzero(cov(screws))):
+        cv.put(ox + xx, oy + yy, C('cobalt', 0))
+
+
+def opening_at(opening, S, yy, xx, side):
+    return opening[yy * S + S // 2, xx * S + S // 2]
 
 
 def make_fans():
-    rng = random.Random(37)
     cv = Canvas(BW, BH, wrap=True)
-    for cx, r in ((70, 38), (240, 30), (420, 42)):
-        cy = rng.randint(34, 52)
-        fan(cv, cx, cy, r, C('cobalt', 2), C('cobalt', 1), C('cobalt', 2), C('electric', 5))
+    for cx, cy, R in ((70, 52, 34), (255, 46, 28), (430, 54, 38)):
+        fan(cv, cx, cy, R, cx)
     return cv
 
 
@@ -438,7 +435,7 @@ def make_skyline():
 
 def make_background():
     sky = make_sky()
-    wall = make_vent_wall()
+    wall = make_columns()
     fans = make_fans()
     haze_dark = gradient_layer(C('cobalt', 0), 36, BH - 1, 0, 150)
     haze_light = glow_layer(C('electric', 4), 108, 24, 100)
