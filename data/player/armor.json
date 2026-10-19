@@ -64,8 +64,8 @@
     ],
     "flash_every": 3,
     "flash_mult": [
-      1.2,
-      1.9
+      1.56,
+      2.47
     ],
     "flash_targets": [
       2,
@@ -73,8 +73,8 @@
     ],
     "flash_radius": 80,
     "beam_dps": [
-      12,
-      24
+      15.6,
+      31.2
     ],
     "beam_cost": [
       38,
