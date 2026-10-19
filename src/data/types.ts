@@ -190,6 +190,7 @@ export interface LevelDef {
   tile_xform?: TileXformDef[]; // повороты и отражения отдельных тайлов
   threads?: ThreadPlaceDef[]; // нитки, поставленные на конкретные пиксели
   objects?: LevelObjectDef[]; // двери, батарейки, подставки и прочие объекты из каталога
+  webs?: number; // густота паутины в углах (0 — без паутины, по умолчанию 1)
   fog?: FogDef | boolean; // туман войны по комнатам (нужен список rooms)
   start_armor?: number; // герой входит на уровень в частях этой модели (1 — прежний герой, 2 — герой второй локации)
   grade?: GradeDef;

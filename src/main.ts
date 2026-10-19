@@ -60,6 +60,7 @@ import { Debris } from './effects/Debris.ts';
 import { BLUE, LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import { EnemyBolts } from './effects/EnemyBolts.ts';
 import { BloodFx } from './effects/BloodFx.ts';
+import { buildCobwebs } from './world/Cobwebs.ts';
 import type { Ramp } from './core/Palette.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
@@ -556,6 +557,18 @@ class GameApp {
     this.worldLayer.addChild(this.level.container);
     this.blood = new BloodFx(this.level);
     this.worldLayer.addChild(this.blood.stains); // пятна крови — на тайлах, под существами и передним декором
+    if ((levelDef.webs ?? 1) > 0) {
+      // паутина в углах: шейдер запекается один раз в текстуру уровня; цвет — холодный белый, у уровней с цветным светом чуть подкрашен им
+      let tint: number | undefined;
+      const rim = levelDef.light?.rim_color;
+      if (rim) {
+        const n = parseInt(rim.slice(1), 16);
+        const mix = (c: number) => Math.round(c + (255 - c) * 0.55);
+        tint = (mix((n >> 16) & 255) << 16) | (mix((n >> 8) & 255) << 8) | mix(n & 255);
+      }
+      const webs = buildCobwebs(this.app.renderer, this.level, tint, levelDef.webs ?? 1);
+      if (webs) this.worldLayer.addChild(webs);
+    }
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
