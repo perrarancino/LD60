@@ -141,7 +141,7 @@ export class Armor {
     switch (slot) {
       case 'head': return 'Быстрее бьёт и больше энергии на броски и луч';
       case 'torso': return 'Больше здоровья и шанс не получить урон';
-      case 'arms': return 'Сильнее удар, молния и луч молнии (правая кнопка)';
+      case 'arms': return 'Сильнее удар; медные кидают шестерёнки (правая кнопка), синие бьют молнией и лучом';
       case 'legs': return 'Прыжки в воздухе и скорость бега';
     }
   }
@@ -298,9 +298,9 @@ export class Armor {
     return at(armorData.arms.punch_mult, this.equipped.arms, 1);
   }
 
-  /** Руки с бронёй: каждый N-й удар сопровождается вспышкой молнии, ПКМ — луч молнии. */
+  /** Синие руки (вторая ступень): каждый N-й удар сопровождается вспышкой молнии, ПКМ — луч молнии. Медные руки молнии не знают: ПКМ — три шестерёнки. */
   public get hasLightning(): boolean {
-    return this.equipped.arms > 0;
+    return this.equipped.arms >= 2;
   }
 
   public get flashEvery(): number {
@@ -349,7 +349,9 @@ export class Armor {
       case 'torso':
         return `Здоровье ${a.torso.max_hp[i]}, ${Math.round(a.torso.block_chance[i] * 100)}% шанс не получить урон`;
       case 'arms':
-        return `Удар ×${a.arms.punch_mult[i]}, молния каждого ${a.arms.flash_every}-го удара (цепь на ${a.arms.flash_targets[i]}), ПКМ — луч молнии с ${a.arms.beam_bounces[i]} отскоками`;
+        return tier < 2
+          ? `Удар ×${a.arms.punch_mult[i]}, ПКМ — три шестерёнки`
+          : `Удар ×${a.arms.punch_mult[i]}, молния каждого ${a.arms.flash_every}-го удара (цепь на ${a.arms.flash_targets[i]}), ПКМ — луч молнии с ${a.arms.beam_bounces[i]} отскоками`;
       case 'legs':
         return `${a.legs.air_jumps[i] === 1 ? 'Двойной' : 'Тройной'} прыжок, скорость ×${a.legs.speed[i]}`;
     }

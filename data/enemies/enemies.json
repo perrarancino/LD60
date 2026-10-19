@@ -66,7 +66,7 @@
     "rig_id": "spider_rig",
     "stats": {
       "max_health": 18,
-      "contact_damage": 6,
+      "contact_damage": 3,
       "movement_speed": 48.0
     },
     "behavior_type": "crawler",

@@ -93,7 +93,10 @@ if (ROGUE) {
     url.searchParams.delete('level'); // устаревший адрес со старым уровнем: чистим
     window.history.replaceState(null, '', url.toString());
   }
-  if (url.searchParams.get('run') === 'new') run.restart();
+  if (url.searchParams.get('run') === 'new') {
+    run.restart();
+    run.fresh = true; // и герой с нуля: все части медные
+  }
   if (url.searchParams.has('node')) run.jump(Number(url.searchParams.get('node')) || 0);
   if (url.searchParams.has('run') || url.searchParams.has('node')) {
     url.searchParams.delete('run');
@@ -169,6 +172,8 @@ interface Mob {
 }
 
 // Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
+const END_WAIT = 1.4; // с: пауза после зачистки, прежде чем экран начнёт гаснуть
+const END_FADE = 2.4; // с: экран медленно гаснет
 const CAMERA_REST_Y = 0.64; // доля высоты экрана, на которой камера старается держать ноги героя
 const CAMERA_FOLLOW_GROUNDED = 5; // 1/с: скорость сближения, когда герой стоит на земле
 const CAMERA_FOLLOW_AIR = 3; // 1/с: в воздухе камера следует чуть мягче
@@ -235,6 +240,10 @@ class GameApp {
   private rogueCleared = false; // комната зачищена: выходная дверь открыта
   private rogueLeaving = false; // уходим из комнаты (экран кубиков, окно прокачки)
   private waveDelay = 0;
+  private waveNo = 1; // номер текущей волны
+  private waveTotal = 1;
+  private rogueEndT = 0; // с с момента зачистки: пауза, потом экран медленно гаснет
+  private readonly fader = document.createElement('div'); // чёрная заслонка: экран медленно гаснет после зачистки
   private hpMult = 1; // множитель здоровья врагов биома
   private readonly gone = new WeakSet<Hittable>(); // уже погибшие и убранные с экрана: по ним не бьём и не уничтожаем повторно
   private debris = new Debris();
@@ -286,6 +295,8 @@ class GameApp {
       const run = Run.get();
       Armor.get().useRun(run.fresh); // отдельное хранилище забега: шестерёнки, уровни, здоровье
       run.fresh = false;
+      this.fader.style.cssText = 'position: fixed; inset: 0; z-index: 2400; background: #05070b; opacity: 0; pointer-events: none;';
+      document.body.appendChild(this.fader);
       this.cubes = new CubeTransition(run.nodes);
       this.cubes.cover(run.node); // экран закрыт, пока комната грузится
     }
@@ -579,6 +590,11 @@ class GameApp {
 
     this.hpMult = ROGUE ? levelDef.rogue?.hp_mult ?? 1 : 1;
     this.rogueWaves = levelDef.rogue?.waves ? [...levelDef.rogue.waves] : [];
+    if (ROGUE) {
+      this.waveNo = 1;
+      this.waveTotal = 1 + this.rogueWaves.length;
+      this.hud.setWave(this.waveNo, this.waveTotal);
+    }
     for (const spawn of allEnemies) {
       const mob = this.spawnEnemy(spawn);
       if (mob && ROGUE) this.waveMobs.push(mob);
@@ -835,9 +851,11 @@ class GameApp {
     if (!ROGUE || !meta || this.rogueLeaving || this.deathTimer > 0) return;
     const b = this.player.body;
     if (this.rogueCleared) {
-      // дверь выхода открыта: герой вошёл в неё — дальше
-      const out = activeLevelDef.objects?.find((o) => o.id === 'door_out');
-      if (out && Math.abs(b.x - out.x) <= 30 && b.y <= out.y + 6 && b.y >= out.y - 72) this.completeRoom();
+      // комната зачищена: небольшая пауза, потом экран медленно гаснет и переливается в выбор улучшения (или в экран кубиков)
+      this.rogueEndT += dt;
+      const k = Math.max(0, Math.min(1, (this.rogueEndT - END_WAIT) / END_FADE));
+      this.fader.style.opacity = String(k);
+      if (k >= 1) this.completeRoom();
       return;
     }
     if (this.waveMobs.some((m) => !this.gone.has(m))) {
@@ -849,6 +867,8 @@ class GameApp {
       if (this.waveDelay < 0.9) return;
       this.waveDelay = 0;
       this.waveMobs = [];
+      this.waveNo++;
+      this.hud.setWave(this.waveNo, this.waveTotal);
       const ts = this.level.tileSize;
       for (const spawn of this.rogueWaves.shift()!) {
         const mob = this.spawnEnemy(spawn);
@@ -887,7 +907,7 @@ class GameApp {
       run.advance();
       this.cubes?.leave(here, 'next', () => window.location.reload());
     };
-    if (upgrade) this.upgradeUI.open(go);
+    if (upgrade) this.upgradeUI.open(this.sprites, MODELS.map((m) => RIGS.find((r) => r.id === m.rig_id)!), go);
     else go();
   }
 

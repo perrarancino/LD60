@@ -37,7 +37,7 @@ const CHASE_BEHIND = 24; // px: герой должен остаться поз�
 const LEAP_MIN = 36; // px: ближе не прыгает (кусает ползком)
 const LEAP_MAX = 185; // px: дальше не достанет
 const LEAP_WINDUP = 0.3; // с: приседает перед прыжком
-const LEAP_COOLDOWN: [number, number] = [1.6, 3.2];
+const LEAP_COOLDOWN: [number, number] = [2.4, 4.2];
 const LEAP_SPEED_MAX = 430; // px/с: потолок скорости прыжка
 const HERO_CHEST = 22; // px: в какую точку над ногами героя целится
 
@@ -262,7 +262,7 @@ export class Spider implements Hittable {
     this.container.rotation = this.visAngle;
     // «вылет из глубины»: быстро вырастает с лёгким перелётом (упругий выход), на посадке — сплющивается и пружинит обратно
     const grow = this.flying && this.flightGrow ? 0.2 + 0.8 * easeOutBack(Math.min(1, this.flightTime / FLY_GROW)) : 1;
-    const sq = this.squash * this.squash;
+    const sq = 0; // без сплющивания: форма паука не искажается ни в прыжке, ни после него
     this.container.scale.set(this.mirror * this.scale * grow * (1 + 0.3 * sq), this.scale * grow * (1 - 0.4 * sq));
   }
 
@@ -323,7 +323,7 @@ export class Spider implements Hittable {
     }
     // в полёте паучок кувыркается слегка по ходу и держит лапки в нарисованной позе
     this.visPos = { x: this.pos.x, y: this.pos.y + 8 * this.scale }; // тело паучка — над точкой «ног»
-    this.visAngle = Math.max(-0.5, Math.min(0.5, this.vel.x * 0.004)) + Math.sin(this.flightTime * 14) * 0.12;
+    this.visAngle = Math.max(-0.5, Math.min(0.5, this.vel.x * 0.004)) + (this.flightGrow ? Math.sin(this.flightTime * 14) * 0.12 : 0); // прыжок — без кувырканий
     this.mirror = this.vel.x >= 0 ? -1 : 1;
     this.applyTransform();
     this.animate(dt, 0);
@@ -470,7 +470,6 @@ export class Spider implements Hittable {
     this.leapCd -= dt;
     if (this.windup > 0) {
       this.windup -= dt;
-      this.squash = Math.max(this.squash, 0.75);
       if (this.windup <= 0) this.leap();
       return;
     }

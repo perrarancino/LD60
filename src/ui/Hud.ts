@@ -30,6 +30,7 @@ export class Hud {
   private readonly scrap = document.createElement('span');
   private readonly scrapRow = document.createElement('div');
   private readonly hurt = document.createElement('div');
+  private readonly wave = document.createElement('div');
   private readonly items = document.createElement('div');
   private lastItems = '';
   private lastHp = -1;
@@ -57,6 +58,8 @@ export class Hud {
       #hud .scrap { display: flex; align-items: center; gap: 6px; }
       #hud .scrap i { width: 11px; height: 11px; background: ${hex(pal('steel', 4))}; border: 2px solid ${hex(pal('steel', 6))};
         box-shadow: inset -2px -2px 0 ${hex(pal('steel', 2))}; display: inline-block; }
+      #hud-wave { position: fixed; top: 12px; left: 0; right: 0; text-align: center; z-index: 900; pointer-events: none; display: none;
+        font: 30px/1 uvKits, 'Courier New', monospace; color: ${hex(pal('gold', 6))}; text-shadow: 0 0 10px ${hex(pal('gold', 4))}99, 2px 2px 0 #000; }
       #hurt-flash { position: fixed; inset: 0; z-index: 890; pointer-events: none; opacity: 0; transition: opacity 0.28s ease-out;
         box-shadow: inset 0 0 90px 24px ${hex(pal('ember', 4))}; }
       #hurt-flash.on { opacity: 0.55; transition: none; }
@@ -77,6 +80,8 @@ export class Hud {
     document.body.appendChild(this.root);
     this.hurt.id = 'hurt-flash';
     document.body.appendChild(this.hurt);
+    this.wave.id = 'hud-wave';
+    document.body.appendChild(this.wave);
     EventBus.get().on('armor:scrap', () => this.update());
   }
 
@@ -84,6 +89,12 @@ export class Hud {
     const t = document.createElement('div');
     t.className = 'ticks';
     return t;
+  }
+
+  /** Номер волны сверху экрана: «1/2». Только цифры; total = 0 — скрыто. */
+  public setWave(cur: number, total: number): void {
+    this.wave.style.display = total > 0 ? 'block' : 'none';
+    this.wave.textContent = `${cur}/${total}`;
   }
 
   /** Красная вспышка по краям экрана (получен урон). */
