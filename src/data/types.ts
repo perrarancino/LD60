@@ -199,6 +199,14 @@ export interface EnemyDef {
   stats: { max_health: number; contact_damage: number; movement_speed: number };
   behavior_type: string;
   spawns?: SpawnsDef; // для spawner: кого и как выплёвывает
+  summons?: SummonsDef; // для flying_bird (босс-птица): кого призывает, когда садится на пол
+}
+
+/** Призыв босса-птицы: при посадке рядом с ней появляются count существ из enemy_ids (случайно), живых одновременно не больше max_alive. */
+export interface SummonsDef {
+  enemy_ids: string[];
+  count: number;
+  max_alive?: number;
 }
 
 export interface RigPartDef {
@@ -351,6 +359,32 @@ export interface SpawnsDef {
   lifetime_seconds?: number;
 }
 
+/** Слой босса-птицы: крыло (wing) машет вокруг pivot-плеча, у головы pivot — шея; остальные слои неподвижны на холсте рига. */
+export interface BirdLayerDef {
+  name: string;
+  sprite_id: string;
+  wing?: 'left' | 'right';
+  pivot?: { x: number; y: number };
+}
+
+/** Круг попадания босса-птицы на холсте рига; круги крыльев качаются вместе с крылом. */
+export interface BirdHitDef {
+  part: 'body' | 'head' | 'wing_l' | 'wing_r';
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** Босс-птица: слои на общем холсте, точка тела (вокруг неё поворот и зеркало), низ лап, круги попадания, спрайт выпускаемых птичек. */
+export interface BirdBossDef {
+  body: { x: number; y: number };
+  feet_y: number;
+  draw_facing: 1 | -1;
+  bird_sprite_id: string;
+  layers: BirdLayerDef[]; // снизу вверх
+  hit: BirdHitDef[];
+}
+
 export interface RigDef {
   id: string;
   canvas: { width: number; height: number };
@@ -359,6 +393,7 @@ export interface RigDef {
   segmented?: SegmentedDef;
   wobbler?: WobblerDef;
   critter?: CritterDef;
+  bird_boss?: BirdBossDef;
   parts: RigPartDef[]; // снизу вверх
 }
 

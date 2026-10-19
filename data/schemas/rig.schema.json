@@ -144,6 +144,39 @@
         }
       }
     },
+    "bird_boss": {
+      "type": "object",
+      "description": "Босс-птица: слои на общем холсте (крылья машут вокруг плеч), точка тела, низ лап и круги попадания",
+      "required": ["body", "feet_y", "draw_facing", "layers", "hit", "bird_sprite_id"],
+      "properties": {
+        "body": { "type": "object", "required": ["x", "y"], "description": "Точка тела на холсте: вокруг неё птица поворачивается и зеркалится", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "feet_y": { "type": "number", "description": "Низ лап на холсте (по нему птица садится на пол)" },
+        "draw_facing": { "type": "integer", "enum": [-1, 1], "description": "Куда смотрит рисунок (−1 — влево)" },
+        "bird_sprite_id": { "type": "string", "description": "Спрайт птички, которых босс выпускает (клюв вверх, рисуется по центру)" },
+        "layers": {
+          "type": "array", "minItems": 1, "description": "Слои снизу вверх",
+          "items": {
+            "type": "object", "required": ["name", "sprite_id"],
+            "properties": {
+              "name": { "type": "string" },
+              "sprite_id": { "type": "string" },
+              "wing": { "type": "string", "enum": ["left", "right"], "description": "Слой — крыло: машет вокруг pivot" },
+              "pivot": { "type": "object", "required": ["x", "y"], "description": "Плечо крыла (или шея головы)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+            }
+          }
+        },
+        "hit": {
+          "type": "array", "minItems": 1, "description": "Круги попадания на холсте; круги крыльев качаются вместе с крылом",
+          "items": {
+            "type": "object", "required": ["part", "x", "y", "r"],
+            "properties": {
+              "part": { "type": "string", "enum": ["body", "head", "wing_l", "wing_r"] },
+              "x": { "type": "number" }, "y": { "type": "number" }, "r": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
     "segmented": {
       "type": "object",
       "description": "Сегментированное существо (червь): голова, туловище, хвост едут по следу головы",

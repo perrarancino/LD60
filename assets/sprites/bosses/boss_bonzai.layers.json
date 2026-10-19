@@ -1,0 +1,69 @@
+{
+  "source": "boss_bonzai.aseprite",
+  "canvasWidth": 200,
+  "canvasHeight": 128,
+  "frames": 1,
+  "columns": 1,
+  "layers": [
+    {
+      "name": "Krilo1",
+      "file": "boss_bonzai_layers/Krilo1.png",
+      "z": 0,
+      "visible": true,
+      "bbox": [
+        8,
+        6,
+        92,
+        103
+      ]
+    },
+    {
+      "name": "Lapki",
+      "file": "boss_bonzai_layers/Lapki.png",
+      "z": 1,
+      "visible": true,
+      "bbox": [
+        82,
+        102,
+        111,
+        122
+      ]
+    },
+    {
+      "name": "Torso",
+      "file": "boss_bonzai_layers/Torso.png",
+      "z": 2,
+      "visible": true,
+      "bbox": [
+        75,
+        41,
+        123,
+        106
+      ]
+    },
+    {
+      "name": "Head",
+      "file": "boss_bonzai_layers/Head.png",
+      "z": 3,
+      "visible": true,
+      "bbox": [
+        61,
+        20,
+        123,
+        66
+      ]
+    },
+    {
+      "name": "Krilo2",
+      "file": "boss_bonzai_layers/Krilo2.png",
+      "z": 4,
+      "visible": true,
+      "bbox": [
+        110,
+        8,
+        183,
+        107
+      ]
+    }
+  ]
+}

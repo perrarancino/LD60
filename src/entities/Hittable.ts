@@ -18,6 +18,8 @@ export type PartDamageResult = 'hit' | 'killed' | 'dead';
 /** Существо из частей с отдельным здоровьем у каждой (червь, босс-червь): урон идёт в ту часть, в которую попал удар. */
 export interface PartDamageable extends Hittable {
   damagePart(part: number, amount: number): PartDamageResult;
+  /** Во сколько раз гасится урон по этой части сейчас (босс-птица: в полёте и по крыльям меньше); без метода — урон полный. */
+  damageScale?(part?: number): number;
 }
 
 export function isPartDamageable(t: Hittable): t is PartDamageable {

@@ -12,6 +12,9 @@ import { isPartDamageable } from './entities/Hittable.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { WormBoss } from './entities/WormBoss.ts';
+import { BirdBoss } from './entities/BirdBoss.ts';
+import type { BirdBossHooks } from './entities/BirdBoss.ts';
+import { BossBird } from './entities/BossBird.ts';
 import { Critter } from './entities/Critter.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
@@ -96,6 +99,9 @@ const HIT_SHAKE = 1.5; // px арта: тряска камеры при попа
 const CRIT_SHAKE = 2.5;
 const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухает
 const SHAKE_FREQ = 17; // Гц: частота колебаний тряски
+const BIRD_HP = 5; // здоровье птички босса-птицы: гибнет от любого удара
+const BIRD_DAMAGE = 10; // клевок птички
+const BOSS_FEATHERS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('gold', 5)]; // перья босса-птицы
 const LAND_DUST = [0x9fb4c8, 0x6f8296, 0xdbe9f7]; // пыль при тяжёлом приземлении героя
 
 /** Здоровье врага: сколько осталось, из скольких; view — что рисуется (убирается при смерти); remove — вычеркнуть из списков игры. */
@@ -129,6 +135,10 @@ class GameApp {
   private worms: Worm[] = [];
   private mothers: SpiderMother[] = [];
   private bosses: WormBoss[] = [];
+  private birdBosses: BirdBoss[] = []; // боссы-птицы второй локации
+  private birds: BossBird[] = []; // птички, которых выпускает босс-птица
+  private readonly bossSummons = new Set<Critter>(); // обитатели локации, которых босс-птица призвала на посадке
+  private enemyDefs = new Map<string, EnemyDef>();
   private critters: Critter[] = []; // мелкие мобы второй локации: крыса, воробей, страж
   private fx = new Particles(); // частицы: брызги, пыль, след
   private sceneLayer!: Container; // фон, мир и свет — всё, что проходит цветокоррекцию (интерфейс — отдельно)
@@ -379,6 +389,7 @@ class GameApp {
     const tileset = tilesData as TileSetDef;
     const levelDef = activeLevelDef;
     const enemyDefs = new Map((enemiesData as unknown as EnemyDef[]).map((e) => [e.id, e]));
+    this.enemyDefs = enemyDefs;
 
     // Параллакс-фон уровня (если задан)
     const bgDef = levelDef.background_id ? BACKGROUNDS.find((b) => b.id === levelDef.background_id) : undefined;
@@ -507,27 +518,17 @@ class GameApp {
       }
       if (def.behavior_type === 'critter') {
         // Мелкие мобы второй локации: ходят, скачут, летают, следят за героем
+        this.createCritter(def, spawn, false);
+        continue;
+      }
+      if (def.behavior_type === 'flying_bird') {
+        // Босс-птица второй локации: пролёты, стая птичек, посадка с призывом; рисуется поверх героя
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const hero = () => {
-          const b = this.player.body;
-          return { x: b.x, y: b.y };
-        };
-        const mob = new Critter(def, spawn, this.level, rig, this.sprites, hero);
-        // хлыст-молния электрокрысы: сбивает героя с ног (регдолл), на щелчке — искры
-        mob.onWhipHit = (x, y, dirX) => {
-          // хлыст отнимает здоровье и сбивает с ног; если урон не засчитан (шанс брони, неуязвимость) — героя не трогает
-          if (!this.hurtPlayer(WHIP_DAMAGE, dirX)) return false;
-          if (Armor.get().hp > 0) this.player.knockdown(dirX);
-          this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
-          return true;
-        };
-        mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
-        mob.leash = this.bindRoom(mob, spawn);
-        this.critters.push(mob);
-        this.worldLayer.addChild(mob.container);
-        this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
-        if (!mob.passive) this.contactDmg.set(mob, def.stats.contact_damage);
+        const boss = new BirdBoss(def, spawn, this.level, rig, this.sprites, this.birdBossHooks(def, rig));
+        boss.leash = this.bindRoom(boss, spawn);
+        this.birdBosses.push(boss);
+        this.worldLayer.addChild(boss.container);
         continue;
       }
       if (def.behavior_type === 'burrower') {
@@ -576,6 +577,7 @@ class GameApp {
     else if (requestedSpawn.length === 2 && requestedSpawn.every((n) => Number.isFinite(n))) this.player.spawnAt(requestedSpawn[0], requestedSpawn[1], ts);
     else this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, ts);
     this.worldLayer.addChild(this.player.sprite);
+    for (const b of this.birdBosses) this.worldLayer.addChild(b.container); // босс-птица пролетает поверх героя
     this.rooms.updateHero(Math.floor(this.player.body.x / ts), Math.floor((this.player.body.y - 16) / ts));
 
     this.loot = new LootSystem(this.sprites, this.fx);
@@ -681,6 +683,8 @@ class GameApp {
     yield* this.worms;
     yield* this.mothers;
     yield* this.bosses;
+    yield* this.birdBosses;
+    yield* this.birds;
     yield* this.critters;
   }
 
@@ -737,6 +741,7 @@ class GameApp {
     const crit = isPunch && Math.random() < (this.combat.crit_chance ?? 0);
     let dmg = isPunch ? Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * Armor.get().punchMult) : customDmg;
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
+    if (isPartDamageable(target) && target.damageScale) dmg = Math.max(1, Math.round(dmg * target.damageScale(part))); // босс-птица: в полёте перья гасят удар
     this.numbers.spawn(x, y - 6, dmg, crit, dirX);
     this.shake = Math.max(this.shake, crit ? CRIT_SHAKE : HIT_SHAKE);
     if (isPartDamageable(target)) {
@@ -757,11 +762,19 @@ class GameApp {
       if (i >= 0) list.splice(i, 1);
     };
     const view = (target as unknown as { container: Container }).container;
-    const isBoss = target instanceof WormBoss;
+    const isBoss = target instanceof WormBoss || target instanceof BirdBoss;
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
     this.contactDmg.delete(target);
     drop(this.worms, target);
     drop(this.bosses, target);
+    drop(this.birdBosses, target);
+    if (target instanceof BirdBoss) {
+      // гибель босса-птицы: взрыв перьев, тряска; его птички рассыпаются
+      this.fx.burst(view.x, view.y, { count: 70, colors: BOSS_FEATHERS, speed: [60, 280], spread: Math.PI * 2, life: [0.3, 0.9], size: [1, 3], gravity: 120, drag: 2 });
+      this.shake = Math.max(this.shake, 4.5);
+      this.flashAlpha = 0.25;
+      for (const bird of this.birds) bird.burst(6);
+    }
     view.destroy({ children: true });
   }
 
@@ -769,6 +782,13 @@ class GameApp {
   private kill(target: Hittable, mob: Mob): void {
     if (this.gone.has(target)) return;
     this.gone.add(target);
+    if (target instanceof BossBird) {
+      target.burst(7); // птичка босса рассыпается пёрышками, добычи с неё нет
+      this.mobs.delete(target);
+      mob.remove();
+      mob.view.destroy({ children: true });
+      return;
+    }
     let enemyType = 'enemy';
     if (target instanceof Spider) enemyType = 'spider';
     else if (target instanceof SpiderMother) enemyType = 'mother';
@@ -955,6 +975,112 @@ class GameApp {
     });
   }
 
+  /** Мелкий моб второй локации (крыса, воробей, птичка, страж): тело, хлыст, комната, здоровье. runtime — появился в ходе боя (рисуется под героем). */
+  private createCritter(def: EnemyDef, spawn: EnemySpawnDef, runtime: boolean): Critter {
+    const rig = RIGS.find((r) => r.id === def.rig_id);
+    if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+    const hero = () => {
+      const b = this.player.body;
+      return { x: b.x, y: b.y };
+    };
+    const mob = new Critter(def, spawn, this.level, rig, this.sprites, hero);
+    // хлыст-молния электрокрысы: сбивает героя с ног (регдолл), на щелчке — искры
+    mob.onWhipHit = (x, y, dirX) => {
+      // хлыст отнимает здоровье и сбивает с ног; если урон не засчитан (шанс брони, неуязвимость) — героя не трогает
+      if (!this.hurtPlayer(WHIP_DAMAGE, dirX)) return false;
+      if (Armor.get().hp > 0) this.player.knockdown(dirX);
+      this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
+      return true;
+    };
+    mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+    mob.leash = this.bindRoom(mob, spawn);
+    this.critters.push(mob);
+    if (runtime) this.worldLayer.addChildAt(mob.container, this.worldLayer.getChildIndex(this.player.sprite));
+    else this.worldLayer.addChild(mob.container);
+    this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
+    if (!mob.passive) this.contactDmg.set(mob, def.stats.contact_damage);
+    return mob;
+  }
+
+  /** Связь босса-птицы с игрой: герой, урон ему, птички, призыв на посадке, тряска. */
+  private birdBossHooks(def: EnemyDef, rig: RigDef): BirdBossHooks {
+    const birdSprite = rig.bird_boss!.bird_sprite_id;
+    return {
+      hero: () => {
+        const b = this.player.body;
+        return { x: b.x, left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+      },
+      hurt: (amount, dirX, knock) => {
+        if (this.hurtPlayer(amount, dirX) && knock && Armor.get().hp > 0) this.player.knockdown(dirX);
+      },
+      spawnBird: (x, y, angle, enraged) => this.spawnBossBird(birdSprite, x, y, angle, enraged),
+      birdsAlive: () => this.birds.length,
+      summon: (x, floorY) => this.summonBeside(def, x, floorY),
+      shake: (power) => {
+        this.shake = Math.max(this.shake, power);
+      },
+      fx: this.fx
+    };
+  }
+
+  /** Птичка босса: вылетает из клюва, гонится за героем; бьётся с одного удара, добычи не даёт. */
+  private spawnBossBird(spriteId: string, x: number, y: number, angle: number, enraged: boolean): void {
+    const hero = () => {
+      const b = this.player.body;
+      return { x: b.x, y: b.y - 30 };
+    };
+    const bird = new BossBird(
+      this.sprites, spriteId, this.level, x, y, angle,
+      {
+        speed: enraged ? 185 : 160, turn: enraged ? 3.2 : 2.5, life: 6.5, damage: BIRD_DAMAGE,
+        onPeck: (px, py, dirX, dmg) => {
+          if (!this.hurtPlayer(dmg, dirX)) return false; // герой неуязвим или броня отвела — птичка летит дальше
+          this.fx.burst(px, py, { count: 6, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+          return true;
+        }
+      },
+      hero, () => this.player.body, this.fx
+    );
+    this.birds.push(bird);
+    this.worldLayer.addChildAt(bird.container, this.worldLayer.getChildIndex(this.fx.container));
+    this.track(bird, BIRD_HP, bird.container, () => this.birds.splice(this.birds.indexOf(bird), 1));
+  }
+
+  /** Босс-птица села на пол: по бокам от неё с неба падают обитатели локации (по data/enemies.json: summons). */
+  private summonBeside(boss: EnemyDef, x: number, floorY: number): void {
+    const cfg = boss.summons;
+    if (!cfg) return;
+    for (const c of this.bossSummons) if (this.gone.has(c)) this.bossSummons.delete(c);
+    const ts = this.level.tileSize;
+    const row = Math.round(floorY / ts); // первая твёрдая клетка под птицей
+    const cx0 = Math.floor(x / ts);
+    const room = (cfg.max_alive ?? cfg.count) - this.bossSummons.size;
+    const used = new Set<number>();
+    for (let i = 0; i < Math.min(cfg.count, room); i++) {
+      const id = cfg.enemy_ids[Math.floor(Math.random() * cfg.enemy_ids.length)];
+      const def = this.enemyDefs.get(id);
+      if (!def) continue;
+      // ближайшая клетка пола сбоку с воздухом над ней; падает с высоты до четырёх клеток
+      let spot: { cx: number; top: number } | null = null;
+      const first = i % 2 === 0 ? -1 : 1; // первый слева, второй справа; упёрлись в стену — на другую сторону
+      search: for (const side of [first, -first]) {
+        for (const off of [4, 5, 3, 6, 7]) {
+          const cx = cx0 + side * off;
+          if (used.has(cx) || !this.level.isSolid(cx, row) || this.level.isSolid(cx, row - 1)) continue;
+          let top = 1;
+          while (top < 4 && !this.level.isSolid(cx, row - top - 1)) top++;
+          spot = { cx, top };
+          used.add(cx);
+          break search;
+        }
+      }
+      if (!spot) continue;
+      const mob = this.createCritter(def, { enemy_id: id, sprite_id: def.sprite_variants[0], x: spot.cx, y: row - spot.top }, true);
+      this.bossSummons.add(mob);
+      this.fx.burst((spot.cx + 0.5) * ts, (row - spot.top + 0.5) * ts, { count: 12, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
+    }
+  }
+
   /** Паучок, выплюнутый маткой: летит из точки (x, y), садится на поверхность и дальше ползает как обычный паук. */
   private spawnBaby(defs: Map<string, EnemyDef>, mother: EnemyDef, x: number, y: number, vx: number, vy: number, room: Leash | null): Spider | null {
     const cfg = mother.spawns;
@@ -990,7 +1116,9 @@ class GameApp {
         ...(rig.wobbler ? [rig.wobbler.sprite_id, ...(rig.wobbler.thread ? [rig.wobbler.thread.sprite_id] : []), ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
       );
     }
+    if (rig?.bird_boss) ids.push(rig.bird_boss.bird_sprite_id, ...rig.bird_boss.layers.map((l) => l.sprite_id));
     if (def.spawns) ids.push(...this.enemySpriteIds(defs, def.spawns.enemy_id, def.spawns.sprite_id, depth + 1));
+    for (const id of def.summons?.enemy_ids ?? []) ids.push(...this.enemySpriteIds(defs, id, undefined, depth + 1)); // призванные боссом
     return ids;
   }
 
@@ -1076,6 +1204,8 @@ class GameApp {
     for (const worm of this.worms) worm.update(dt);
     for (const mother of this.mothers) mother.update(dt);
     for (const boss of this.bosses) boss.update(dt);
+    for (const boss of this.birdBosses) boss.update(dt);
+    for (const bird of this.birds) bird.update(dt);
     for (const mob of this.critters) mob.update(dt);
     this.resolveStrike();
     this.checkContactDamage(dt);
@@ -1097,6 +1227,15 @@ class GameApp {
       if (!this.spiders[i].expired) continue;
       this.spiders[i].container.destroy({ children: true });
       this.spiders.splice(i, 1);
+    }
+    // Птички босса рассыпались сами (клюнули, врезались, вышел срок) — убираем
+    for (let i = this.birds.length - 1; i >= 0; i--) {
+      const bird = this.birds[i];
+      if (!bird.expired) continue;
+      this.gone.add(bird);
+      this.mobs.delete(bird);
+      bird.container.destroy({ children: true });
+      this.birds.splice(i, 1);
     }
 
     // 4. Камера и анимация декора (отростки качаются только в обзоре)

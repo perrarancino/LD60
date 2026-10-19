@@ -1,0 +1,127 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "bonzai_boss_rig",
+  "description": "Босс-птица «Бонзай» из boss_bonzai.aseprite (холст 200x128, птица смотрит влево): два крыла (Krilo1 слева, Krilo2 справа) машут вокруг плеч, лапки, торс и голова. Блок bird_boss: точка тела (вокруг неё птица поворачивается и зеркалится), низ лап (по нему садится на пол), слои снизу вверх и круги попадания (в координатах холста; круги крыльев качаются вместе с крылом).",
+  "canvas": {
+    "width": 200,
+    "height": 128
+  },
+  "anchor": {
+    "x": 100,
+    "y": 75
+  },
+  "bird_boss": {
+    "body": {
+      "x": 100,
+      "y": 75
+    },
+    "feet_y": 122,
+    "draw_facing": -1,
+    "bird_sprite_id": "boss_bonzai_bird",
+    "layers": [
+      {
+        "name": "Krilo1",
+        "sprite_id": "boss_bonzai_krilo1",
+        "wing": "left",
+        "pivot": {
+          "x": 80,
+          "y": 80
+        }
+      },
+      {
+        "name": "Lapki",
+        "sprite_id": "boss_bonzai_lapki"
+      },
+      {
+        "name": "Torso",
+        "sprite_id": "boss_bonzai_torso"
+      },
+      {
+        "name": "Head",
+        "sprite_id": "boss_bonzai_head",
+        "pivot": {
+          "x": 96,
+          "y": 62
+        }
+      },
+      {
+        "name": "Krilo2",
+        "sprite_id": "boss_bonzai_krilo2",
+        "wing": "right",
+        "pivot": {
+          "x": 113,
+          "y": 80
+        }
+      }
+    ],
+    "hit": [
+      {
+        "part": "body",
+        "x": 99,
+        "y": 80,
+        "r": 26
+      },
+      {
+        "part": "body",
+        "x": 99,
+        "y": 99,
+        "r": 17
+      },
+      {
+        "part": "head",
+        "x": 94,
+        "y": 44,
+        "r": 20
+      },
+      {
+        "part": "head",
+        "x": 72,
+        "y": 54,
+        "r": 9
+      },
+      {
+        "part": "head",
+        "x": 111,
+        "y": 44,
+        "r": 13
+      },
+      {
+        "part": "wing_l",
+        "x": 66,
+        "y": 74,
+        "r": 20
+      },
+      {
+        "part": "wing_l",
+        "x": 42,
+        "y": 58,
+        "r": 22
+      },
+      {
+        "part": "wing_l",
+        "x": 20,
+        "y": 32,
+        "r": 17
+      },
+      {
+        "part": "wing_r",
+        "x": 128,
+        "y": 72,
+        "r": 18
+      },
+      {
+        "part": "wing_r",
+        "x": 150,
+        "y": 58,
+        "r": 22
+      },
+      {
+        "part": "wing_r",
+        "x": 170,
+        "y": 36,
+        "r": 16
+      }
+    ]
+  },
+  "parts": []
+}

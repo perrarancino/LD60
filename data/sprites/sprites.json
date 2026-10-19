@@ -1936,6 +1936,97 @@
         "y": 0.5
       },
       "animations": {}
+    },
+    {
+      "id": "boss_bonzai",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.586
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_krilo1",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_layers/Krilo1.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_lapki",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_layers/Lapki.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_torso",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_layers/Torso.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_head",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_layers/Head.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_krilo2",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_layers/Krilo2.png",
+      "frame_width": 200,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_bonzai_bird",
+      "category": "bosses",
+      "image": "bosses/boss_bonzai_bird.png",
+      "frame_width": 16,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
     }
   ]
 }

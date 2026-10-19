@@ -31,7 +31,7 @@ export function enemySpot(ed: Editor, e: EnemySpawnDef): SpriteSpot {
   const def = ed.enemyDef(e.enemy_id);
   const sd = ed.atlas.def(e.sprite_id);
   if (def?.behavior_type === 'spawner') return { id: e.sprite_id, x: e.x * ts + (sd ? sd.frame_width * sd.origin.x : 0), y: e.y * ts + (sd ? sd.frame_height * sd.origin.y : 0) };
-  const centred = def?.behavior_type === 'flying_worm' || (sd && sd.origin.y < 0.9);
+  const centred = def?.behavior_type === 'flying_worm' || def?.behavior_type === 'flying_bird' || (sd && sd.origin.y < 0.9);
   return { id: e.sprite_id, x: (e.x + 0.5) * ts, y: centred ? (e.y + 0.5) * ts : (e.y + 1) * ts };
 }
 

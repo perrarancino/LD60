@@ -288,63 +288,40 @@
     }
   },
   {
-    "id": "boss_chipset_sentinel",
-    "display_name": "Босс: Чипсет-Страж (Архитектор Моста)",
-    "location_id": "loc_motherboard",
-    "lore": "Древний контроллер системной шины материнской платы.",
+    "id": "bonzai_boss",
+    "display_name": "Босс: Бонзай (синяя птица)",
+    "location_id": "loc_2",
+    "lore": "Огромная птица из синего света. Кружит под потолком, пикирует на героя как оса из Террарии, выпускает стаю птичек-ищеек, а выдохшись, садится на пол и зовёт на помощь обитателей локации: тут её и можно бить голыми руками.",
     "sprite_variants": [
-      "boss_textalite"
+      "boss_bonzai"
     ],
+    "rig_id": "bonzai_boss_rig",
     "stats": {
-      "max_health": 300,
-      "contact_damage": 15,
-      "movement_speed": 100.0
+      "max_health": 600,
+      "contact_damage": 0,
+      "movement_speed": 260.0
     },
-    "behavior_type": "boss"
-  },
-  {
-    "id": "boss_transformer_colossus",
-    "display_name": "Босс: Вольт-Колосс (Импульсный Трансформатор)",
-    "location_id": "loc_power_supply",
-    "lore": "Мощный силовой агрегат первичной цепи блока питания.",
-    "sprite_variants": [
-      "deco_transistor2"
-    ],
-    "stats": {
-      "max_health": 350,
-      "contact_damage": 20,
-      "movement_speed": 80.0
+    "behavior_type": "flying_bird",
+    "attack": {
+      "name": "Пике",
+      "damage": 24,
+      "cooldown_seconds": 3.0,
+      "range": 600.0,
+      "projectile_type": "none",
+      "description": "Замирает, отводит крылья и проносится сквозь героя; урон и сбитие с ног."
     },
-    "behavior_type": "boss"
-  },
-  {
-    "id": "boss_hdd_actuator",
-    "display_name": "Босс: Магнитный Цербер (Привод Головок)",
-    "location_id": "loc_hard_drive",
-    "lore": "Прецизионный сервопривод коромысла головок жёсткого диска.",
-    "sprite_variants": [
-      "mat_disc"
-    ],
-    "stats": {
-      "max_health": 280,
-      "contact_damage": 18,
-      "movement_speed": 140.0
+    "summons": {
+      "enemy_ids": [
+        "electro_rat",
+        "vorobei"
+      ],
+      "count": 2,
+      "max_alive": 4
     },
-    "behavior_type": "boss"
-  },
-  {
-    "id": "boss_system_core",
-    "display_name": "Финальный Босс: Ядро Системы (Центральный Процессор)",
-    "location_id": "loc_cpu",
-    "lore": "Кремниевый мозг всего системного блока.",
-    "sprite_variants": [
-      "deco_cooler"
-    ],
-    "stats": {
-      "max_health": 500,
-      "contact_damage": 25,
-      "movement_speed": 0.0
-    },
-    "behavior_type": "boss"
+    "drops": {
+      "scrap_parts_min": 6,
+      "scrap_parts_max": 9,
+      "drop_chance_percent": 100.0
+    }
   }
 ]

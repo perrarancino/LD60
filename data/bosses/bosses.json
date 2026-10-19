@@ -36,155 +36,40 @@
     ]
   },
   {
-    "id": "boss_chipset_sentinel",
-    "display_name": "Босс: Чипсет-Страж (Архитектор Моста)",
-    "location_id": "loc_motherboard",
+    "id": "bonzai_boss",
+    "display_name": "Босс: Бонзай (синяя птица)",
+    "location_id": "loc_2",
     "is_final_boss": false,
-    "sprite_id": "boss_textalite",
-    "lore": "Древний контроллер системной шины материнской платы. Защищает калибровочный резистор тактовой частоты.",
+    "sprite_id": "boss_bonzai",
+    "lore": "Огромная птица из синего света. Кружит под потолком, пикирует на героя как оса из Террарии, выпускает стаю птичек-ищеек, а выдохшись, садится на пол и зовёт на помощь обитателей локации: тут её и можно бить голыми руками.",
     "stats": {
-      "max_health": 300,
-      "contact_damage": 15
+      "max_health": 600,
+      "contact_damage": 12
     },
     "reward": {
       "item_type": "resistor",
-      "item_id": "resistor_chipset",
-      "display_name": "Калибровочный резистор Чипсета",
-      "description": "Стабилизирует тактовую частоту шины и открывает доступ к ядру."
+      "item_id": "resistor_bonzai",
+      "display_name": "Резистор Бонзая",
+      "description": "Калибровочный резистор второй локации."
     },
     "attacks": [
       {
-        "id": "bus_pulse",
-        "name": "Импульс системной шины",
-        "damage": 15,
-        "cooldown_seconds": 3.5,
-        "projectile_type": "pulse_wave",
-        "description": "Испускает радиальную волну напряжения по контактным дорожкам арены."
-      },
-      {
-        "id": "resistor_shield",
-        "name": "Защитное поле моста",
-        "damage": 0,
-        "cooldown_seconds": 5.0,
-        "projectile_type": "shield",
-        "description": "Активирует барьер рассеивания урона вокруг ядра контроллера."
-      }
-    ]
-  },
-  {
-    "id": "boss_transformer_colossus",
-    "display_name": "Босс: Вольт-Колосс (Импульсный Трансформатор)",
-    "location_id": "loc_power_supply",
-    "is_final_boss": false,
-    "sprite_id": "deco_transistor2",
-    "lore": "Мощный силовой агрегат первичной цепи блока питания. Генерирует высоковольтные дуги и мощный восходящий поток воздуха.",
-    "stats": {
-      "max_health": 350,
-      "contact_damage": 20
-    },
-    "reward": {
-      "item_type": "resistor",
-      "item_id": "resistor_transformer",
-      "display_name": "Силовой резистор БП",
-      "description": "Второй калибровочный резистор, выравнивающий напряжение шины питания."
-    },
-    "attacks": [
-      {
-        "id": "high_voltage_arc",
-        "name": "Высоковольтная дуга",
-        "damage": 22,
-        "cooldown_seconds": 2.8,
-        "projectile_type": "lightning_arc",
-        "description": "Пробивает искровой разряд между контактами радиатора."
-      },
-      {
-        "id": "thermal_overload",
-        "name": "Тепловой выброс",
-        "damage": 18,
-        "cooldown_seconds": 4.2,
-        "projectile_type": "heat_wave",
-        "description": "Резкий выброс раскалённого воздуха, отбрасывающий робота к стенам."
-      }
-    ]
-  },
-  {
-    "id": "boss_hdd_actuator",
-    "display_name": "Босс: Магнитный Цербер (Привод Головок)",
-    "location_id": "loc_hard_drive",
-    "is_final_boss": false,
-    "sprite_id": "mat_disc",
-    "lore": "Прецизионный сервопривод коромысла головок жёсткого диска. Мгновенно позиционируется и наносит режущие удары.",
-    "stats": {
-      "max_health": 280,
-      "contact_damage": 18
-    },
-    "reward": {
-      "item_type": "resistor",
-      "item_id": "resistor_actuator",
-      "display_name": "Прецизионный резистор позиционирования",
-      "description": "Третий резистор, синхронизирующий дорожки чтения центрального узла."
-    },
-    "attacks": [
-      {
-        "id": "spindle_slice",
-        "name": "Вращающийся диск",
-        "damage": 20,
+        "id": "dive_pass",
+        "name": "Пике",
+        "damage": 24,
         "cooldown_seconds": 3.0,
-        "projectile_type": "disc_throw",
-        "description": "Запускает зеркальную магнитную пластину вдоль пола арены."
+        "projectile_type": "none",
+        "description": "Замирает, отводит крылья назад и проносится сквозь героя по прямой, сбивая с ног; после пролёта разворачивается и повторяет."
       },
       {
-        "id": "voice_coil_strike",
-        "name": "Резкий рывок коромысла",
-        "damage": 16,
-        "cooldown_seconds": 2.5,
-        "projectile_type": "melee_slash",
-        "description": "Молниеносный удар привода считывающих головок."
-      }
-    ]
-  },
-  {
-    "id": "boss_system_core",
-    "display_name": "Финальный Босс: Ядро Системы (Центральный Процессор)",
-    "location_id": "loc_cpu",
-    "is_final_boss": true,
-    "sprite_id": "deco_cooler",
-    "lore": "Кремниевый мозг всего системного блока. Заблокирован прижимной рамкой в позолоченном сокете.",
-    "stats": {
-      "max_health": 500,
-      "contact_damage": 25
-    },
-    "reward": {
-      "item_type": "game_win_module",
-      "item_id": "system_boot_token",
-      "display_name": "Ключ перезагрузки системы",
-      "description": "Активирует финальный протокол BIOS и завершает игру победой."
-    },
-    "attacks": [
-      {
-        "id": "overclock_burst",
-        "name": "Турбо-вспышка разгона",
-        "damage": 28,
-        "cooldown_seconds": 3.5,
-        "projectile_type": "plasma_orb",
-        "description": "Залп тепловой плазмы из кристалла кремния."
-      },
-      {
-        "id": "paste_spray",
-        "name": "Выброс термопасты",
-        "damage": 14,
-        "cooldown_seconds": 4.0,
-        "projectile_type": "sticky_paste",
-        "description": "Замедляет робота вязкой токсичной субстанцией."
-      },
-      {
-        "id": "cache_purge",
-        "name": "Сброс кольцевой шины",
-        "damage": 30,
+        "id": "bird_swarm",
+        "name": "Стая птичек",
+        "damage": 10,
         "cooldown_seconds": 6.0,
-        "projectile_type": "ring_laser",
-        "description": "Круговой лазерный сканер по всей площади камеры процессора."
+        "projectile_type": "homing_bird",
+        "description": "Замирает под потолком и выпускает веер птичек: они гонятся за героем, но гибнут от одного удара."
       }
-    ]
+    ],
+    "special_ability": "Выдохшись, садится на пол и призывает двух обитателей локации (электрокрыса, воробей); на земле её можно бить кулаками в полную силу, в воздухе урон гасится перьями."
   }
 ]

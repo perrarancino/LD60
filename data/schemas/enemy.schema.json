@@ -50,6 +50,16 @@
         "lifetime_seconds": { "type": "number", "minimum": 1, "description": "Через сколько секунд порождённый исчезает (по умолчанию — не исчезает)" }
       }
     },
+    "summons": {
+      "type": "object",
+      "description": "Только для flying_bird (босс-птица): кого призывает, когда садится на пол",
+      "required": ["enemy_ids", "count"],
+      "properties": {
+        "enemy_ids": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Из кого выбирает (id врагов локации, случайно)" },
+        "count": { "type": "integer", "minimum": 1, "description": "Сколько призывает за одну посадку" },
+        "max_alive": { "type": "integer", "minimum": 1, "description": "Сколько призванных может быть живо одновременно" }
+      }
+    },
     "rig_id": { "type": "string", "description": "Id процедурного рига из data/rigs/ (для врагов, собранных из частей-слоёв, например паук)" },
     "stats": {
       "type": "object",
@@ -76,6 +86,7 @@
         "crawler",
         "burrower",
         "flying_worm",
+        "flying_bird",
         "critter",
         "spawner"
       ],
