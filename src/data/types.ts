@@ -88,6 +88,13 @@ export interface DecorDef {
   layer?: 'back' | 'front';
 }
 
+/** Терминал брони на уровне: нижним центром в нижнюю границу клетки (x, y). */
+export interface TerminalDef {
+  sprite_id: string;
+  x: number;
+  y: number;
+}
+
 /** Зона автодекора: в прямоугольнике клеток (включительно) декор раскладывается сам, детерминированно. */
 export interface DecorZoneDef {
   kind: 'transistors' | 'webs';
@@ -125,6 +132,7 @@ export interface LevelDef {
   rows: string[];
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
+  terminals?: TerminalDef[]; // терминалы брони
   grade?: GradeDef;
   light?: { rim_color?: string; fog_color?: string }; // цвета света от фона на уровне (#rrggbb); по умолчанию зелёные
   zones?: DecorZoneDef[];

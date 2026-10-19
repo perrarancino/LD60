@@ -8,7 +8,7 @@ import { Body } from './Body.ts';
 import { PlayerRig, PUNCH_DURATION, THROW_DURATION, THROW_RELEASE } from './PlayerRig.ts';
 import type { ClimbPhase, ClimbPose, PunchPose, ThrowPose } from './PlayerRig.ts';
 import { Ragdoll } from './Ragdoll.ts';
-import { CraftingSystem } from '../systems/CraftingSystem.ts';
+import { Armor, type Slot } from '../systems/ArmorSystem.ts';
 
 const MAX_CLIMB_HEIGHT = 66; // на какую высоту герой может залезть (≈ 2 тайла), px
 const CLIMB_COOLDOWN = 0.15;
@@ -129,6 +129,11 @@ export class Player {
   private wasGrounded = true;
   private doll: Ragdoll | null = null; // регдолл (создаётся при первом падении)
   private downed = false; // лежит регдоллом или встаёт
+  /** Игра просит луч молнии (ПКМ зажата, броня на руках, есть энергия): рука вытягивается к курсору. Выставляется до update(). */
+  public beamWanted = false;
+  private beaming = false;
+  private beamDir = { x: 1, y: 0 };
+  private beamArm: 1 | -1 = -1;
   private level: Level | null = null; // уровень последнего update (для регдолла от внешнего удара)
   private knockCd = 0; // с: защита от повторного сбивания
   private extraJumps = 0; // двойной прыжок (проводные ноги)
@@ -193,6 +198,16 @@ export class Player {
     this.wasGrounded = b.grounded || !!this.climb;
 
     this.updatePunch(dt, ctl, aim);
+    // луч молнии: рука вытянута к курсору, пока держат ПКМ (не во время удара, броска, залезания и падения)
+    this.beaming = this.beamWanted && !this.downed && !this.climb && this.punchT < 0 && this.throwT < 0;
+    if (this.beaming) {
+      let bx = aim ? aim.x - b.x : this.facing;
+      let by = aim ? aim.y - (b.y - PUNCH_CHEST) : 0;
+      const bl = Math.hypot(bx, by);
+      if (bl < 6) { bx = this.facing; by = 0; } else { bx /= bl; by /= bl; }
+      this.beamDir = { x: bx, y: by };
+      this.beamArm = (bx >= 0 ? -this.facing : this.facing) as 1 | -1;
+    }
 
     const headY = b.y - 40;
     this.rig.update(dt, {
@@ -211,10 +226,37 @@ export class Player {
       wallX: this.wallX,
       punch: this.punchT >= 0 ? this.punchPose() : null,
       throwing: this.throwT >= 0 ? this.throwPose() : null,
+      beam: this.beaming ? { dirX: this.beamDir.x, dirY: this.beamDir.y, arm: this.beamArm } : null,
       ragdoll: this.downed && this.doll ? { body: this.doll, solid: (x, y) => y >= 0 && level.isSolid(Math.floor(x / level.tileSize), Math.floor(y / level.tileSize)) } : null
     });
     this.sprite.position.set(b.x, b.y);
     this.updateThrow(dt);
+  }
+
+  /** Куда смотрит герой: 1 — вправо, −1 — влево. */
+  public get facingDir(): 1 | -1 {
+    return this.facing;
+  }
+
+  /** Кисть, из которой бьёт луч (мир): null — луч сейчас не идёт. Читать после update(). */
+  public get beamOrigin(): { x: number; y: number; dirX: number; dirY: number } | null {
+    if (!this.beaming || !this.rig.hand.active) return null;
+    return { x: this.rig.hand.x, y: this.rig.hand.y, dirX: this.beamDir.x, dirY: this.beamDir.y };
+  }
+
+  /** Номер последнего начатого удара (растёт на единицу с каждым ударом) — по нему игра считает каждый третий. */
+  public get punchNumber(): number {
+    return this.punchId;
+  }
+
+  /** Надеть броню (ступени по частям): тела рига перекрашиваются. Возвращает снимки старых частей для отвалившихся обломков. */
+  public setArmor(tiers: Record<Slot, number>): void {
+    this.rig.setArmor(tiers);
+  }
+
+  /** Части тела, которые отваливаются при смене брони: текстура и положение в мире (первое — у слота). */
+  public detachPieces(slot: Slot): { texture: import('pixi.js').Texture; x: number; y: number; rotation: number; flip: 1 | -1; pivot: { x: number; y: number } }[] {
+    return this.rig.detachPieces(slot, this.body.x, this.body.y, this.facing);
   }
 
   private throwPose(): ThrowPose {
@@ -223,7 +265,7 @@ export class Player {
 
   /** Можно ли начать бросок сейчас (не лезет, не лежит, не бьёт, не бросает, пауза прошла). */
   public get canThrow(): boolean {
-    return !this.climb && !this.downed && this.throwT < 0 && this.punchT < 0 && this.throwCd <= 0;
+    return !this.climb && !this.downed && !this.beaming && this.throwT < 0 && this.punchT < 0 && this.throwCd <= 0;
   }
 
   /**
@@ -275,9 +317,10 @@ export class Player {
    * Сбить героя с ног внешним ударом (хлыст электрокрысы): он падает регдоллом в сторону dirX (±1), подброшенный и завалившись, затем встаёт сам.
    * Возвращает false, если не засчитано: уже лежит, висит на уступе или ещё действует защита от повторного сбивания.
    */
-  public knockdown(dirX: number, power = 1): boolean {
+  public knockdown(dirX: number, power = 1, force = false): boolean {
     const level = this.level;
-    if (!level || this.downed || this.climb || this.knockCd > 0) return false;
+    if (!level || this.downed || (!force && (this.climb || this.knockCd > 0))) return false;
+    this.climb = null;
     const b = this.body;
     const dir = dirX >= 0 ? 1 : -1;
     this.doll ??= new Ragdoll(this.rig.ragdollGeometry());
@@ -295,8 +338,7 @@ export class Player {
     const b = this.body;
     if (this.wasGrounded || !b.grounded || this.downed) return;
     const fall = b.y - this.peakY;
-    const legs = CraftingSystem.get().activeParts.legs;
-    if ((legs.type === 'standard' && legs.level >= 2) || (legs.type === 'disc' && legs.level >= 1)) {
+    if (Armor.get().equipped.legs >= 2) { // ноги в броне со второй ступени гасят удар
       if (fall >= LAND_DUST_HEIGHT) this.onLanding?.(b.x, b.bottom, Math.min(1, (fall - LAND_DUST_HEIGHT) / (FALL_HEIGHT - LAND_DUST_HEIGHT)));
       return; // Мягкое приземление без регдолла и потери управления
     }
@@ -358,7 +400,7 @@ export class Player {
     // сторона рига: рука на экране справа от героя (мир) — side -1 при взгляде вправо, и наоборот
     this.punchArm = (dx >= 0 ? -this.facing : this.facing) as 1 | -1;
     this.punchT = 0;
-    const cdMult = CraftingSystem.get().getAttackSpeedMultiplier();
+    const cdMult = Armor.get().attackCooldownMult;
     this.punchCd = PUNCH_COOLDOWN * cdMult;
     this.punchBuffer = 0;
     this.punchId++;
@@ -384,7 +426,7 @@ export class Player {
     this.wallJumpCd -= dt;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    const speedMult = CraftingSystem.get().getSpeedMultiplier();
+    const speedMult = Armor.get().speedMult;
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED * speedMult;
     if (this.downed) {
       b.vx = 0; // лежит: хитбокс двигает регдолл (updateDowned)
@@ -401,12 +443,11 @@ export class Player {
     this.jumpBuffer = input.jumpPressed ? GAME_CONFIG.JUMP_BUFFER_SEC : this.jumpBuffer - dt;
 
     if (b.grounded) {
-      this.extraJumps = CraftingSystem.get().getAirJumpsCount();
+      this.extraJumps = Armor.get().airJumps;
     }
 
     if (this.jumpBuffer > 0 && this.coyote > 0) {
-      const jumpBoost = CraftingSystem.get().getJumpForceMultiplier();
-      b.vy = GAME_CONFIG.JUMP_FORCE * jumpBoost;
+      b.vy = GAME_CONFIG.JUMP_FORCE;
       this.jumpBuffer = this.coyote = 0;
     } else if (this.jumpBuffer > 0 && !b.grounded && this.wallCoyote > 0 && this.wallDir !== 0) {
       // Прыжок у стены: если можно залезть — лезем, иначе прыжок от стены
@@ -418,7 +459,7 @@ export class Player {
       }
       if (this.wallJumpCd <= 0) this.wallJump(input.horizontal, level);
     } else if (this.jumpBuffer > 0 && !b.grounded && this.extraJumps > 0) {
-      // Двойной / тройной электро-прыжок в воздухе (проводные ноги)
+      // Двойной / тройной прыжок в воздухе (ноги в броне)
       b.vy = GAME_CONFIG.JUMP_FORCE * 0.95;
       this.extraJumps--;
       this.jumpBuffer = 0;

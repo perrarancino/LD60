@@ -41,6 +41,7 @@ export class RopeLimb {
   private readonly segLen: number;
   private readonly axisAngle: number; // угол оси исходной картинки (плечо -> кисть), y вниз
   private readonly segments: Segment[] = [];
+  private readonly axis: { ux: number; uy: number; pivot: { x: number; y: number } };
 
   // Мировые координаты точек цепочки (n + 1 точка) и их предыдущие положения
   private x: number[];
@@ -91,6 +92,7 @@ export class RopeLimb {
     const uy = (tipY - pivot.y) / best;
     this.axisAngle = Math.atan2(uy, ux);
     this.segLen = best / this.n;
+    this.axis = { ux, uy, pivot: { x: pivot.x, y: pivot.y } };
 
     for (let s = 0; s < this.n; s++) {
       this.segments.push({ sprite: this.sliceSegment(image, pivot, ux, uy, s) });
@@ -102,6 +104,19 @@ export class RopeLimb {
     this.y = new Array(this.n + 1).fill(0);
     this.px = new Array(this.n + 1).fill(0);
     this.py = new Array(this.n + 1).fill(0);
+  }
+
+  /**
+   * Другая раскраска руки (броня): те же пиксели формы (прозрачность не меняется), другие цвета — сегменты получают новые текстуры,
+   * цепочка и поза остаются.
+   */
+  public setImage(image: ImageData): void {
+    const { ux, uy, pivot } = this.axis;
+    for (let s = 0; s < this.n; s++) {
+      const fresh = this.sliceSegment(image, pivot, ux, uy, s);
+      this.segments[s].sprite.texture = fresh.texture;
+      fresh.destroy();
+    }
   }
 
   /**

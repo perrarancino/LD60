@@ -1,10 +1,12 @@
-import { Container, Sprite } from 'pixi.js';
+import { Container, Sprite, type Texture } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import { GAME_CONFIG } from '../core/Constants.ts';
 import type { RigDef, RigPartDef } from '../data/types.ts';
 import { splitFace } from './FaceSplit.ts';
 import type { Ragdoll, RagdollGeometry } from './Ragdoll.ts';
 import { RopeLimb } from './RopeLimb.ts';
+import { armorImage, imageTexture, textureImage } from './armorSkin.ts';
+import type { Slot } from '../systems/ArmorSystem.ts';
 
 /** Фаза залезания на уступ. */
 export type ClimbPhase = 'jump' | 'hang' | 'pull' | 'mantle';
@@ -82,6 +84,7 @@ export interface RigPose {
   wallX: number; // x поверхности стены (мир)
   punch?: PunchPose | null; // идёт удар: ближайшая к цели рука резко выбрасывается вперёд
   throwing?: ThrowPose | null; // идёт бросок: замах, рывок и отпускание шестерёнки
+  beam?: { dirX: number; dirY: number; arm: 1 | -1 } | null; // луч молнии: рука вытянута к курсору и держится
   ragdoll?: { body: Ragdoll; solid: (x: number, y: number) => boolean } | null; // упал с высоты: тело — регдолл (solid — тайлы для рук)
 }
 
@@ -89,7 +92,11 @@ interface Part {
   def: RigPartDef;
   sprite: Sprite | null; // у рук-канатов вместо спрайта — limb
   limb: RopeLimb | null;
+  image?: ImageData; // исходные пиксели слоя (для перекраски в броню)
+  baseTexture?: Texture; // текстура без брони (у рук-канатов её нет)
 }
+
+const ROLE_SLOT: Record<string, Slot> = { head: 'head', torso: 'torso', arm: 'arms', leg: 'legs' };
 
 /** Нога с шаговым контроллером: стопа стоит на месте в мире, пока тело не уйдёт, затем делает шаг. */
 interface Foot {
@@ -170,6 +177,8 @@ export class PlayerRig {
   /** Кисть бросающей руки в мире (обновляется, пока идёт бросок): отсюда вылетает шестерёнка. */
   public readonly hand = { x: 0, y: 0, active: false };
   private readonly gear: Sprite | null; // шестерёнка в руке (видна на замахе, пока не отпущена)
+  private readonly tiers: Record<Slot, number> = { head: 0, torso: 0, arms: 0, legs: 0 }; // надетая броня по частям
+  private readonly skins = new Map<string, { texture: Texture; image: ImageData }>(); // готовая броня: часть + ступень
   private prevTilt = 0; // наклон головы к курсору в прошлом кадре (торс следует за ним)
   /** Центр головы в координатах холста (по непрозрачным пикселям) — от него считается направление на курсор. */
   private headCenter: { x: number; y: number };
@@ -188,8 +197,9 @@ export class PlayerRig {
     for (const p of def.parts) {
       let part: Part;
       if (p.role === 'arm' && p.rope) {
-        const limb = new RopeLimb(sprites.imageData(p.sprite_id), p.pivot, p.rope.segments);
-        part = { def: p, sprite: null, limb };
+        const image = sprites.imageData(p.sprite_id);
+        const limb = new RopeLimb(image, p.pivot, p.rope.segments);
+        part = { def: p, sprite: null, limb, image };
         this.tilt.addChild(limb.container);
       } else if (p.role === 'head' && p.face) {
         // Череп и лицо — отдельные спрайты: лицо сдвигается по черепу, и голова «смотрит» на курсор
@@ -207,12 +217,12 @@ export class PlayerRig {
         sprite.pivot.set(p.pivot.x, p.pivot.y);
         faceSprite.pivot.set(p.pivot.x, p.pivot.y);
         this.faceSprite = faceSprite;
-        part = { def: p, sprite, limb: null };
+        part = { def: p, sprite, limb: null, baseTexture: sprite.texture };
         this.tilt.addChild(sprite, faceSprite);
       } else {
         const sprite = sprites.createSprite(p.sprite_id);
         sprite.pivot.set(p.pivot.x, p.pivot.y);
-        part = { def: p, sprite, limb: null };
+        part = { def: p, sprite, limb: null, baseTexture: sprite.texture };
         this.tilt.addChild(sprite);
       }
       this.parts.push(part);
@@ -234,6 +244,67 @@ export class PlayerRig {
     this.update(0, {
       bodyX: 0, bodyY: 0, vx: 0, vy: 0, facing: 1, grounded: true, aimX: 0, aimY: 0, climb: null, kick: null, wall: 0, wallX: 0
     });
+  }
+
+  /**
+   * Надеть броню (ступени по частям, 0 — без брони): части перекрашиваются в рампу ступени (armorSkin); форма не меняется.
+   * Глаза и лицо не трогаются.
+   */
+  public setArmor(tiers: Record<Slot, number>): void {
+    for (const part of this.parts) {
+      const slot = ROLE_SLOT[part.def.role ?? ''];
+      if (!slot) continue;
+      const tier = tiers[slot];
+      if (part.limb) {
+        part.limb.setImage(tier > 0 ? this.armorTexture(part, tier).image : part.image!);
+      } else if (part.sprite) {
+        part.sprite.texture = tier > 0 ? this.armorTexture(part, tier).texture : part.baseTexture!;
+      }
+    }
+    Object.assign(this.tiers, tiers);
+  }
+
+  /** Текстура и пиксели брони части на ступени (кэшируются). */
+  private armorTexture(part: Part, tier: number): { texture: Texture; image: ImageData } {
+    const key = `${part.def.sprite_id}:${tier}`;
+    let skin = this.skins.get(key);
+    if (!skin) {
+      const src = part.image ?? (part.image = textureImage(part.baseTexture!));
+      const image = armorImage(src, tier);
+      skin = { texture: imageTexture(image), image };
+      this.skins.set(key, skin);
+    }
+    return skin;
+  }
+
+  /**
+   * Снимки частей слота, которые сейчас на герое в броне (для отвалившихся обломков): текстура, положение точки привязки в мире, поворот.
+   * Если на слоте нет брони (ступень 0), отваливаться нечему — пусто.
+   */
+  public detachPieces(slot: Slot, bodyX: number, bodyY: number, facing: 1 | -1): {
+    texture: Texture; x: number; y: number; rotation: number; flip: 1 | -1; pivot: { x: number; y: number };
+  }[] {
+    const tier = this.tiers[slot];
+    if (tier <= 0) return [];
+    const out = [];
+    for (const part of this.parts) {
+      if (ROLE_SLOT[part.def.role ?? ''] !== slot) continue;
+      const pv = part.def.pivot;
+      const texture = this.armorTexture(part, tier).texture;
+      if (part.sprite) {
+        out.push({
+          texture, x: bodyX + part.sprite.x * facing, y: bodyY + part.sprite.y, rotation: part.sprite.rotation * facing, flip: facing,
+          pivot: { x: pv.x, y: pv.y }
+        });
+      } else {
+        // рука-канат: обломок — вся рука целиком у плеча
+        out.push({
+          texture, x: bodyX + (pv.x - this.def.anchor.x) * facing, y: bodyY + pv.y - this.def.anchor.y, rotation: 0, flip: facing,
+          pivot: { x: pv.x, y: pv.y }
+        });
+      }
+    }
+    return out;
   }
 
   private opaqueCenter(img: ImageData): { x: number; y: number } {
@@ -315,6 +386,8 @@ export class PlayerRig {
       const lean = (-wind * (1 - swing) + swing * (1 - clamp((thr.time - THROW_WINDUP - THROW_SWING) / THROW_HOLD, 0, 1))) * THROW_LEAN;
       torsoTarget += lean * clamp(thr.dirX * f, -1, 1);
     }
+    const beam = s.beam && !climb && !s.punch && !thr ? s.beam : null;
+    if (beam) torsoTarget += 0.1 * clamp(beam.dirX * f, -1, 1); // корпус слегка подаётся к лучу
     const punch = s.punch && !climb ? s.punch : null;
     if (punch) {
       // Удар: торс подаётся в сторону удара (вперёд по взгляду +, назад -), пик — в момент выброса руки
@@ -476,6 +549,17 @@ export class PlayerRig {
         continue;
       }
 
+      if (beam && side === beam.arm) {
+        // Луч молнии: рука вытянута к курсору и держится, кисть — источник луча
+        const reach = limb.length;
+        limb.setKinematic(dt, rootX, rootY, rootX + beam.dirX * reach * 0.98, rootY + beam.dirY * reach * 0.98, bend, frame, 24);
+        const tip = limb.tip;
+        this.hand.x = tip.x;
+        this.hand.y = tip.y;
+        this.hand.active = true;
+        continue;
+      }
+
       if (punch && side === punch.arm) {
         // Удар: рука резко выбрасывается от плеча по направлению удара (дуга без физики)
         const t = punch.time;
@@ -529,7 +613,7 @@ export class PlayerRig {
     }
 
     this.wasClimbing = !!climb;
-    if (!thr) {
+    if (!thr && !beam) {
       this.hand.active = false;
       if (this.gear) this.gear.visible = false;
     }

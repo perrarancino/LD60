@@ -140,6 +140,11 @@ export class Critter implements Hittable {
     this.animate(0);
   }
 
+  /** Страж (watcher) только следит и никого не трогает. */
+  public get passive(): boolean {
+    return this.cfg.kind === 'watcher';
+  }
+
   /** Рисунок зеркален, когда существо идёт в сторону, противоположную той, куда смотрит нарисованное. */
   private mirrored(): boolean {
     return this.facing !== this.cfg.draw_facing;

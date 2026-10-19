@@ -35,5 +35,12 @@
     "x": 3,
     "y": 15
   },
+  "terminals": [
+    {
+      "sprite_id": "terminal_loc2",
+      "x": 7,
+      "y": 15
+    }
+  ],
   "enemies": []
 }

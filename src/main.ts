@@ -21,13 +21,17 @@ import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
 import { FpsCounter } from './core/FpsCounter.ts';
 import { pal } from './core/Palette.ts';
-import { AgingSystem } from './systems/AgingSystem.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import { EventBus } from './core/EventBus.ts';
-import { CraftingSystem } from './systems/CraftingSystem.ts';
+import { Armor } from './systems/ArmorSystem.ts';
 import { LootSystem } from './systems/LootSystem.ts';
 import { ProjectileSystem } from './entities/ProjectileSystem.ts';
-import { RebirthUI } from './systems/RebirthUI.ts';
+import { Hud } from './ui/Hud.ts';
+import { TerminalUI } from './ui/TerminalUI.ts';
+import { Terminal } from './entities/Terminal.ts';
+import { Debris } from './effects/Debris.ts';
+import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
+import type { InputState } from './core/InputManager.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -63,6 +67,8 @@ const FIST_RADIUS = 6; // px: «толщина» кулака при прове�
 const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
 const ZAP_COLORS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('electric', 7)]; // искры электрокрысы
+const WHIP_DAMAGE = 18; // урон хвоста электрокрысы
+const CONTACT_COOLDOWN = 1.0; // с: пауза между контактными ударами одного моба
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
 const SHAKE_DECAY = 14; // 1/с: как быстро тряска затухает
@@ -89,7 +95,6 @@ const CAMERA_BOTTOM_MARGIN = 24; // px от низа экрана — страх
 class GameApp {
   private app: Application;
   private input: InputManager;
-  private aging: AgingSystem;
 
   private gameContainer: HTMLElement;
   private sprites = new SpriteLibrary();
@@ -118,8 +123,18 @@ class GameApp {
 
   private loot!: LootSystem;
   private projectiles!: ProjectileSystem;
-  private rebirthUI!: RebirthUI;
-  private speedCollisionTimer = 0;
+  private hud!: Hud;
+  private terminalUI!: TerminalUI;
+  private terminals: Terminal[] = [];
+  private debris = new Debris();
+  private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
+  private beam!: LightningBeam; // луч молнии из руки
+  private flashLayer = new Graphics(); // вспышка на весь экран
+  private flashAlpha = 0;
+  private flashDone = -1; // номер удара, для которого вспышка уже сработала
+  private deathTimer = 0; // с до возрождения (герой погиб)
+  private readonly contactDmg = new Map<Hittable, number>(); // контактный урон мобов по герою
+  private readonly contactCd = new Map<Hittable, number>(); // пауза между ударами одного моба
 
   // Размер видимой области в «виртуальных» пикселях: растёт вместе с окном, пиксели не растягиваются
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
@@ -135,43 +150,21 @@ class GameApp {
   constructor() {
     this.app = new Application();
     this.input = InputManager.get();
-    const initialTimer = CraftingSystem.get().getAgingTimerSeconds();
-    this.aging = new AgingSystem(
-      initialTimer,
-      playerData.aging_system.warning_threshold_seconds,
-      playerData.aging_system.critical_threshold_seconds
-    );
     this.gameContainer = document.getElementById('game-container')!;
-    this.rebirthUI = new RebirthUI();
+    this.hud = new Hud();
+    this.terminalUI = new TerminalUI();
 
-    // Обработка перерождения робота в новую копию
-    EventBus.get().on('crafting:rebuild_completed', () => {
-      this.aging.reset(CraftingSystem.get().getAgingTimerSeconds());
-      if (this.player) {
-        this.fx.burst(this.player.body.x, this.player.body.y - 28, {
-          count: 28,
-          colors: [0x38bdf8, 0x34d399, 0xffffff],
-          speed: [70, 220],
-          spread: Math.PI * 2,
-          life: [0.3, 0.6],
-          size: [2, 3]
-        });
-        const spawn = activeLevelDef.player_spawn;
-        this.player.spawnAt(spawn.x, spawn.y, this.level.tileSize);
+    // Смена брони: прежняя надетая часть отваливается физическим обломком (падает, подпрыгивает, потом исчезает), герой перекрашивается
+    EventBus.get().on('armor:changed', (e: { slot: 'head' | 'torso' | 'arms' | 'legs'; from: number; to: number }) => {
+      if (!this.player) return;
+      const b = this.player.body;
+      const pieces = this.player.detachPieces(e.slot);
+      if (pieces.length) {
+        this.debris.spawn(pieces, -this.player.facingDir);
+        this.fx.burst(b.x, b.y - 28, { count: 14, colors: [0xd5ebff, 0x97b2c9, 0xfbc53d], speed: [60, 170], spread: Math.PI * 2, life: [0.2, 0.45], size: [1, 2] });
       }
-    });
-
-    // Обработка истечения 5-минутного энергоядра
-    EventBus.get().on('aging:expired', () => {
-      const crafting = CraftingSystem.get();
-      if (crafting.canRebuild()) {
-        crafting.performRebuild();
-      } else {
-        this.rebirthUI.showRebirthAlert('⚠️ ЭНЕРГОЯДРО ИСТОЩЕНО! Копия не была собрана. Аварийная перезагрузка...');
-        setTimeout(() => {
-          this.aging.reset(CraftingSystem.get().getAgingTimerSeconds());
-        }, 3000);
-      }
+      this.player.setArmor(Armor.get().equipped);
+      if (e.to > 0) this.fx.burst(b.x, b.y - 28, { count: 10, colors: LIGHTNING_SPARKS, speed: [40, 120], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
     });
   }
 
@@ -353,8 +346,7 @@ class GameApp {
       SMOKE_FX.sprite,
       'bullet1',
       'mat_scrap',
-      'mat_wire',
-      'mat_disc',
+      ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       heroSpriteId,
       ...rigDef.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])]),
@@ -420,7 +412,7 @@ class GameApp {
         const spider = new Spider(def, spawn, this.level, rig, this.sprites);
         this.spiders.push(spider);
         this.worldLayer.addChild(spider.container);
-        this.trackSpider(spider, def.stats.max_health);
+        this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
         continue;
       }
       if (def.behavior_type === 'spawner') {
@@ -432,6 +424,7 @@ class GameApp {
         this.mothers.push(mother);
         this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
         this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
+        this.contactDmg.set(mother, def.stats.contact_damage);
         continue;
       }
       if (def.behavior_type === 'flying_worm') {
@@ -444,6 +437,7 @@ class GameApp {
         });
         this.bosses.push(boss);
         this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
+        this.contactDmg.set(boss, def.stats.contact_damage);
         continue;
       }
       if (def.behavior_type === 'critter') {
@@ -457,17 +451,17 @@ class GameApp {
         const mob = new Critter(def, spawn, this.level, rig, this.sprites, hero);
         // хлыст-молния электрокрысы: сбивает героя с ног (регдолл), на щелчке — искры
         mob.onWhipHit = (x, y, dirX) => {
-          const knocked = this.player.knockdown(dirX);
-          if (knocked) {
-            this.shake = Math.max(this.shake, CRIT_SHAKE);
-            this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
-          }
-          return knocked;
+          // хлыст отнимает здоровье и сбивает с ног; если урон не засчитан (шанс брони, неуязвимость) — героя не трогает
+          if (!this.hurtPlayer(WHIP_DAMAGE, dirX)) return false;
+          if (Armor.get().hp > 0) this.player.knockdown(dirX);
+          this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
+          return true;
         };
         mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
         this.critters.push(mob);
         this.worldLayer.addChild(mob.container);
         this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
+        if (!mob.passive) this.contactDmg.set(mob, def.stats.contact_damage);
         continue;
       }
       if (def.behavior_type === 'burrower') {
@@ -477,19 +471,29 @@ class GameApp {
         const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
+        this.contactDmg.set(worm, def.stats.contact_damage);
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
       this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
+      this.contactDmg.set(enemy, def.stats.contact_damage);
+    }
+
+    // Терминалы брони: стоят за героем
+    for (const t of levelDef.terminals ?? []) {
+      const term = new Terminal(t, this.level.tileSize, this.sprites);
+      this.terminals.push(term);
+      this.worldLayer.addChild(term.container);
     }
 
     this.player = new Player(heroSpriteId, rigDef, this.sprites);
+    this.player.setArmor(Armor.get().equipped);
     this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
     this.worldLayer.addChild(this.player.sprite);
 
-    this.loot = new LootSystem(this.sprites, this.fx, this.numbers);
+    this.loot = new LootSystem(this.sprites, this.fx);
     this.worldLayer.addChild(this.loot.container);
 
     this.projectiles = new ProjectileSystem(
@@ -498,6 +502,13 @@ class GameApp {
       (t, x, y, dx, p, dmg) => this.damage(t, x, y, dx, p, dmg)
     );
     this.worldLayer.addChild(this.projectiles.container);
+    this.worldLayer.addChild(this.debris.container); // отвалившиеся части брони
+    this.beam = new LightningBeam(
+      (t, x, y, dx, p, dmg) => this.damage(t, x, y, dx, p, dmg),
+      (x, y, n) => this.fx.burst(x, y, { count: n, colors: LIGHTNING_SPARKS, speed: [30, 110], spread: Math.PI * 2, life: [0.1, 0.25], size: [1, 2] })
+    );
+    this.worldLayer.addChild(this.beam.container);
+    this.worldLayer.addChild(this.boltFx.container);
 
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
     this.spriteFx = new SpriteEffects(this.sprites);
@@ -516,7 +527,8 @@ class GameApp {
     // Освещение поверх мира, под интерфейсом (интерфейс добавится в сцену позже)
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
-      this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container
+      this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container,
+      this.debris.container, this.beam.container, this.boltFx.container, ...this.terminals.map((t) => t.container)
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     if (levelDef.light) {
@@ -528,6 +540,7 @@ class GameApp {
     this.sceneLayer.removeChild(this.worldLayer);
     this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
+    this.app.stage.addChild(this.flashLayer); // вспышка молнии на весь экран
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
     if (levelDef.grade) {
       this.grade = new ColorGrade(levelDef.grade);
@@ -568,6 +581,11 @@ class GameApp {
       target.onHit(strike.dirX, strike.dirY, contact.part);
       this.landPunch(contact.x, contact.y, strike);
       this.damage(target, contact.x, contact.y, strike.dirX, contact.part);
+      const armor = Armor.get();
+      if (armor.hasLightning && strike.id % armor.flashEvery === 0 && this.flashDone !== strike.id) {
+        this.flashDone = strike.id; // одна вспышка на удар
+        this.lightningFlash(contact.x, contact.y, target, contact.part, strike.dirX);
+      }
     }
   }
 
@@ -576,7 +594,8 @@ class GameApp {
     this.mobs.set(target, { hp: maxHp, max: maxHp, view, remove });
   }
 
-  private trackSpider(spider: Spider, maxHp: number): void {
+  private trackSpider(spider: Spider, maxHp: number, contact = 0): void {
+    if (contact > 0) this.contactDmg.set(spider, contact);
     this.track(spider, maxHp, spider.container, () => {
       this.spiders.splice(this.spiders.indexOf(spider), 1);
       spider.expired = true; // матка считает живых паучков по этому флагу
@@ -589,9 +608,9 @@ class GameApp {
     const byParts = isPartDamageable(target);
     if (!mob && !byParts) return;
     const [lo, hi] = this.combat.punch_damage;
-    const extraCrit = CraftingSystem.get().getCritChanceBonus();
-    const crit = Math.random() < ((this.combat.crit_chance ?? 0) + extraCrit);
-    let dmg = customDmg !== undefined ? customDmg : lo + Math.floor(Math.random() * (hi - lo + 1));
+    const isPunch = customDmg === undefined; // крит и броня рук работают только для ударов
+    const crit = isPunch && Math.random() < (this.combat.crit_chance ?? 0);
+    let dmg = isPunch ? Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * Armor.get().punchMult) : customDmg;
     if (crit) dmg = Math.round(dmg * (this.combat.crit_multiplier ?? 2));
     this.numbers.spawn(x, y - 6, dmg, crit, dirX);
     this.shake = Math.max(this.shake, crit ? CRIT_SHAKE : HIT_SHAKE);
@@ -613,6 +632,7 @@ class GameApp {
     const view = (target as unknown as { container: Container }).container;
     const isBoss = target instanceof WormBoss;
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
+    this.contactDmg.delete(target);
     drop(this.worms, target);
     drop(this.bosses, target);
     view.destroy({ children: true });
@@ -625,43 +645,97 @@ class GameApp {
     else if (target instanceof SpiderMother) enemyType = 'mother';
     else if (target instanceof Worm) enemyType = 'worm';
     else if (target instanceof WormBoss) enemyType = 'boss';
+    else if (target instanceof Critter) enemyType = 'critter';
     this.loot.spawnFromEnemy(mob.view.x, mob.view.y, enemyType);
 
+    this.contactDmg.delete(target);
     this.mobs.delete(target);
     mob.remove();
     mob.view.destroy({ children: true });
   }
 
-  /** Столкновение с врагами на высокой скорости (дисковые ноги ур3) */
-  private checkSpeedCollision(dt: number): void {
-    if (!CraftingSystem.get().hasSpeedCollisionDamage()) return;
-    const b = this.player.body;
-    if (Math.abs(b.vx) < 170) {
-      this.speedCollisionTimer = Math.max(0, this.speedCollisionTimer - dt);
-      return;
-    }
-    this.speedCollisionTimer -= dt;
-    if (this.speedCollisionTimer > 0) return;
+  // ---------- Здоровье героя
 
-    for (const target of this.hittables()) {
-      for (const circle of target.hitCircles()) {
-        const dist = Math.hypot(circle.x - b.x, circle.y - (b.y - 16));
-        if (dist < circle.r + 14) {
-          const dirX = Math.sign(b.vx) || 1;
-          target.onHit(dirX * 120, -40, circle.part);
-          this.damage(target, circle.x, circle.y, dirX, circle.part, 25);
-          this.fx.burst(circle.x, circle.y, {
-            count: 10,
-            colors: [0x38bdf8, 0xffffff, 0xf59e0b],
-            speed: [60, 160],
-            spread: Math.PI * 2,
-            life: [0.15, 0.35],
-            size: [1, 2]
-          });
-          this.speedCollisionTimer = 0.25;
-          return;
-        }
+  /**
+   * Урон герою. Возвращает true, если урон засчитан; false — не засчитан (неуязвимость после попадания и у терминала, или сработал шанс брони).
+   * Шанс брони показывается серыми искрами. Здоровье закончилось — герой падает и возрождается у начала уровня, потеряв часть металлолома.
+   */
+  private hurtPlayer(amount: number, fromDirX: number): boolean {
+    const armor = Armor.get();
+    const b = this.player.body;
+    const r = armor.hurt(amount);
+    if (r === 'ignored') return false;
+    if (r === 'blocked') {
+      this.fx.burst(b.x, b.y - 28, { count: 8, colors: [0xd5ebff, 0x97b2c9], speed: [40, 110], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+      return false;
+    }
+    this.numbers.spawn(b.x, b.y - 48, amount, false, fromDirX);
+    this.shake = Math.max(this.shake, CRIT_SHAKE);
+    this.hud.flashHurt();
+    this.fx.burst(b.x, b.y - 28, { count: 10, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [50, 140], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+    if (r === 'dead') {
+      this.deathTimer = 1.5;
+      this.player.knockdown(fromDirX, 1.3, true);
+    }
+    return true;
+  }
+
+  /** Возрождение после гибели: у начала уровня, с полным здоровьем; часть металлолома потеряна. */
+  private respawnPlayer(): void {
+    const armor = Armor.get();
+    armor.loseScrapOnDeath();
+    armor.revive();
+    const sp = activeLevelDef.player_spawn;
+    this.player.spawnAt(sp.x, sp.y, this.level.tileSize);
+    this.fx.burst(this.player.body.x, this.player.body.y - 28, { count: 22, colors: LIGHTNING_SPARKS, speed: [60, 190], spread: Math.PI * 2, life: [0.25, 0.5], size: [1, 3] });
+  }
+
+  /** Касание мобов: каждый наносит контактный урон (из данных врага), не чаще раза в CONTACT_COOLDOWN секунд. */
+  private checkContactDamage(dt: number): void {
+    const b = this.player.body;
+    for (const [target, cd] of this.contactCd) {
+      if (cd - dt <= 0) this.contactCd.delete(target); else this.contactCd.set(target, cd - dt);
+    }
+    for (const [target, dmg] of this.contactDmg) {
+      if (dmg <= 0 || this.contactCd.has(target)) continue;
+      for (const c of target.hitCircles()) {
+        const nx = Math.max(b.left, Math.min(c.x, b.right));
+        const ny = Math.max(b.top, Math.min(c.y, b.bottom));
+        if (Math.hypot(c.x - nx, c.y - ny) > c.r * 0.8) continue;
+        this.contactCd.set(target, CONTACT_COOLDOWN);
+        this.hurtPlayer(dmg, b.x >= c.x ? 1 : -1);
+        break;
       }
+    }
+  }
+
+  /**
+   * Вспышка молнии (каждый третий удар с бронёй на руках): яркая вспышка в точке удара, усиленный урон цели и цепные разряды на ближайших врагов.
+   */
+  private lightningFlash(x: number, y: number, primary: Hittable, part: number | undefined, dirX: number): void {
+    const armor = Armor.get();
+    const [lo, hi] = this.combat.punch_damage;
+    const dmg = Math.max(1, Math.round(((lo + hi) / 2) * armor.punchMult * armor.flashMult));
+    this.boltFx.flash(x, y, 30, 0.22);
+    this.flashAlpha = 0.28;
+    this.shake = Math.max(this.shake, CRIT_SHAKE + 0.8);
+    this.damage(primary, x, y, dirX, part, dmg);
+    const near: { t: Hittable; cx: number; cy: number; part?: number; d: number }[] = [];
+    for (const t of this.hittables()) {
+      if (t === primary) continue;
+      let best: { x: number; y: number; part?: number; d: number } | null = null;
+      for (const c of t.hitCircles()) {
+        const d = Math.hypot(c.x - x, c.y - y);
+        if (d <= armor.flashRadius + c.r && (!best || d < best.d)) best = { x: c.x, y: c.y, part: c.part, d };
+      }
+      if (best) near.push({ t, cx: best.x, cy: best.y, part: best.part, d: best.d });
+    }
+    near.sort((a, b) => a.d - b.d);
+    for (const n of near.slice(0, armor.flashTargets)) {
+      this.boltFx.bolt({ x, y }, { x: n.cx, y: n.cy }, 0.22);
+      this.boltFx.flash(n.cx, n.cy, 16, 0.16);
+      n.t.onHit(Math.sign(n.cx - x) || 1, 0, n.part);
+      this.damage(n.t, n.cx, n.cy, Math.sign(n.cx - x) || 1, n.part, Math.max(1, Math.round(dmg * 0.7)));
     }
   }
 
@@ -760,7 +834,7 @@ class GameApp {
     const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds, fx: this.fx });
     baby.launch(x, y, vx, vy);
     this.spiders.push(baby); // слой выбирает матка: сначала ниже себя, потом передний
-    this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))));
+    this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))), babyDef.stats.contact_damage);
     return baby;
   }
 
@@ -791,23 +865,48 @@ class GameApp {
   private update(dt: number): void {
     dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
 
-    // 1. Обновление таймера старения
-    this.aging.update(dt);
+    const armor = Armor.get();
+    const terminalOpen = this.terminalUI.isOpen;
+    const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
+    armor.invulnerable = terminalOpen || this.deathTimer > 0;
+    armor.update(dt);
 
-    // 2. Игрок: ввод + физика на тайлах
+    // 1. Игрок: ввод + физика на тайлах
     const input = this.input.poll();
     const aim = this.aimInWorld();
-    this.player.update(dt, input, this.level, aim);
+    const live: InputState = frozen ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false,
+      specialAttackPressed: false, specialAttackHeld: false, hubMenuPressed: false } : input;
+    // луч молнии: ПКМ зажата, броня на руках, есть энергия
+    this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
+    this.player.update(dt, live, this.level, aim);
 
-    // Спец-атака на правую кнопку мыши (ПКМ): бросок — рука замахивается, а в момент отпускания из кисти вылетает снаряд (шестерёнка)
-    if (input.specialAttackPressed && aim && this.projectiles.ready && this.player.canThrow) {
-      this.player.startThrow(aim, CraftingSystem.get().activeParts.arms.type === 'standard');
+    // 2. Спец-атака на правую кнопку мыши (ПКМ): без брони на руках — бросок шестерёнки (замах, в момент отпускания из кисти вылетает снаряд, тратит энергию)
+    if (!armor.hasLightning && live.specialAttackPressed && aim && this.projectiles.ready && this.player.canThrow) {
+      if (armor.canSpend(armor.gearCost)) this.player.startThrow(aim, true);
+      else armor.spend(armor.gearCost); // не хватило энергии — шкала мигает
     }
+    const bo = this.player.beamOrigin;
+    if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
+    this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
 
-    // Быстрый доступ к верстаку сборки копии в хабе
-    if (input.hubMenuPressed) {
-      this.rebirthUI.toggleModal();
+    // Терминал: рядом — подсказка, E открывает и закрывает окно
+    const pb = this.player.body;
+    let nearTerm: Terminal | null = null;
+    for (const t of this.terminals) {
+      const near = !frozen && t.reaches(pb.x, pb.y);
+      t.update(dt, near || (terminalOpen && t.reaches(pb.x, pb.y)));
+      if (near) nearTerm = t;
     }
+    if (input.interactPressed) {
+      if (terminalOpen) this.terminalUI.close();
+      else if (nearTerm && this.deathTimer <= 0) this.terminalUI.open(nearTerm.style);
+    }
+    if (this.deathTimer > 0) {
+      this.deathTimer -= dt;
+      if (this.deathTimer <= 0) this.respawnPlayer();
+    }
+    // герой мигает, пока неуязвим после попадания
+    this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -817,9 +916,17 @@ class GameApp {
     for (const boss of this.bosses) boss.update(dt);
     for (const mob of this.critters) mob.update(dt);
     this.resolveStrike();
-    this.checkSpeedCollision(dt);
+    this.checkContactDamage(dt);
     this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });
     this.loot.update(dt, this.level, this.player);
+    this.debris.update(dt, this.level, armor.debrisLife);
+    this.boltFx.update(dt);
+    if (this.flashAlpha > 0) {
+      this.flashAlpha = Math.max(0, this.flashAlpha - dt * 2.6);
+      this.flashLayer.clear();
+      if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: pal('gold', 7), alpha: this.flashAlpha });
+    }
+    this.hud.update();
     this.fx.update(dt);
     this.spriteFx.update(dt);
     this.numbers.update(dt);
@@ -847,5 +954,8 @@ class GameApp {
 window.addEventListener('DOMContentLoaded', () => {
   const game = new GameApp();
   game.start().catch(console.error);
-  if (import.meta.env.DEV) (window as unknown as { __game: GameApp }).__game = game; // отладка из консоли браузера
+  if (import.meta.env.DEV) {
+    (window as unknown as { __game: GameApp; __armor: Armor }).__game = game; // отладка из консоли браузера
+    (window as unknown as { __armor: Armor }).__armor = Armor.get();
+  }
 });

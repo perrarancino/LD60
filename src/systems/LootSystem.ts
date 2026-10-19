@@ -3,11 +3,9 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { Level } from '../world/Level.ts';
 import type { Player } from '../entities/Player.ts';
 import type { Particles } from '../effects/Particles.ts';
-import { CraftingSystem, type MaterialType } from './CraftingSystem.ts';
-import type { DamageNumbers } from '../effects/DamageNumbers.ts';
+import { Armor, type DropKind } from './ArmorSystem.ts';
 
 interface DroppedItem {
-  type: MaterialType;
   sprite: Sprite;
   x: number;
   y: number;
@@ -31,56 +29,26 @@ export class LootSystem {
 
   constructor(
     private readonly sprites: SpriteLibrary,
-    private readonly fx?: Particles,
-    private readonly numbers?: DamageNumbers
+    private readonly fx?: Particles
   ) {}
 
   /**
-   * Выпадение лута при гибели врага
+   * Выпадение лута при гибели врага: единственный ресурс — металлолом, сколько — зависит от вида моба (data/player/armor.json, scrap_drop).
+   * enemyId — вид (spider, mother, worm, boss, critter) или id врага из данных.
    */
   public spawnFromEnemy(x: number, y: number, enemyId: string): void {
-    let drops: MaterialType[] = [];
-
-    if (enemyId.includes('spider') || enemyId === 'crawler') {
-      // С пауков: мусор и провода
-      drops.push('scrap');
-      if (Math.random() < 0.7) drops.push('wires');
-      if (Math.random() < 0.25) drops.push('scrap');
-    } else if (enemyId.includes('mother')) {
-      // С матки: щедрый дроп всех 3 материалов
-      drops.push('scrap', 'wires', 'discParts');
-      if (Math.random() < 0.5) drops.push('wires');
-      if (Math.random() < 0.5) drops.push('discParts');
-    } else if (enemyId.includes('worm') || enemyId === 'burrower') {
-      // С червя: мусор и дисковые детали
-      drops.push('scrap');
-      if (Math.random() < 0.75) drops.push('discParts');
-      if (Math.random() < 0.3) drops.push('discParts');
-    } else if (enemyId.includes('boss')) {
-      // С босса: много деталей всех типов
-      drops.push('scrap', 'scrap', 'wires', 'wires', 'discParts', 'discParts');
-    } else {
-      // Обычные противники
-      const roll = Math.random();
-      if (roll < 0.45) drops.push('scrap');
-      else if (roll < 0.75) drops.push('wires');
-      else drops.push('discParts');
-    }
-
-    // Бонусный дроп материалов при дисковой голове
-    const head = CraftingSystem.get().activeParts.head;
-    if (head.type === 'disc' && Math.random() < head.level * 0.2) {
-      drops.push(Math.random() < 0.5 ? 'discParts' : 'scrap');
-    }
-
-    for (const mat of drops) {
-      this.spawnItem(x + (Math.random() * 12 - 6), y - 8 + (Math.random() * 8 - 4), mat);
-    }
+    let kind: DropKind = 'default';
+    if (enemyId.includes('mother')) kind = 'mother';
+    else if (enemyId.includes('boss')) kind = 'boss';
+    else if (enemyId.includes('worm') || enemyId === 'burrower') kind = 'worm';
+    else if (enemyId.includes('spider') || enemyId === 'crawler') kind = 'spider';
+    else if (enemyId === 'critter') kind = 'critter';
+    const n = Armor.get().dropAmount(kind);
+    for (let i = 0; i < n; i++) this.spawnItem(x + (Math.random() * 12 - 6), y - 8 + (Math.random() * 8 - 4));
   }
 
-  public spawnItem(x: number, y: number, type: MaterialType): void {
-    const spriteId = type === 'scrap' ? 'mat_scrap' : type === 'wires' ? 'mat_wire' : 'mat_disc';
-    const sprite = this.sprites.createSprite(spriteId);
+  public spawnItem(x: number, y: number): void {
+    const sprite = this.sprites.createSprite('mat_scrap');
     sprite.position.set(x, y);
     this.container.addChild(sprite);
 
@@ -88,7 +56,6 @@ export class LootSystem {
     const speed = 70 + Math.random() * 90;
 
     this.items.push({
-      type,
       sprite,
       x,
       y,
@@ -101,7 +68,7 @@ export class LootSystem {
   }
 
   public update(dt: number, level: Level, player: Player): void {
-    const crafting = CraftingSystem.get();
+    const armor = Armor.get();
     const px = player.body.x;
     const py = player.body.y - 18; // центр тела игрока
     const ts = level.tileSize;
@@ -114,8 +81,7 @@ export class LootSystem {
       const dy = py - it.y;
       const dist = Math.hypot(dx, dy);
 
-      const head = crafting.activeParts.head;
-      const effectiveMagnetDist = head.type === 'disc' ? MAGNET_DIST * (1 + head.level * 0.8) : MAGNET_DIST;
+      const effectiveMagnetDist = MAGNET_DIST;
 
       // Магнит к игроку
       if (dist < effectiveMagnetDist || it.magnetized) {
@@ -160,16 +126,11 @@ export class LootSystem {
 
       // Подбор игроком
       if (dist < PICKUP_DIST) {
-        crafting.addMaterial(it.type, 1);
+        armor.addScrap(1);
         if (this.fx) {
-          const fxColors = it.type === 'scrap' ? [0xa0aec0, 0xedf2f7] : it.type === 'wires' ? [0x38bdf8, 0xf59e0b] : [0xc084fc, 0x06b6d4];
           this.fx.burst(it.x, it.y, {
-            count: 6, colors: fxColors, speed: [30, 80], spread: Math.PI * 2, life: [0.15, 0.3], size: [1, 2]
+            count: 6, colors: [0x97b2c9, 0xd5ebff], speed: [30, 80], spread: Math.PI * 2, life: [0.15, 0.3], size: [1, 2]
           });
-        }
-        if (this.numbers) {
-          // Всплывающее уведомление о подборе
-          this.numbers.spawn(it.x, it.y - 10, 1, false, 0);
         }
         it.sprite.destroy();
         this.items.splice(i, 1);

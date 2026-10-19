@@ -1803,6 +1803,54 @@
         "y": 0.0
       },
       "animations": {}
+    },
+    {
+      "id": "terminal_loc1",
+      "category": "decor",
+      "image": "decor/terminal_loc1.png",
+      "frame_width": 40,
+      "frame_height": 56,
+      "frames": 4,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "frame_duration_ms": 170,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "terminal_loc2",
+      "category": "decor",
+      "image": "decor/terminal_loc2.png",
+      "frame_width": 40,
+      "frame_height": 56,
+      "frames": 4,
+      "origin": {
+        "x": 0.5,
+        "y": 1.0
+      },
+      "animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "frame_duration_ms": 170,
+          "loop": true
+        }
+      }
     }
   ]
 }
