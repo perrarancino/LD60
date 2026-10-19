@@ -79,11 +79,16 @@ const requestedLevel = urlParams.get('level');
 /** Уровень открыт отладочной клавишей (1–5): без тумана войны, все двери открыты — карту видно и проходить можно целиком. */
 const DEBUG_MODE = urlParams.get('debug') === '1';
 /** Рогалик — основной режим игры; старые уровни и карта открываются по ?level=... (и клавишам 1–5). */
-const ROGUE = !requestedLevel;
+// Старый уровень из ?level= открывается только явно: из редактора (live / spawn / door) или с ?debug=1; обычный ?level=... (закладка, прежний адрес) игнорируется — запускается рогалик
+const ROGUE = !requestedLevel || !(urlParams.get('live') === '1' || urlParams.get('debug') === '1' || urlParams.has('spawn') || urlParams.has('door'));
 if (ROGUE) {
   // отладка: ?run=new — новый забег, ?node=N — сразу к узлу N (0..11; 3, 7, 11 — боссы); параметры снимаются с адреса, чтобы не срабатывать при каждой перезагрузке
   const run = Run.get();
   const url = new URL(window.location.href);
+  if (url.searchParams.has('level')) {
+    url.searchParams.delete('level'); // устаревший адрес со старым уровнем: чистим
+    window.history.replaceState(null, '', url.toString());
+  }
   if (url.searchParams.get('run') === 'new') run.restart();
   if (url.searchParams.has('node')) run.jump(Number(url.searchParams.get('node')) || 0);
   if (url.searchParams.has('run') || url.searchParams.has('node')) {
