@@ -2,16 +2,30 @@ import { EventBus } from '../core/EventBus.ts';
 import type { IPuzzle } from './PuzzleSystem.ts';
 
 /**
+ * Идентификаторы спрайтов и путей для батареи и стойки питания
+ */
+export const BATTERY_ITEM_ID = 'item_battery';
+export const BATTERY_STAND_SOCKET_ID = 'deco_batterystand';
+export const BATTERY_SPRITE_ID = 'item_battery';
+export const BATTERY_IMAGE_PATH = 'items/battery.png';
+export const BATTERY_STAND_SPRITE_ID = 'deco_batterystand';
+export const BATTERY_STAND_IMAGE_PATH = 'decor/batterystand.png';
+
+/**
  * Состояние интерактивного предмета на карте
  */
 export type ItemState = 'on_ground' | 'carried' | 'inserted';
 
 /**
- * Описание предмета/детали, которую можно подобрать и вставить
+ * Описание предмета/детали, которую можно подобрать и нести в руках
  */
 export interface PuzzleItem {
   id: string;
   name: string;
+  /** Идентификатор спрайта из data/sprites/sprites.json (например, item_battery) */
+  spriteId?: string;
+  /** Относительный путь к изображению в assets/sprites (например, items/battery.png) */
+  image?: string;
   /** Координаты на карте */
   x: number;
   y: number;
@@ -21,15 +35,21 @@ export interface PuzzleItem {
   state: ItemState;
   /** ID гнезда, если деталь уже вставлена */
   insertedSocketId?: string;
+  /** Смещение относительно координат игрока при переноске в руках */
+  carryOffset?: { x: number; y: number };
 }
 
 /**
- * Описание гнезда/сокета на карте уровня
+ * Описание гнезда/стойки на карте уровня
  */
 export interface PuzzleSocket {
   id: string;
   name: string;
-  /** Координаты гнезда на карте */
+  /** Идентификатор спрайта стойки из data/sprites/sprites.json (например, deco_batterystand) */
+  spriteId?: string;
+  /** Относительный путь к изображению в assets/sprites (например, decor/batterystand.png) */
+  image?: string;
+  /** Координаты стойки/гнезда на карте */
   x: number;
   y: number;
   /** Радиус, в пределах которого можно вставить предмет (в пикселях) */
@@ -40,6 +60,8 @@ export interface PuzzleSocket {
   isOccupied: boolean;
   /** ID вставленного предмета */
   insertedItemId?: string;
+  /** Смещение точки фиксации детали на стойке (например, батарея садится в верхнюю часть стойки) */
+  insertOffset?: { x: number; y: number };
 }
 
 /**
@@ -70,16 +92,16 @@ export interface InteractionPrompt {
 }
 
 /**
- * Логика головоломки: «Вставить деталь в нужное место на карте».
+ * Логика головоломки: «Подбор батареи (items/battery.png) и установка в стойку (decor/batterystand.png)».
  *
  * Механика:
- * 1. На карте лежит деталь (или несколько деталей), например, энергоячейка или предохранитель.
- * 2. Робот подходит к детали и подбирает её в руки (state = 'carried').
- * 3. Деталь перемещается вместе с роботом.
- * 4. Робот подходит к целевому гнезду/слоту (socket) и активирует вставку.
- * 5. Деталь встаёт в гнездо (state = 'inserted'), слот активируется.
- * 6. Когда все требуемые слоты заполнены — фиксируется победа (isSolved = true),
- *    открывается шлюз / дверь, позволяя пройти дальше.
+ * 1. На карте размещается батарея питания (sprite: item_battery) и стойка (sprite: deco_batterystand).
+ * 2. Робот подходит к батарее и подбирает её в руки (state = 'carried').
+ * 3. Батарея перемещается вместе с роботом со смещением в руках (carryOffset).
+ * 4. Робот подходит к стойке аккумулятора и активирует установку (E).
+ * 5. Батарея встаёт в посадочное место стойки (state = 'inserted', позиционируется по insertOffset), стойка активируется.
+ * 6. Когда батарея установлена на стойку — фиксируется победа (isSolved = true),
+ *    эмитится событие 'puzzle:socket:solved' и срабатывает коллбек onSolved.
  */
 export class ItemSocketPuzzle implements IPuzzle {
   public readonly id: string;
@@ -96,36 +118,56 @@ export class ItemSocketPuzzle implements IPuzzle {
 
   constructor(config: ItemSocketPuzzleConfig = {}) {
     this.id = config.id ?? 'item_socket_puzzle';
-    this.name = config.name ?? 'Установка компонентов питания в слоты';
+    this.name = config.name ?? 'Установка аккумулятора питания в стойку';
     this.emitEvents = config.emitEvents ?? true;
     this.onItemInsertedCallback = config.onItemInserted;
     this.onSolvedCallback = config.onSolved;
 
-    // Начальные дефолтные предметы и слоты (если не переданы кастомные для конкретного уровня)
+    // По умолчанию настраиваем скрипт на связку battery.png -> batterystand.png
     const initialItems: PuzzleItem[] = config.items ?? [
-      {
-        id: 'power_fuse',
-        name: 'Высоковольтный предохранитель',
-        x: 120,
-        y: 200,
-        pickupRadius: 28,
-        state: 'on_ground'
-      }
+      ItemSocketPuzzle.createBattery(0, 0)
     ];
 
     const initialSockets: PuzzleSocket[] = config.sockets ?? [
-      {
-        id: 'door_terminal_socket',
-        name: 'Гнездо распределителя шлюза',
-        x: 420,
-        y: 190,
-        interactionRadius: 32,
-        requiredItemIds: ['power_fuse'],
-        isOccupied: false
-      }
+      ItemSocketPuzzle.createBatteryStand(0, 0)
     ];
 
     this.init(initialItems, initialSockets);
+  }
+
+  /**
+   * Фабричный метод создания объекта батареи (items/battery.png)
+   */
+  public static createBattery(x: number, y: number, id: string = BATTERY_ITEM_ID): PuzzleItem {
+    return {
+      id,
+      name: 'Батарея питания',
+      spriteId: BATTERY_SPRITE_ID,
+      image: BATTERY_IMAGE_PATH,
+      x,
+      y,
+      pickupRadius: 28,
+      state: 'on_ground',
+      carryOffset: { x: 8, y: -22 }
+    };
+  }
+
+  /**
+   * Фабричный метод создания объекта стойки аккумулятора (decor/batterystand.png)
+   */
+  public static createBatteryStand(x: number, y: number, id: string = BATTERY_STAND_SOCKET_ID): PuzzleSocket {
+    return {
+      id,
+      name: 'Стойка аккумулятора',
+      spriteId: BATTERY_STAND_SPRITE_ID,
+      image: BATTERY_STAND_IMAGE_PATH,
+      x,
+      y,
+      interactionRadius: 36,
+      requiredItemIds: [BATTERY_ITEM_ID, 'battery'],
+      isOccupied: false,
+      insertOffset: { x: 0, y: -24 }
+    };
   }
 
   public get isSolved(): boolean {
@@ -140,10 +182,39 @@ export class ItemSocketPuzzle implements IPuzzle {
   }
 
   /**
+   * Несёт ли игрок в данный момент батарею питания
+   */
+  public get isCarryingBattery(): boolean {
+    return this.carriedItemId === BATTERY_ITEM_ID || this.carriedItemId === 'battery';
+  }
+
+  /**
    * ID предмета, который сейчас в руках у персонажа
    */
   public get currentCarriedItemId(): string | null {
     return this.carriedItemId;
+  }
+
+  /**
+   * Получить объект батареи из списка предметов
+   */
+  public getBattery(): PuzzleItem | undefined {
+    return this.items.get(BATTERY_ITEM_ID) ?? Array.from(this.items.values()).find((it) => it.spriteId === BATTERY_SPRITE_ID);
+  }
+
+  /**
+   * Получить объект стойки из списка сокетов
+   */
+  public getBatteryStand(): PuzzleSocket | undefined {
+    return this.sockets.get(BATTERY_STAND_SOCKET_ID) ?? Array.from(this.sockets.values()).find((sk) => sk.spriteId === BATTERY_STAND_SPRITE_ID);
+  }
+
+  /**
+   * Установлена ли батарея на стойку аккумулятора
+   */
+  public isBatteryInstalled(): boolean {
+    const stand = this.getBatteryStand();
+    return stand ? stand.isOccupied : false;
   }
 
   /**
@@ -187,10 +258,12 @@ export class ItemSocketPuzzle implements IPuzzle {
       return false;
     }
 
-    // Подбираем предмет
+    // Подбираем предмет в руки
     candidateItem.state = 'carried';
-    candidateItem.x = playerX;
-    candidateItem.y = playerY;
+    const offsetX = candidateItem.carryOffset?.x ?? 8;
+    const offsetY = candidateItem.carryOffset?.y ?? -22;
+    candidateItem.x = playerX + offsetX;
+    candidateItem.y = playerY + offsetY;
     this.carriedItemId = candidateItem.id;
 
     if (this.emitEvents) {
@@ -205,7 +278,7 @@ export class ItemSocketPuzzle implements IPuzzle {
   }
 
   /**
-   * Попытка вставить удерживаемый предмет в ближайшее совместимое гнездо
+   * Попытка вставить удерживаемый предмет в ближайшее совместимое гнездо/стойку
    */
   public tryInsert(playerX: number, playerY: number, specificSocketId?: string): boolean {
     if (!this.carriedItemId) {
@@ -224,7 +297,8 @@ export class ItemSocketPuzzle implements IPuzzle {
 
       const dist = this.getDistance(playerX, playerY, socket.x, socket.y);
       if (dist <= socket.interactionRadius && dist < minDistance) {
-        if (socket.requiredItemIds.includes(carriedItem.id)) {
+        if (socket.requiredItemIds.includes(carriedItem.id) ||
+            (socket.spriteId === BATTERY_STAND_SPRITE_ID && carriedItem.spriteId === BATTERY_SPRITE_ID)) {
           minDistance = dist;
           targetSocket = socket;
         }
@@ -235,13 +309,14 @@ export class ItemSocketPuzzle implements IPuzzle {
       return false; // Подходящее гнездо рядом не найдено
     }
 
-    // Вставляем деталь в гнездо
+    // Вставляем деталь в посадочное место стойки
     targetSocket.isOccupied = true;
     targetSocket.insertedItemId = carriedItem.id;
 
+    const offset = targetSocket.insertOffset ?? { x: 0, y: -24 };
     carriedItem.state = 'inserted';
-    carriedItem.x = targetSocket.x;
-    carriedItem.y = targetSocket.y;
+    carriedItem.x = targetSocket.x + offset.x;
+    carriedItem.y = targetSocket.y + offset.y;
     carriedItem.insertedSocketId = targetSocket.id;
 
     this.carriedItemId = null;
@@ -289,11 +364,11 @@ export class ItemSocketPuzzle implements IPuzzle {
    */
   public interact(playerX: number, playerY: number): boolean {
     if (this.isCarryingItem) {
-      // Если несём предмет — сначала пробуем вставить в гнездо, если рядом гнездо
+      // Если несём предмет — сначала пробуем вставить в стойку, если рядом
       if (this.tryInsert(playerX, playerY)) {
         return true;
       }
-      // Если гнезда рядом нет — кладём на землю
+      // Если стойки рядом нет — кладём на землю
       return this.dropItem(playerX, playerY);
     } else {
       // Если руки свободны — пробуем подобрать деталь с пола
@@ -302,14 +377,19 @@ export class ItemSocketPuzzle implements IPuzzle {
   }
 
   /**
-   * Обновить позицию удерживаемого предмета вслед за роботом
+   * Обновить позицию удерживаемого предмета вслед за роботом с учётом направления взгляда
+   * @param playerX координата X робота
+   * @param playerY координата Y робота (уровень ног)
+   * @param facingDir направление взгляда робота (1 — вправо, -1 — влево)
    */
-  public updatePlayerPosition(playerX: number, playerY: number): void {
+  public updatePlayerPosition(playerX: number, playerY: number, facingDir: number = 1): void {
     if (this.carriedItemId) {
       const item = this.items.get(this.carriedItemId);
       if (item && item.state === 'carried') {
-        item.x = playerX;
-        item.y = playerY;
+        const offsetX = (item.carryOffset?.x ?? 8) * (facingDir >= 0 ? 1 : -1);
+        const offsetY = item.carryOffset?.y ?? -22;
+        item.x = playerX + offsetX;
+        item.y = playerY + offsetY;
       }
     }
   }
@@ -319,9 +399,14 @@ export class ItemSocketPuzzle implements IPuzzle {
    */
   public getNearbyPrompt(playerX: number, playerY: number): InteractionPrompt {
     if (this.isCarryingItem) {
-      // Проверяем, есть ли рядом гнездо
+      const carriedItem = this.items.get(this.carriedItemId!);
+      // Проверяем, есть ли рядом совместимая стойка
       for (const socket of this.sockets.values()) {
-        if (!socket.isOccupied && socket.requiredItemIds.includes(this.carriedItemId!)) {
+        const isCompatible = carriedItem &&
+          (socket.requiredItemIds.includes(carriedItem.id) ||
+           (socket.spriteId === BATTERY_STAND_SPRITE_ID && carriedItem.spriteId === BATTERY_SPRITE_ID));
+
+        if (!socket.isOccupied && isCompatible) {
           const dist = this.getDistance(playerX, playerY, socket.x, socket.y);
           if (dist <= socket.interactionRadius) {
             return {
@@ -329,7 +414,7 @@ export class ItemSocketPuzzle implements IPuzzle {
               targetId: socket.id,
               targetName: socket.name,
               distance: dist,
-              message: `Вставить деталь в ${socket.name}`
+              message: `Установить ${carriedItem?.name ?? 'деталь'} в ${socket.name} (E)`
             };
           }
         }
@@ -337,9 +422,9 @@ export class ItemSocketPuzzle implements IPuzzle {
       return {
         type: 'drop',
         targetId: this.carriedItemId,
-        targetName: this.items.get(this.carriedItemId!)?.name ?? null,
+        targetName: carriedItem?.name ?? null,
         distance: 0,
-        message: 'Положить деталь на землю'
+        message: `Положить ${carriedItem?.name ?? 'деталь'} на землю (E)`
       };
     } else {
       // Проверяем, есть ли рядом деталь на полу
@@ -352,7 +437,7 @@ export class ItemSocketPuzzle implements IPuzzle {
               targetId: item.id,
               targetName: item.name,
               distance: dist,
-              message: `Подобрать: ${item.name}`
+              message: `Подобрать: ${item.name} (E)`
             };
           }
         }

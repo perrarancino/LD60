@@ -16,6 +16,12 @@ import {
 
 import {
   ItemSocketPuzzle,
+  BATTERY_ITEM_ID,
+  BATTERY_STAND_SOCKET_ID,
+  BATTERY_SPRITE_ID,
+  BATTERY_IMAGE_PATH,
+  BATTERY_STAND_SPRITE_ID,
+  BATTERY_STAND_IMAGE_PATH,
   type ItemSocketPuzzleConfig,
   type PuzzleItem,
   type PuzzleSocket,
@@ -62,6 +68,12 @@ export {
   type SteamLeverState,
   type SteamGaugeConfig,
   ItemSocketPuzzle,
+  BATTERY_ITEM_ID,
+  BATTERY_STAND_SOCKET_ID,
+  BATTERY_SPRITE_ID,
+  BATTERY_IMAGE_PATH,
+  BATTERY_STAND_SPRITE_ID,
+  BATTERY_STAND_IMAGE_PATH,
   type ItemSocketPuzzleConfig,
   type PuzzleItem,
   type PuzzleSocket,
@@ -102,7 +114,7 @@ export interface IPuzzle {
  * Предоставляет доступ ко всем головоломкам в проекте:
  * - binaryPuzzle: перевод десятичных в двоичные (0..31, 5 бит, 5 ламп);
  * - steamEnginePuzzle: настройка парового двигателя (3 рычага и 3 манометра/спидометра);
- * - itemSocketPuzzle: вставка детали/предохранителя в гнездо на карте уровня;
+ * - itemSocketPuzzle: подбор батареи (items/battery.png) и установка в стойку аккумулятора (decor/batterystand.png);
  * - wireRepairPuzzle: соединение оборванных проводов персонажем по всей комнате;
  * - memoryMelodyPuzzle: запоминание мелодии (5 цветов, 3 раунда: 4, 6, 8 гудков);
  * - cipherTerminalPuzzle: настенный шифр по локации и терминал ввода в секретной комнате.
@@ -117,7 +129,7 @@ export class PuzzleSystem {
   /** Экземпляр головоломки настройки парового двигателя */
   public readonly steamEnginePuzzle: SteamEnginePuzzle;
 
-  /** Экземпляр головоломки вставки детали в гнездо на уровне */
+  /** Экземпляр головоломки переноса батареи и установки в стойку питания */
   public readonly itemSocketPuzzle: ItemSocketPuzzle;
 
   /** Экземпляр головоломки соединения оборванных проводов в комнате */
