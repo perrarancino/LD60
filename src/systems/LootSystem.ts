@@ -4,6 +4,7 @@ import type { Level } from '../world/Level.ts';
 import type { Player } from '../entities/Player.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { Armor, type DropKind } from './ArmorSystem.ts';
+import { SoundManager } from '../audio/SoundManager.ts';
 
 interface DroppedItem {
   sprite: Sprite;
@@ -127,6 +128,7 @@ export class LootSystem {
       // Подбор игроком
       if (dist < PICKUP_DIST) {
         armor.addScrap(1);
+        SoundManager.get().playScrapPickup();
         if (this.fx) {
           this.fx.burst(it.x, it.y, {
             count: 6, colors: [0x97b2c9, 0xd5ebff], speed: [30, 80], spread: Math.PI * 2, life: [0.15, 0.3], size: [1, 2]

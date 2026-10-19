@@ -50,6 +50,7 @@ import { Debris } from './effects/Debris.ts';
 import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
+import { SoundManager } from './audio/SoundManager.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -209,6 +210,7 @@ class GameApp {
     this.hud = new Hud();
     this.terminalUI = new TerminalUI();
     this.cipherPuzzle = PuzzleSystem.get().cipherTerminalPuzzle;
+    SoundManager.get().init();
 
     window.addEventListener('keydown', (e) => {
       this.passwordTerminal?.handleKeyInput(e);
@@ -815,6 +817,7 @@ class GameApp {
     const view = (target as unknown as { container: Container }).container;
     const isBoss = target instanceof WormBoss || target instanceof BirdBoss || target instanceof CrabBoss;
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
+    SoundManager.get().playKill();
     this.contactDmg.delete(target);
     drop(this.worms, target);
     drop(this.bosses, target);
@@ -865,6 +868,7 @@ class GameApp {
     else if (target instanceof WormBoss) enemyType = 'boss';
     else if (target instanceof Critter) enemyType = 'critter';
     this.loot.spawnFromEnemy(mob.view.x, mob.view.y, enemyType);
+    SoundManager.get().playKill();
 
     this.contactDmg.delete(target);
     this.mobs.delete(target);
