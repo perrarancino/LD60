@@ -1792,38 +1792,12 @@
       "animations": {}
     },
     {
-      "id": "tile_loc2_a",
+      "id": "tile_loc2",
       "category": "tiles",
-      "image": "tiles/tilemap_loc2_a.png",
+      "image": "tiles/loc2_tile.png",
       "frame_width": 32,
       "frame_height": 32,
-      "frames": 4,
-      "origin": {
-        "x": 0.0,
-        "y": 0.0
-      },
-      "animations": {}
-    },
-    {
-      "id": "tile_loc2_b",
-      "category": "tiles",
-      "image": "tiles/tilemap_loc2_b.png",
-      "frame_width": 32,
-      "frame_height": 32,
-      "frames": 4,
-      "origin": {
-        "x": 0.0,
-        "y": 0.0
-      },
-      "animations": {}
-    },
-    {
-      "id": "tile_loc2_c",
-      "category": "tiles",
-      "image": "tiles/tilemap_loc2_c.png",
-      "frame_width": 32,
-      "frame_height": 32,
-      "frames": 3,
+      "frames": 1,
       "origin": {
         "x": 0.0,
         "y": 0.0

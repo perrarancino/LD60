@@ -109,42 +109,11 @@
       ]
     },
     {
-      "id": "loc2_a",
-      "display_name": "Вариант A: корпус блока питания (решётка вентилятора, щели, наклейка, рёбра)",
-      "sprite_id": "tile_loc2_a",
+      "id": "loc2",
+      "display_name": "Блок второй локации (loc2, loc2_tile.aseprite)",
+      "sprite_id": "tile_loc2",
       "solid": true,
-      "one_way": false,
-      "fill_frames": [
-        0,
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "loc2_b",
-      "display_name": "Вариант B: жгуты проводов со стяжками",
-      "sprite_id": "tile_loc2_b",
-      "solid": true,
-      "one_way": false,
-      "fill_frames": [
-        0,
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "loc2_c",
-      "display_name": "Вариант C: разъёмы и провода",
-      "sprite_id": "tile_loc2_c",
-      "solid": true,
-      "one_way": false,
-      "fill_frames": [
-        0,
-        1,
-        2
-      ]
+      "one_way": false
     }
   ]
 }
