@@ -52,7 +52,8 @@ import { prepareRogueLevel } from './roguelike/RogueLevels.ts';
 import { CubeTransition } from './ui/CubeTransition.ts';
 import { UpgradeUI } from './ui/UpgradeUI.ts';
 import { ScreenWipe } from './ui/ScreenWipe.ts';
-import { BootFlow, wasLaunchedThisSession } from './ui/BootFlow.ts';
+import { BootFlow, forgetLaunch, wasLaunchedThisSession } from './ui/BootFlow.ts';
+import { Credits } from './ui/Credits.ts';
 import runData from '../data/roguelike/run.json';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
@@ -246,6 +247,7 @@ class GameApp {
   private rogueCleared = false; // комната зачищена: выходная дверь открыта
   private rogueLeaving = false; // уходим из комнаты (экран кубиков, окно прокачки)
   private waveDelay = 0;
+  private bossMusic = false; // на этом уровне играет музыка босса
   private waveNo = 1; // номер текущей волны
   private waveTotal = 1;
   private rogueEndT = 0; // с с момента зачистки: пауза, потом пиксельная волна закрывает экран
@@ -364,11 +366,14 @@ class GameApp {
     activeLevelDef = ROGUE
       ? prepareRogueLevel(Run.get().current, [await loadLiveLevel(LEVELS.find((l) => l.id === Run.get().current.levelId)!)])
       : await loadLiveLevel(activeLevelDef);
-    document.title = `Scrapbound — ${activeLevelDef.display_name}`;
+    document.title = `Textolite — ${activeLevelDef.display_name}`;
     console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
     await loadDamageFont();
     await this.setupScene();
     this.cubes?.reveal();
+    // музыка: босс — боевой трек с петлёй по здоровью босса, остальное (комнаты, меню, титры) — idle
+    this.bossMusic = ROGUE && Run.get().current.kind === 'boss';
+    void SoundManager.get().playMusic(this.bossMusic ? 'boss' : 'idle');
 
     // Запуск основного игрового цикла (Pixi ticker)
     const fps = new FpsCounter(this.app.ticker); // счётчик FPS в углу (F3 — скрыть, F4 — лимит кадров)
@@ -913,6 +918,7 @@ class GameApp {
     }
     // зачищено
     this.rogueCleared = true;
+    if (this.bossMusic) SoundManager.get().stopMusic(false, 2.5); // босс повержен — музыка затихает
     this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.18;
     this.fx.burst(b.x, b.y - 30, { count: 30, colors: [pal('gold', 5), pal('gold', 6), pal('gold', 7)], speed: [60, 200], spread: Math.PI * 2, life: [0.3, 0.7], size: [1, 3] });
@@ -931,7 +937,7 @@ class GameApp {
     const go = () => {
       if (!next) {
         SoundManager.get().play('win');
-        this.cubes?.leave(here, 'victory', () => this.newRun());
+        this.cubes?.leave(here, 'victory', () => this.showCredits());
         return;
       }
       armor.heal(upgrade ? 1 : runData.rewards.heal_between_rooms); // перед боссом и после него — полное здоровье
@@ -940,6 +946,15 @@ class GameApp {
     };
     if (upgrade) this.upgradeUI.open(this.sprites, MODELS.map((m) => RIGS.find((r) => r.id === m.rig_id)!), go);
     else go();
+  }
+
+  /** После победы: титры на 5 секунд под музыку, потом новый забег и снова меню. */
+  private showCredits(): void {
+    void SoundManager.get().playMusic('idle');
+    new Credits().show(5000, () => {
+      forgetLaunch(); // следующая загрузка страницы покажет меню
+      this.newRun();
+    });
   }
 
   /** Забег окончен (победа или гибель): всё с нуля. */
@@ -1901,7 +1916,9 @@ class GameApp {
       const crab = this.crabBosses.find((b) => b.active);
       const bird = this.birdBosses.find((b) => b.active);
       const worm = this.bosses.find((b) => b.active);
-      this.bossBar.update(dt, crab ? crab.health : bird ? bird.health : worm ? worm.health : null, this.viewW, crab ? 'virus' : bird ? 'cobalt' : 'void');
+      const bossHp = crab ? crab.health : bird ? bird.health : worm ? worm.health : null;
+      this.bossBar.update(dt, bossHp, this.viewW, crab ? 'virus' : bird ? 'cobalt' : 'void');
+      if (!this.rogueCleared) SoundManager.get().updateMusic(this.bossMusic ? (bossHp ? bossHp.hp / Math.max(1, bossHp.max) : 1) : null); // петля и концовка трека босса по его здоровью
     }
     this.fx.update(dt);
     this.blood.update(dt);

@@ -21,6 +21,13 @@ export function wasLaunchedThisSession(): boolean {
   }
 }
 
+/** Забыть, что игра уже запускалась в этой вкладке: после титров следующая загрузка снова покажет меню. */
+export function forgetLaunch(): void {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch { /* нечего забывать */ }
+}
+
 function markLaunched(): void {
   try {
     sessionStorage.setItem(SESSION_KEY, '1');
@@ -72,7 +79,6 @@ export class BootFlow {
   /** Прямой запуск (перезагрузка комнаты, редактор, отладочный адрес): без прогрева и без меню. */
   private async startDirect(): Promise<void> {
     markLaunched();
-    SoundManager.get().startMusic();
 
     let game: PlayableGame;
     try {

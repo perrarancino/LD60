@@ -24,12 +24,12 @@ export class StartScreen {
     this.root.className = 'sb-start is-loading';
     this.root.innerHTML = `
       <div class="sb-loading">
-        <div class="sb-title">SCRAPBOUND</div>
+        <div class="sb-title">TEXTOLITE</div>
         <div class="sb-bar"><div class="sb-bar-fill"></div></div>
         <div class="sb-pct">0%</div>
       </div>
       <div class="sb-menu" aria-hidden="true">
-        <div class="sb-title">SCRAPBOUND</div>
+        <div class="sb-title">TEXTOLITE</div>
         <div class="sb-rows">
           <label class="sb-row" for="sb-sfx"><span>SOUND</span><output id="sb-sfx-val"></output></label>
           <input class="sb-slider" id="sb-sfx" type="range" min="0" max="100" step="1" aria-label="Sound volume">

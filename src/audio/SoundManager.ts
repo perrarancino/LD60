@@ -12,6 +12,8 @@ import gearThrowUrl from '../../assets/audio/sfx/gear_throw.mp3';
 import winUrl from '../../assets/audio/sfx/win.mp3';
 import zapHandUrl from '../../assets/audio/sfx/zap_hand_attack.mp3';
 import upgradeUrl from '../../assets/audio/sfx/upgrade.mp3';
+import idleMusicUrl from '../../assets/audio/music/idle.mp3';
+import bossMusicUrl from '../../assets/audio/music/boss.mp3';
 
 export type SoundId =
   | 'person_damage' | 'lose' | 'crab_attack' | 'other_bosses_attack' | 'chirp' | 'rat' | 'ward' | 'worm'
@@ -43,14 +45,16 @@ export const SFX_URLS: Record<SoundId, string> = {
   upgrade: upgradeUrl
 };
 
-/** Необязательные музыкальные файлы: если положить трек в assets/audio/music, он заменит процедурный эмбиент. */
-export const MUSIC_URLS = Object.values(
-  import.meta.glob('../../assets/audio/music/*.{ogg,mp3,wav,m4a}', {
-    eager: true,
-    query: '?url',
-    import: 'default'
-  }) as Record<string, string>
-);
+export type MusicId = 'idle' | 'boss';
+const MUSIC_URLS: Record<MusicId, string> = { idle: idleMusicUrl, boss: bossMusicUrl };
+
+// Музыка боссов: трек 3:18; бой крутится на отрезке 1:20 — 2:50, концовка играется, когда босс почти побеждён.
+const BOSS_LOOP_START = 80; // с: куда прыгаем (1:20)
+const BOSS_LOOP_END = 170; // с: где отрезок кончается (2:50)
+const BOSS_LOW_HP = 0.4; // здоровья мало: на 2:50 не зацикливаем, доигрываем трек до конца
+const BOSS_VERY_LOW_HP = 0.15; // совсем мало: не ждём 2:50, прыгаем туда на ближайшем такте (кратном 4 с)
+const BEAT_GRID = 4; // с: сетка тактов трека
+const MUSIC_KEY = 'ld60.music.resume';
 
 interface SoundConfig {
   url: string;
@@ -99,7 +103,10 @@ export class SoundManager {
 
   private sfxVolume = DEFAULT_SFX_VOLUME;
   private musicVolume = DEFAULT_MUSIC_VOLUME;
-  private musicStarted = false;
+  private musicBuffers = new Map<MusicId, AudioBuffer>();
+  private music: { id: MusicId; source: AudioBufferSourceNode; startCtx: number; startPos: number; buffer: AudioBuffer } | null = null;
+  private musicToken = 0; // каждый новый запуск музыки отменяет незавершённую загрузку предыдущего
+  private lastMusicSave = 0;
 
   // Шина эхо (Delay)
   public echoSendNode: GainNode | null = null;
@@ -476,41 +483,136 @@ export class SoundManager {
     return this.musicVolume;
   }
 
-  /**
-   * Запускает фоновую музыку (один раз за загрузку страницы).
-   * Играет первый файл из assets/audio/music; пока папка пуста — музыки нет.
-   */
-  public startMusic(): void {
-    if (this.musicStarted) return;
-    const ctx = this.ensureContext();
-    if (!ctx || !this.musicGain) return;
-
-    this.musicStarted = true;
-    this.musicGain.gain.value = this.musicVolume;
-
-    const url = MUSIC_URLS[0];
-    if (url) void this.playMusicFile(ctx, url);
-  }
-
-  public stopMusic(): void {
-    this.musicStarted = false;
-  }
-
-  private async playMusicFile(ctx: AudioContext, url: string): Promise<void> {
+  private async loadMusic(id: MusicId): Promise<AudioBuffer | null> {
+    const cached = this.musicBuffers.get(id);
+    if (cached) return cached;
     try {
-      const res = await fetch(url);
+      const ctx = this.ensureContext();
+      if (!ctx) return null;
+      const res = await fetch(MUSIC_URLS[id]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
-      if (!this.musicStarted || !this.musicGain) return;
-
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-      source.connect(this.musicGain);
-      source.start();
+      this.musicBuffers.set(id, buffer);
+      return buffer;
     } catch (err) {
-      console.warn('[SoundManager] Не удалось включить музыку:', err);
+      console.warn(`[SoundManager] music ${id} failed to load:`, err);
+      return null;
     }
+  }
+
+  /** Позиция играющего трека, с. */
+  private musicPos(): number {
+    const m = this.music;
+    if (!m || !this.ctx) return 0;
+    return m.startPos + (this.ctx.currentTime - m.startCtx);
+  }
+
+  /** Запускает источник трека: с позиции pos в момент when (контекстное время); возвращает запись о нём. */
+  private startSource(id: MusicId, buffer: AudioBuffer, pos: number, when: number, loop: boolean): NonNullable<SoundManager['music']> {
+    const ctx = this.ctx!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = loop;
+    source.connect(this.musicGain!);
+    source.start(when, Math.max(0, Math.min(buffer.duration - 0.01, pos)));
+    const rec = { id, source, startCtx: when, startPos: pos, buffer };
+    source.onended = () => {
+      // трек доиграл до конца сам (не по нашей остановке): у босса — снова с начала петли, у остальных — сначала
+      if (this.music !== rec || loop) return;
+      this.music = null;
+      if (id === 'boss') void this.playMusic('boss', { from: BOSS_LOOP_START });
+    };
+    return rec;
+  }
+
+  /**
+   * Музыка: idle — на меню, в комнатах и на экранах между ними (зациклена; после перезагрузки комнаты продолжается с того же места),
+   * boss — на боссах (петля и концовка по здоровью босса, см. updateBossMusic). Тот же трек уже играет — ничего не делаем.
+   */
+  public async playMusic(id: MusicId, options?: { from?: number }): Promise<void> {
+    if (this.music?.id === id && options?.from === undefined) return;
+    const token = ++this.musicToken;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.musicGain) return;
+    const buffer = await this.loadMusic(id);
+    if (!buffer || token !== this.musicToken) return;
+    this.stopMusic(true);
+
+    let pos = options?.from ?? 0;
+    if (id === 'idle' && options?.from === undefined) {
+      // продолжаем с места, где музыка была до перезагрузки страницы
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(MUSIC_KEY) ?? 'null') as { id: MusicId; pos: number; ts: number } | null;
+        if (saved && saved.id === 'idle' && Date.now() - saved.ts < 20000) pos = (saved.pos + (Date.now() - saved.ts) / 1000) % buffer.duration;
+      } catch { /* нет сохранения */ }
+    }
+    this.musicGain.gain.cancelScheduledValues(ctx.currentTime);
+    this.musicGain.gain.value = this.musicVolume;
+    this.music = this.startSource(id, buffer, pos, ctx.currentTime, id === 'idle');
+  }
+
+  /** Совместимость со старым кодом экрана загрузки: стартовая музыка — idle. */
+  public startMusic(): void {
+    void this.playMusic('idle');
+  }
+
+  /** Остановка музыки; fadeSec > 0 — плавно затихает. */
+  public stopMusic(immediate = false, fadeSec = 1.2): void {
+    const m = this.music;
+    this.music = null;
+    this.musicToken++;
+    if (!m || !this.ctx) return;
+    if (immediate || fadeSec <= 0 || !this.musicGain) {
+      try { m.source.stop(); } catch { /* уже остановлен */ }
+      return;
+    }
+    const g = this.musicGain.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + fadeSec);
+    try { m.source.stop(t + fadeSec + 0.05); } catch { /* уже остановлен */ }
+  }
+
+  /**
+   * Правило петли музыки босса. hp — здоровье босса 0..1 (null — боя нет). Вызывается каждый кадр.
+   *  1) здоровья ещё много: в 2:50 трек прыгает обратно на 1:20 (сэмпл-точно, источник встаёт ровно в момент конца отрезка);
+   *  2) здоровья мало: на 2:50 не зацикливаем — доигрываем до конца (а дойдёт до конца и босс жив — снова с 1:20);
+   *  3) здоровья совсем мало, а трек ещё не дошёл до 2:50: не ждём — на ближайшем такте, кратном 4 с, прыгаем сразу на 2:50 (концовка).
+   * Сохраняет и позицию idle-музыки для продолжения после перезагрузки страницы.
+   */
+  public updateMusic(hp: number | null): void {
+    const ctx = this.ctx;
+    const m = this.music;
+    if (!ctx || !m) return;
+    const now = performance.now();
+    if (m.id === 'idle' && now - this.lastMusicSave > 1500) {
+      this.lastMusicSave = now;
+      try {
+        sessionStorage.setItem(MUSIC_KEY, JSON.stringify({ id: 'idle', pos: this.musicPos() % m.buffer.duration, ts: Date.now() }));
+      } catch { /* без сохранения */ }
+    }
+    if (m.id !== 'boss' || hp === null) return;
+
+    const pos = this.musicPos();
+    const endPos = BOSS_LOOP_END;
+    const timeToEnd = endPos - pos;
+    if (hp > BOSS_LOW_HP) {
+      // петля: за полсекунды до конца отрезка планируем переход
+      if (pos >= BOSS_LOOP_START && timeToEnd > 0 && timeToEnd < 0.5) this.jumpMusic(m, ctx.currentTime + timeToEnd, BOSS_LOOP_START);
+      else if (pos > endPos + 0.05) this.jumpMusic(m, ctx.currentTime + 0.02, BOSS_LOOP_START); // прозевали момент (вкладка спала)
+    } else if (hp <= BOSS_VERY_LOW_HP && pos < endPos - BEAT_GRID) {
+      // на ближайшем такте (кратном 4 с) — на концовку
+      const next = Math.ceil(pos / BEAT_GRID) * BEAT_GRID;
+      if (next < endPos && next - pos < 0.5) this.jumpMusic(m, ctx.currentTime + (next - pos), endPos);
+    }
+  }
+
+  /** Сэмпл-точный переход: текущий источник замолкает в момент when, новый встаёт с позиции pos в тот же момент. */
+  private jumpMusic(from: NonNullable<SoundManager['music']>, when: number, pos: number): void {
+    if (this.music !== from || !this.ctx) return;
+    try { from.source.stop(when); } catch { /* уже остановлен */ }
+    this.music = this.startSource(from.id, from.buffer, pos, when, false);
   }
 
   public setMasterVolume(value: number): void {
