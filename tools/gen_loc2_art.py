@@ -1,8 +1,8 @@
 """
 Генератор арта второй локации — «внутренности блока питания компьютера»: тайл (tilemap_loc2.png, один блок 32x32) и
-параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с бирюзовым акцентом (рампа electric).
+параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с золотым акцентом (рампа gold: медная обмотка, провода, светодиоды) и бирюзой (рампа electric) в свечении.
 Плотность пикселя — как у арта первой локации: кадр тайла 32x32 и слой фона 512x128, без шума и дизеринга, детали от 2 пикселей.
-Тайл — супер простой блок: фаска, гладкая грань и квадратное углубление с бирюзовой окантовкой (как tile1 первой локации, но синий).
+Тайл — один бесшовный узор «аргайл»: ромбы синих тонов с золотой решёткой и золотым ромбиком в центре (без предметов и ламп); период 16 пикселей.
 Фон — колонны и балка корпуса, огромные вентиляторы в корпусах, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы,
 пучки проводов, бирюзовое свечение и туман у горизонта.
 Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
@@ -102,37 +102,31 @@ TS = 32
 
 
 def block():
-    """Простой блок: фаска по краю (сверху светлая, слева средняя, справа тёмная, снизу самая тёмная, углы — «конвертом»), гладкая грань
-    и квадратное углубление с бирюзовой окантовкой (снизу-справа светлее) и тёмным дном."""
+    """Бесшовный узор «аргайл» с периодом 16 (в тайле 2x2 повтора): в центре ромба — золотой ромбик, вокруг — тёмное кольцо и синяя заливка;
+    между ромбами — золотая диагональная решётка; в промежутках (у углов клетки) — тёмные ромбы со светлой серединой."""
     cv = Canvas(TS, TS)
     for y in range(TS):
         for x in range(TS):
-            d = min(x, y, TS - 1 - x, TS - 1 - y)
-            if d < 2:  # фаска 2 пикселя
-                if y == d:
-                    col = C('cobalt', 4)
-                elif x == d:
-                    col = C('cobalt', 3)
-                elif x == TS - 1 - d:
-                    col = C('cobalt', 1)
-                else:
+            dx = abs((x % 16) + 0.5 - 8)
+            dy = abs((y % 16) + 0.5 - 8)
+            d = int(round(dx + dy))  # манхэттенское расстояние до центра ромба: 1..15
+            if d == 8:
+                # решётка: светлая грань сверху-слева, тёмная снизу-справа — объём
+                col = C('gold', 4) if (x % 16) + (y % 16) < 15 else C('gold', 2)
+            elif d < 8:
+                if d <= 1:
+                    col = C('gold', 5)
+                elif d == 2:
+                    col = C('gold', 3)
+                elif d <= 4:
                     col = C('cobalt', 0)
-            else:
-                col = C('cobalt', 2)
-            cv.put(x, y, col)
-    # углубление 20x20 (клетки 6..25) с окантовкой в 2 пикселя
-    for y in range(6, 26):
-        for x in range(6, 26):
-            d = min(x - 6, y - 6, 25 - x, 25 - y)
-            if d < 2:
-                lit = (y - 6 >= 25 - x) if d == min(x - 6, y - 6) else True
-                col = C('electric', 3)
-                if x - 6 == d or y - 6 == d:
-                    col = C('electric', 2)  # верх и лево — в тени
+                elif d == 5:
+                    col = C('cobalt', 3)
                 else:
-                    col = C('electric', 5)  # низ и право — освещены
+                    col = C('cobalt', 2)
             else:
-                col = C('cobalt', 0)
+                c = 16 - d  # расстояние до ближайшего угла клетки: 1..7
+                col = C('cobalt', 0) if c <= 2 else C('cobalt', 1)
             cv.put(x, y, col)
     return cv
 
@@ -177,7 +171,7 @@ def make_columns():
         cv.rect(x + 12, 0, 2, BH, C('cobalt', 0))
         for y in range(10, BH - 14, 18):
             cv.rect(x + 5, y, 4, 2, C('cobalt', 2))
-        cv.rect(x + 5, 52, 4, 4, C('electric', 4))  # индикатор на колонне
+        cv.rect(x + 5, 52, 4, 4, C('gold', 5))  # метка на колонне
         cv.rect(x - 4, 24, 22, 8, C('cobalt', 1))  # узел крепления балки
         cv.rect(x - 4, 24, 22, 1, C('cobalt', 2))
         cv.rect(x - 4, 31, 22, 1, C('cobalt', 0))
@@ -225,7 +219,7 @@ def fan(cv, cx, cy, R, seed):
         (cov(rim), C('cobalt', 3)),
         (cov(hub), C('cobalt', 1)),
         (cov(hub_ring), C('cobalt', 3)),
-        (cov(led), C('electric', 5)),
+        (cov(led), C('gold', 5)),
     ]
     fm = layers[0][0]
     ox, oy = int(cx - side // 2), int(cy - side // 2)
@@ -275,7 +269,7 @@ def glow_layer(color, ymid, spread, peak):
 
 # --- силуэты предметов блока питания
 def led(cv, x, y, bright=False):
-    cv.rect(x, y, 2, 2, C('electric', 6) if bright else C('electric', 5))
+    cv.rect(x, y, 2, 2, C('gold', 6) if bright else C('gold', 5))
 
 
 def capacitor(cv, x, base, w, h, body, edge, light, rng):
@@ -288,7 +282,8 @@ def capacitor(cv, x, base, w, h, body, edge, light, rng):
     cv.rect(x + 2, top + 3, 2, h - 6, edge)
     for yy in (top + 6, base - 7):
         cv.rect(x, yy, w, 1, edge)
-    cv.rect(x + w - 4, top + 8, 2, 4, C('electric', 4))
+    cv.rect(x + w - 4, top + 8, 2, 4, C('gold', 5))  # полоса полярности
+    cv.rect(x, top + 6, w, 1, C('gold', 3))  # золотое кольцо обжима
     cv.rect(x - 2, base - 3, w + 4, 3, body)
     cv.rect(x - 2, base - 3, w + 4, 1, light)
 
@@ -301,8 +296,8 @@ def toroid(cv, x, base, r, body, edge, light, rng):
     for k in range(n):
         a = k * 2 * math.pi / n
         for rr in range(int(r * 0.45), int(r * 0.9)):
-            cv.put(x + math.cos(a) * rr, cy + math.sin(a) * rr, edge)
-            cv.put(x + math.cos(a + 0.12) * rr, cy + math.sin(a + 0.12) * rr, edge)
+            cv.put(x + math.cos(a) * rr, cy + math.sin(a) * rr, C('gold', 3))  # медная обмотка
+            cv.put(x + math.cos(a + 0.12) * rr, cy + math.sin(a + 0.12) * rr, C('gold', 2))
     cv.ring(x, cy, r - 1.5, r, light)
     cv.rect(x - r + 2, base - 6, 3, 6, body)
     cv.rect(x + r - 4, base - 6, 3, 6, body)
@@ -315,9 +310,9 @@ def transformer(cv, x, base, w, h, body, edge, light, rng):
     cv.rect(x, top, w, 2, light)
     cv.rect(x, top, 2, h, edge)
     for yy in range(top + 6, base - 4, 4):
-        cv.rect(x + 4, yy, w - 8, 2, edge)
+        cv.rect(x + 4, yy, w - 8, 2, C('gold', 2))  # медная обмотка
     cv.rect(x + w // 2 - 1, top + 4, 2, h - 8, body)
-    cv.rect(x + 3, base - 4, w - 6, 2, C('electric', 3))
+    cv.rect(x + 3, base - 4, w - 6, 2, C('gold', 3))
     led(cv, x + w - 6, top + 4, True)
 
 
@@ -329,7 +324,7 @@ def heatsink(cv, x, base, w, h, body, edge, light, rng):
         fh = h - (k % 2) * 4
         cv.rect(xx, base - 6 - fh, 3, fh, body)
         cv.rect(xx, base - 6 - fh, 1, fh, edge)
-        cv.rect(xx + 3, base - 12, 2, 6, C('electric', 2))
+        cv.rect(xx + 3, base - 12, 2, 6, C('gold', 2))  # тёплое свечение между рёбрами
 
 
 def cable(cv, x0, y0, x1, y1, sag, body, light):
@@ -377,7 +372,7 @@ def make_machines(seed, count, size_scale, dark, edge_c, light_c, wrap):
             pos += w + rng.randint(24, 44)
     for (xa, ya), (xb, yb) in zip(tops, tops[1:]):  # пучки проводов между верхушками
         if xb - xa < 110 and rng.random() < 0.85:
-            cable(cv, xa, ya + 4, xb, yb + 4, rng.randint(8, 16), dark, edge_c)
+            cable(cv, xa, ya + 4, xb, yb + 4, rng.randint(8, 16), dark, C('gold', 2) if rng.random() < 0.5 else edge_c)  # часть проводов — с медным бликом
     return cv
 
 
@@ -401,7 +396,7 @@ def make_background():
     haze_dark = gradient_layer(C('cobalt', 0), 36, BH - 1, 0, 150)
     haze_light = glow_layer(C('electric', 4), 108, 24, 100)
     machines = make_machines(53, 9, 1.0, C('cobalt', 0), C('cobalt', 1), C('cobalt', 2), wrap=False)
-    fog = glow_layer(C('electric', 3), 124, 14, 110)
+    fog = glow_layer(C('gold', 2), 126, 12, 120)  # тёплая дымка у пола
     skyline = make_skyline()
     return [sky, wall, fans, haze_dark, haze_light, machines, fog, skyline]
 
