@@ -295,5 +295,43 @@
       "scrap_parts_max": 9,
       "drop_chance_percent": 100.0
     }
+  },
+  {
+    "id": "krab_boss",
+    "display_name": "Финальный босс: Краб-Ядро",
+    "location_id": "loc_6",
+    "lore": "Огромный фиолетовый краб с экраном вместо лба. Его клешни висят на неоновых нитях и бьют как кистени. Прыгает и давит, катит по полу золотые шары, а потом забирается на платформу и швыряет в героя обитателей прежних локаций.",
+    "sprite_variants": [
+      "boss_krab"
+    ],
+    "rig_id": "krab_boss_rig",
+    "stats": {
+      "max_health": 1400,
+      "contact_damage": 0,
+      "movement_speed": 80.0
+    },
+    "behavior_type": "crab_boss",
+    "attack": {
+      "name": "Прыжок и удар клешнями",
+      "damage": 26,
+      "cooldown_seconds": 3.0,
+      "range": 500.0,
+      "projectile_type": "none",
+      "description": "Прыгает на героя, при приземлении бьёт ударной волной, затем по очереди бьёт клешнями на нитях."
+    },
+    "summons": {
+      "enemy_ids": [
+        "electro_rat",
+        "vorobei",
+        "spider"
+      ],
+      "count": 5,
+      "max_alive": 6
+    },
+    "drops": {
+      "scrap_parts_min": 10,
+      "scrap_parts_max": 14,
+      "drop_chance_percent": 100.0
+    }
   }
 ]

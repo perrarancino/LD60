@@ -385,6 +385,28 @@ export interface BirdBossDef {
   hit: BirdHitDef[];
 }
 
+/** Слой босса-краба: ноги (leg_*) качаются вокруг бедра pivot и подгоняются по foot_y к полу; торс неподвижен на холсте. */
+export interface CrabLayerDef {
+  name: string;
+  sprite_id: string;
+  role: 'torso' | 'leg_lb' | 'leg_lf' | 'leg_rf' | 'leg_rb';
+  pivot?: { x: number; y: number };
+  foot_y?: number;
+}
+
+/** Босс-краб: слои на общем холсте, торс с кругами попадания, клешни на неоновых нитях, шары (data/rigs/krab_boss_rig.json). */
+export interface CrabBossDef {
+  feet: { x: number; y: number };
+  box: { w: number; h: number };
+  height: number;
+  thread_length: number;
+  layers: CrabLayerDef[]; // снизу вверх
+  body_hit: Array<{ x: number; y: number; r: number }>;
+  claw: { sprite_id: string; pivot: { x: number; y: number }; length: number; hit: Array<{ x: number; y: number; r: number }> };
+  shoulders: { left: { x: number; y: number }; right: { x: number; y: number } };
+  orb: { sprite_id: string; radius: number };
+}
+
 export interface RigDef {
   id: string;
   canvas: { width: number; height: number };
@@ -394,6 +416,7 @@ export interface RigDef {
   wobbler?: WobblerDef;
   critter?: CritterDef;
   bird_boss?: BirdBossDef;
+  crab_boss?: CrabBossDef;
   parts: RigPartDef[]; // снизу вверх
 }
 
@@ -405,11 +428,22 @@ export interface BackgroundLayerDef {
   mirror?: boolean; // тайлить зеркально: края тайлов всегда совпадают
 }
 
+/** Фон-шейдер: «закрученная краска» (как фон Balatro) в трёх цветах: тёмный, средний, светлый. */
+export interface BackgroundShaderDef {
+  type: 'swirl';
+  colors: [string, string, string]; // #rrggbb: основной, акцент, тёмный
+  speed?: number; // скорость течения краски (1 — обычная)
+  spin?: number; // сила закрутки (1 — обычная)
+  contrast?: number; // контраст краски (3.5 — как в оригинале)
+  pixel?: number; // размер «пикселя» шейдера в px арта (по умолчанию 3)
+}
+
 export interface BackgroundDef {
   id: string;
   sky_color: string;
   scale: number;
   ground_color?: string; // цвет «земли» под нижним краем фона (заливка вниз до края экрана)
   ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
-  layers: BackgroundLayerDef[]; // снизу вверх
+  layers: BackgroundLayerDef[]; // снизу вверх (у фона-шейдера пусто)
+  shader?: BackgroundShaderDef; // вместо слоёв: фон рисует шейдер
 }

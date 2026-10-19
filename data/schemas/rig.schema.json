@@ -177,6 +177,45 @@
         }
       }
     },
+    "crab_boss": {
+      "type": "object",
+      "description": "Босс-краб: слои на общем холсте (ноги качаются вокруг бёдер), торс с кругами попадания, клешни на неоновых нитях, шары",
+      "required": ["feet", "box", "height", "layers", "body_hit", "claw", "shoulders", "orb", "thread_length"],
+      "properties": {
+        "feet": { "type": "object", "required": ["x", "y"], "description": "Центр стоп на холсте (точка привязки к полу)", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "box": { "type": "object", "required": ["w", "h"], "description": "Коробка столкновений с тайлами, px", "properties": { "w": { "type": "number" }, "h": { "type": "number" } } },
+        "height": { "type": "number", "description": "От стоп до макушки, px (камера держит верх босса в кадре)" },
+        "thread_length": { "type": "number", "description": "Длина неоновой нити клешни, px" },
+        "layers": {
+          "type": "array", "minItems": 1, "description": "Слои снизу вверх",
+          "items": {
+            "type": "object", "required": ["name", "sprite_id", "role"],
+            "properties": {
+              "name": { "type": "string" },
+              "sprite_id": { "type": "string" },
+              "role": { "type": "string", "enum": ["torso", "leg_lb", "leg_lf", "leg_rf", "leg_rb"] },
+              "pivot": { "type": "object", "required": ["x", "y"], "description": "Бедро ноги: вокруг него нога качается", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+              "foot_y": { "type": "number", "description": "Низ стопы на холсте: ноги подгоняются, чтобы все стояли на полу" }
+            }
+          }
+        },
+        "body_hit": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["x", "y", "r"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "r": { "type": "number" } } } },
+        "claw": {
+          "type": "object", "required": ["sprite_id", "pivot", "length", "hit"],
+          "properties": {
+            "sprite_id": { "type": "string" },
+            "pivot": { "type": "object", "required": ["x", "y"], "description": "«Запястье» клешни в её спрайте: сюда крепится нить", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+            "length": { "type": "number", "description": "От запястья до кончика клешни, px" },
+            "hit": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["x", "y", "r"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "r": { "type": "number" } } } }
+          }
+        },
+        "shoulders": {
+          "type": "object", "required": ["left", "right"], "description": "Точки крепления нитей к торсу на холсте",
+          "properties": { "left": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }, "right": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } }
+        },
+        "orb": { "type": "object", "required": ["sprite_id", "radius"], "properties": { "sprite_id": { "type": "string" }, "radius": { "type": "number" } } }
+      }
+    },
     "segmented": {
       "type": "object",
       "description": "Сегментированное существо (червь): голова, туловище, хвост едут по следу головы",

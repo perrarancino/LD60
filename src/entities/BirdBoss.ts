@@ -200,6 +200,11 @@ export class BirdBoss implements PartDamageable {
     return 'hit';
   }
 
+  /** Босс в бою (для полосы здоровья). */
+  public get active(): boolean {
+    return this.state !== 'idle';
+  }
+
   /** Центр птицы и доля здоровья (для полосы здоровья, если игра захочет её рисовать). */
   public get health(): { hp: number; max: number } {
     return { hp: this.hp, max: this.maxHp };

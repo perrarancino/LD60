@@ -208,8 +208,8 @@ export class Panels {
     const wrap = h('div', { class: 'panel' });
     const placeable = ed.project.enemies.filter((e) => e.sprite_variants.length > 0);
     const groups: Array<[string, EnemyDef[]]> = [
-      ['Мобы', placeable.filter((e) => e.behavior_type !== 'flying_worm' && e.behavior_type !== 'flying_bird')],
-      ['Боссы', placeable.filter((e) => e.behavior_type === 'flying_worm' || e.behavior_type === 'flying_bird')]
+      ['Мобы', placeable.filter((e) => !['flying_worm', 'flying_bird', 'crab_boss'].includes(e.behavior_type))],
+      ['Боссы', placeable.filter((e) => ['flying_worm', 'flying_bird', 'crab_boss'].includes(e.behavior_type))]
     ];
     for (const [title, list] of groups) {
       if (!list.length) continue;

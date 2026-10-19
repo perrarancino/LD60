@@ -201,7 +201,7 @@ async function start(): Promise<void> {
     if (id === 'thread' && !ed.armedThread) ed.armedThread = ed.project.placeables.threads[0] ?? null;
     if (id === 'object' && !ed.armedObject) ed.armedObject = ed.project.placeables.objects[0] ?? null;
     if (id === 'mob' && !ed.armedEnemy) {
-      const first = ed.project.enemies.find((e) => e.sprite_variants.length && e.behavior_type !== 'flying_worm' && e.behavior_type !== 'flying_bird');
+      const first = ed.project.enemies.find((e) => e.sprite_variants.length && !['flying_worm', 'flying_bird', 'crab_boss'].includes(e.behavior_type));
       if (first) ed.armedEnemy = { def: first, sprite_id: first.sprite_variants[0] };
     }
     ed.setTool(id);

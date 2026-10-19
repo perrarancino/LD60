@@ -15,6 +15,11 @@ import { WormBoss } from './entities/WormBoss.ts';
 import { BirdBoss } from './entities/BirdBoss.ts';
 import type { BirdBossHooks } from './entities/BirdBoss.ts';
 import { BossBird } from './entities/BossBird.ts';
+import { CrabBoss, CRAB_ORB_DAMAGE } from './entities/CrabBoss.ts';
+import type { CrabBossHooks } from './entities/CrabBoss.ts';
+import { CrabOrb } from './entities/CrabOrb.ts';
+import { ShaderBackground } from './world/ShaderBackground.ts';
+import { BossBar } from './ui/BossBar.ts';
 import { Critter } from './entities/Critter.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
@@ -103,6 +108,8 @@ const SHAKE_FREQ = 17; // Гц: частота колебаний тряски
 const BIRD_HP = 5; // здоровье птички босса-птицы: гибнет от любого удара
 const BIRD_DAMAGE = 10; // клевок птички
 const BOSS_FEATHERS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('gold', 5)]; // перья босса-птицы
+const ORB_HP = 4; // шар краба: разбивается любым ударом
+const CRAB_FEATHERS = [pal('virus', 4), pal('virus', 5), pal('virus', 6), pal('gold', 5)]; // искры гибели краба
 const LAND_DUST = [0x9fb4c8, 0x6f8296, 0xdbe9f7]; // пыль при тяжёлом приземлении героя
 
 /** Здоровье врага: сколько осталось, из скольких; view — что рисуется (убирается при смерти); remove — вычеркнуть из списков игры. */
@@ -138,7 +145,11 @@ class GameApp {
   private bosses: WormBoss[] = [];
   private birdBosses: BirdBoss[] = []; // боссы-птицы второй локации
   private birds: BossBird[] = []; // птички, которых выпускает босс-птица
-  private readonly bossSummons = new Set<Critter>(); // обитатели локации, которых босс-птица призвала на посадке
+  private crabBosses: CrabBoss[] = []; // финальный босс-краб
+  private orbs: CrabOrb[] = []; // золотые шары краба
+  private bossBar = new BossBar(); // полоса здоровья босса в бою
+  private readonly bossSummons = new Set<Critter>(); // обитатели локации, которых босс-птица призвала на посадке (и краб швырнул)
+  private readonly thrownSpiders = new Set<Spider>(); // пауки, которых швырнул краб
   private enemyDefs = new Map<string, EnemyDef>();
   private critters: Critter[] = []; // мелкие мобы второй локации: крыса, воробей, страж
   private fx = new Particles(); // частицы: брызги, пыль, след
@@ -183,7 +194,7 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
-  private background: ParallaxBackground | null = null;
+  private background: ParallaxBackground | ShaderBackground | null = null;
   private scale = 1;
   private cameraY = 0;
   private groundRefY = 0; // высота ног при последнем касании земли
@@ -349,7 +360,9 @@ class GameApp {
       const t = Math.max(0, Math.min(1, (Math.abs(dy) - 80) / (CAMERA_AIR_FULL_AT - 80)));
       const share = body.grounded ? 1 : CAMERA_AIR_MIN_SHARE + (1 - CAMERA_AIR_MIN_SHARE) * t * t * (3 - 2 * t);
       const followFeet = this.groundRefY + dy * share;
-      const target = Math.max(0, Math.min(maxY, followFeet - this.viewH * CAMERA_REST_Y));
+      let target = Math.max(0, Math.min(maxY, followFeet - this.viewH * CAMERA_REST_Y));
+      const focus = this.crabBosses.find((b) => b.active)?.focusTop();
+      if (focus !== undefined) target = Math.max(0, Math.min(target, focus - 14)); // верх босса остаётся в кадре (ноги героя держат страховочные поля ниже)
       if (!this.cameraReady) {
         this.cameraY = target;
         this.cameraReady = true;
@@ -432,7 +445,7 @@ class GameApp {
     ]);
 
     if (bgDef) {
-      this.background = new ParallaxBackground(bgDef, this.sprites);
+      this.background = bgDef.shader ? new ShaderBackground(bgDef) : new ParallaxBackground(bgDef, this.sprites);
       this.grid.visible = false; // вместо технической сетки — фон
       this.sceneLayer.addChildAt(this.background.container, 0);
       this.background.resize(this.viewW, this.viewH);
@@ -536,6 +549,16 @@ class GameApp {
         this.worldLayer.addChild(boss.container);
         continue;
       }
+      if (def.behavior_type === 'crab_boss') {
+        // Финальный босс-краб: ходит, прыгает, клешни на неоновых нитях, шары, метание мобов; рисуется поверх героя
+        const rig = RIGS.find((r) => r.id === def.rig_id);
+        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const boss = new CrabBoss(def, spawn, this.level, rig, this.sprites, this.crabBossHooks(rig));
+        boss.leash = this.bindRoom(boss, spawn);
+        this.crabBosses.push(boss);
+        this.worldLayer.addChild(boss.container);
+        continue;
+      }
       if (def.behavior_type === 'burrower') {
         // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
         const rig = RIGS.find((r) => r.id === def.rig_id);
@@ -593,6 +616,7 @@ class GameApp {
     else this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, ts);
     this.worldLayer.addChild(this.player.sprite);
     for (const b of this.birdBosses) this.worldLayer.addChild(b.container); // босс-птица пролетает поверх героя
+    for (const b of this.crabBosses) this.worldLayer.addChild(b.container); // краб тоже
     this.rooms.updateHero(Math.floor(this.player.body.x / ts), Math.floor((this.player.body.y - 16) / ts));
 
     this.loot = new LootSystem(this.sprites, this.fx);
@@ -648,6 +672,7 @@ class GameApp {
     }
     this.app.stage.addChild(this.flashLayer); // вспышка молнии на весь экран
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
+    this.app.stage.addChild(this.bossBar.container); // полоса здоровья босса
     if (levelDef.grade) {
       this.grade = new ColorGrade(levelDef.grade);
       this.grade.apply(this.sceneLayer);
@@ -704,6 +729,8 @@ class GameApp {
     yield* this.bosses;
     yield* this.birdBosses;
     yield* this.birds;
+    yield* this.crabBosses;
+    yield* this.orbs;
     yield* this.critters;
   }
 
@@ -785,12 +812,20 @@ class GameApp {
       if (i >= 0) list.splice(i, 1);
     };
     const view = (target as unknown as { container: Container }).container;
-    const isBoss = target instanceof WormBoss || target instanceof BirdBoss;
+    const isBoss = target instanceof WormBoss || target instanceof BirdBoss || target instanceof CrabBoss;
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
     this.contactDmg.delete(target);
     drop(this.worms, target);
     drop(this.bosses, target);
     drop(this.birdBosses, target);
+    drop(this.crabBosses, target);
+    if (target instanceof CrabBoss) {
+      // гибель краба: взрыв неоновых искр, сильная тряска и вспышка; шары разбиваются
+      this.fx.burst(view.x, view.y - 60, { count: 110, colors: CRAB_FEATHERS, speed: [60, 320], spread: Math.PI * 2, life: [0.4, 1.2], size: [1, 3], gravity: 140, drag: 2 });
+      this.shake = Math.max(this.shake, 6);
+      this.flashAlpha = 0.4;
+      for (const orb of this.orbs) orb.burst();
+    }
     if (target instanceof BirdBoss) {
       // гибель босса-птицы: взрыв перьев, тряска; его птички рассыпаются
       this.fx.burst(view.x, view.y, { count: 70, colors: BOSS_FEATHERS, speed: [60, 280], spread: Math.PI * 2, life: [0.3, 0.9], size: [1, 3], gravity: 120, drag: 2 });
@@ -805,6 +840,13 @@ class GameApp {
   private kill(target: Hittable, mob: Mob): void {
     if (this.gone.has(target)) return;
     this.gone.add(target);
+    if (target instanceof CrabOrb) {
+      target.burst(); // шар краба разбит кулаком, добычи нет
+      this.mobs.delete(target);
+      mob.remove();
+      mob.view.destroy({ children: true });
+      return;
+    }
     if (target instanceof BossBird) {
       target.burst(7); // птичка босса рассыпается пёрышками, добычи с неё нет
       this.mobs.delete(target);
@@ -1002,6 +1044,81 @@ class GameApp {
     });
   }
 
+  /** Золотые шары краба: катятся, сталкиваются навстречу друг другу и ломаются, бьют героя; сломанные убираются. */
+  private updateOrbs(dt: number): void {
+    for (const orb of this.orbs) orb.update(dt);
+    for (let i = 0; i < this.orbs.length; i++) {
+      for (let j = i + 1; j < this.orbs.length; j++) {
+        if (CrabOrb.collide(this.orbs[i], this.orbs[j])) this.shake = Math.max(this.shake, 1.6);
+      }
+    }
+    for (let i = this.orbs.length - 1; i >= 0; i--) {
+      const orb = this.orbs[i];
+      if (!orb.expired) continue;
+      this.gone.add(orb);
+      this.mobs.delete(orb);
+      orb.container.destroy({ children: true });
+      this.orbs.splice(i, 1);
+    }
+  }
+
+  /** Связь босса-краба с игрой: герой, урон ему, шары, метание мобов, тряска. */
+  private crabBossHooks(rig: RigDef): CrabBossHooks {
+    const orbDef = rig.crab_boss!.orb;
+    const hero = () => {
+      const b = this.player.body;
+      return { x: b.x, left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+    };
+    return {
+      hero,
+      hurt: (amount, dirX, knock) => {
+        if (this.hurtPlayer(amount, dirX) && knock && Armor.get().hp > 0) this.player.knockdown(dirX);
+      },
+      spawnOrb: (x, y) => {
+        const orb = new CrabOrb(this.sprites, orbDef.sprite_id, orbDef.radius, this.level, x, y, hero, (dirX) => {
+          if (this.hurtPlayer(CRAB_ORB_DAMAGE, dirX) && Armor.get().hp > 0) this.player.knockdown(dirX);
+        }, this.fx);
+        this.orbs.push(orb);
+        this.worldLayer.addChildAt(orb.container, this.worldLayer.getChildIndex(this.fx.container));
+        this.track(orb, ORB_HP, orb.container, () => this.orbs.splice(this.orbs.indexOf(orb), 1));
+        return orb;
+      },
+      throwMob: (enemyId, x, y, vx, vy) => this.throwMob(enemyId, x, y, vx, vy),
+      mobsAlive: () => {
+        for (const c of this.bossSummons) if (this.gone.has(c)) this.bossSummons.delete(c);
+        for (const sp of this.thrownSpiders) if (sp.expired || this.gone.has(sp)) this.thrownSpiders.delete(sp);
+        return this.bossSummons.size + this.thrownSpiders.size;
+      },
+      shake: (power) => {
+        this.shake = Math.max(this.shake, power);
+      },
+      fx: this.fx
+    };
+  }
+
+  /** Краб швыряет моба: крыса и воробей летят по дуге (Critter.toss), паук — как выплюнутый маткой (Spider.launch). */
+  private throwMob(enemyId: string, x: number, y: number, vx: number, vy: number): void {
+    const def = this.enemyDefs.get(enemyId);
+    if (!def) return;
+    const spriteId = def.sprite_variants[0];
+    if (def.behavior_type === 'crawler') {
+      const rig = def.rig_id ? RIGS.find((r) => r.id === def.rig_id) : undefined;
+      if (!rig) return;
+      const spawn = { enemy_id: def.id, sprite_id: spriteId, x: 0, y: 0 };
+      const spider = new Spider(def, spawn, this.level, rig, this.sprites, { scale: 1, lifetime: 30, fx: this.fx });
+      spider.launch(x, y, vx, vy);
+      this.spiders.push(spider);
+      this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
+      this.worldLayer.addChildAt(spider.container, this.worldLayer.getChildIndex(this.fx.container));
+      this.thrownSpiders.add(spider);
+      return;
+    }
+    const mob = this.createCritter(def, { enemy_id: enemyId, sprite_id: spriteId, x: Math.floor(x / this.level.tileSize), y: Math.floor(y / this.level.tileSize) }, true);
+    mob.toss(x, y, vx, vy);
+    this.bossSummons.add(mob);
+    this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 120], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+  }
+
   /** Мелкий моб второй локации (крыса, воробей, птичка, страж): тело, хлыст, комната, здоровье. runtime — появился в ходе боя (рисуется под героем). */
   private createCritter(def: EnemyDef, spawn: EnemySpawnDef, runtime: boolean): Critter {
     const rig = RIGS.find((r) => r.id === def.rig_id);
@@ -1143,6 +1260,7 @@ class GameApp {
         ...(rig.wobbler ? [rig.wobbler.sprite_id, ...(rig.wobbler.thread ? [rig.wobbler.thread.sprite_id] : []), ...rig.wobbler.limbs.map((l) => l.sprite_id)] : [])
       );
     }
+    if (rig?.crab_boss) ids.push(...rig.crab_boss.layers.map((l) => l.sprite_id), rig.crab_boss.claw.sprite_id, rig.crab_boss.orb.sprite_id);
     if (rig?.bird_boss) ids.push(rig.bird_boss.bird_sprite_id, ...rig.bird_boss.layers.map((l) => l.sprite_id));
     if (def.spawns) ids.push(...this.enemySpriteIds(defs, def.spawns.enemy_id, def.spawns.sprite_id, depth + 1));
     for (const id of def.summons?.enemy_ids ?? []) ids.push(...this.enemySpriteIds(defs, id, undefined, depth + 1)); // призванные боссом
@@ -1243,6 +1361,8 @@ class GameApp {
     for (const boss of this.bosses) boss.update(dt);
     for (const boss of this.birdBosses) boss.update(dt);
     for (const bird of this.birds) bird.update(dt);
+    for (const boss of this.crabBosses) boss.update(dt);
+    this.updateOrbs(dt);
     for (const mob of this.critters) mob.update(dt);
     this.resolveStrike();
     this.checkContactDamage(dt);
@@ -1256,6 +1376,12 @@ class GameApp {
       if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: pal('gold', 7), alpha: this.flashAlpha });
     }
     this.hud.update();
+    {
+      // полоса здоровья: босс-краб или птица, пока бой идёт
+      const crab = this.crabBosses.find((b) => b.active);
+      const bird = this.birdBosses.find((b) => b.active);
+      this.bossBar.update(dt, crab ? crab.health : bird ? bird.health : null, this.viewW, crab ? 'virus' : 'cobalt');
+    }
     this.fx.update(dt);
     this.spriteFx.update(dt);
     this.numbers.update(dt);
@@ -1289,6 +1415,7 @@ class GameApp {
       }
       // Мягкий свет от сенсоров робота: подсвечивает окружение и коридоры вокруг героя
       extra.push({ x: b.x, y: b.y - 18, r: 80, i: 0.35, c: [0.35, 0.75, 1.0] });
+      for (const boss of this.crabBosses) extra.push(...boss.lights());
       this.lighting.extraLights = extra;
     }
     this.lighting?.update();
