@@ -45,7 +45,6 @@ import { ProjectileSystem } from './entities/ProjectileSystem.ts';
 import { Hud } from './ui/Hud.ts';
 import { TerminalUI } from './ui/TerminalUI.ts';
 import { Terminal } from './entities/Terminal.ts';
-import { CipherCluesView } from './entities/CipherCluesView.ts';
 import { PasswordTerminalEntity } from './entities/PasswordTerminalEntity.ts';
 import { WorldProgression } from './systems/WorldProgression.ts';
 import { Run } from './systems/Run.ts';
@@ -228,7 +227,6 @@ class GameApp {
   private terminalUI!: TerminalUI;
   private terminals: Terminal[] = [];
   private cipherPuzzle!: CipherTerminalPuzzle;
-  private cipherCluesView!: CipherCluesView;
   private passwordTerminal: PasswordTerminalEntity | null = null;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
   private fog: RoomFog | null = null; // туман войны по комнатам (уровень с полем fog и комнатами)
@@ -571,9 +569,6 @@ class GameApp {
     WorldProgression.get().debugOpenAll = DEBUG_MODE;
 
     // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
-    if (!ROGUE) this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
-    this.cipherCluesView = new CipherCluesView(this.cipherPuzzle);
-    this.worldLayer.addChild(this.cipherCluesView.container);
 
     // Собираем всех врагов: фиксированные спавны + сгенерированные строго на полу из зон спавна
     const allEnemies = [...levelDef.enemies];
@@ -692,7 +687,7 @@ class GameApp {
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container,
-      this.debris.container, this.beam.container, this.boltFx.container, this.enemyBolts.container, this.cipherCluesView.container, ...this.terminals.map((t) => t.container)
+      this.debris.container, this.beam.container, this.boltFx.container, this.enemyBolts.container, ...this.terminals.map((t) => t.container)
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     if (levelDef.light) {
@@ -1771,21 +1766,6 @@ class GameApp {
     const bo = this.player.beamOrigin;
     if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
-
-    // Настенный шифр: анимация цифр и проверка обнаружения роботом
-    this.cipherCluesView.update(dt);
-    const discoveredClue = this.cipherPuzzle.checkClueDiscovery(pb.x, pb.y);
-    if (discoveredClue) {
-      this.cipherCluesView.onClueDiscovered(discoveredClue);
-      this.fx.burst(discoveredClue.x, discoveredClue.y, {
-        count: 14,
-        colors: [0x5bf5a3, 0xfbc53d, 0xffffff],
-        speed: [40, 130],
-        spread: Math.PI * 2,
-        life: [0.2, 0.45],
-        size: [1, 2]
-      });
-    }
 
     // Терминал ввода шифра: интерактивный спрайт (курсор — через setCursor выше)
     this.passwordTerminal?.update(dt, { x: pb.x, y: pb.y }, aim);
