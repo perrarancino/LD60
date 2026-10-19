@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "rogue_1_1",
-  "display_name": "Уровень 1 · комната 1: Паучья стая",
+  "display_name": "Level 1 · Room 1: Spider Swarm",
   "background_id": "bg_textalite",
   "tile_size": 32,
   "width": 27,
@@ -156,7 +156,7 @@
   "rooms": [
     {
       "id": "room_1",
-      "name": "Комната 1",
+      "name": "Room 1",
       "x": 0,
       "y": 0,
       "width": 27,

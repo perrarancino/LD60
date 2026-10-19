@@ -63,7 +63,7 @@ export class TerminalUI {
     const btn = (slot: Slot, tier: number) => {
       const equipped = a.equipped[slot] === tier;
       const def = tier > 0 ? TIERS[tier - 1] : null;
-      const name = def ? def.name : 'Шасси';
+      const name = def ? def.name : 'Chassis';
       let state: 'eq' | 'own' | 'buy' | 'poor';
       if (equipped) state = 'eq';
       else if (tier === 0 || a.has(slot, tier)) state = 'own';
@@ -82,7 +82,7 @@ export class TerminalUI {
 
     const rows = SLOTS.map((slot) => {
       const cur = a.equipped[slot];
-      const desc = cur > 0 ? a.describe(slot, cur) : 'Голое шасси — базовые показатели';
+      const desc = cur > 0 ? a.describe(slot, cur) : 'Bare chassis: base stats';
       const tiers = [0, ...Array.from({ length: MAX_TIER }, (_, i) => i + 1)];
       return `<div style="margin-bottom: 9px;">
         <div style="display:flex; justify-content: space-between; margin-bottom: 3px;">
@@ -95,16 +95,16 @@ export class TerminalUI {
 
     this.root.innerHTML = `<div style="background: ${hex(pal('steel', 0))}f2; border: 3px solid ${t.accent}; box-shadow: 0 0 0 2px #000, 0 0 24px ${t.accent}66; padding: 12px 14px;">
       <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px; border-bottom: 2px solid ${t.accent}55; padding-bottom: 6px;">
-        <b style="color:${t.accent}; font-size: 15px; letter-spacing: 1px;">ТЕРМИНАЛ БРОНИ</b>
+        <b style="color:${t.accent}; font-size: 15px; letter-spacing: 1px;">ARMOR TERMINAL</b>
         <div style="display:flex; align-items:center; gap:12px;">
-          <span><span style="color:${hex(pal('steel', 5))}">⚙</span> <b>${a.scrap}</b> <span style="opacity:.7">металлолом</span></span>
+          <span><span style="color:${hex(pal('steel', 5))}">⚙</span> <b>${a.scrap}</b> <span style="opacity:.7">scrap</span></span>
           <button id="term-close-btn" style="background:none; border:none; color:${hex(pal('steel', 5))}; font-size:16px; cursor:pointer; font-weight:bold; line-height:1; padding:0 2px;">✕</button>
         </div>
       </div>
       ${rows}
       <div id="term-hint" style="min-height: 15px; font-size: 11px; color: ${t.accent2}; margin: 2px 0 6px;">${this.hint}</div>
       <div style="display:flex; justify-content: space-between; font-size: 11px; opacity:.75;">
-        <span>Старая часть отвалится</span><span>[Esc] или ✕ — закрыть</span>
+        <span>The old part falls off</span><span>[Esc] or ✕ to close</span>
       </div>
     </div>`;
 
@@ -116,14 +116,14 @@ export class TerminalUI {
       const tier = Number(el.dataset.tier);
       el.addEventListener('mouseenter', () => {
         const hint = this.root.querySelector('#term-hint');
-        if (hint) hint.textContent = tier > 0 ? `${TIERS[tier - 1].name}: ${a.describe(slot, tier)}` : 'Снять часть: голое серое шасси';
+        if (hint) hint.textContent = tier > 0 ? `${TIERS[tier - 1].name}: ${a.describe(slot, tier)}` : 'Remove the part: bare grey chassis';
       });
       el.addEventListener('click', () => {
         const st = el.dataset.state;
         if (st === 'own') a.equip(slot, tier);
         else if (st === 'buy') a.buy(slot, tier);
         else if (st === 'poor') {
-          this.hint = 'Не хватает металлолома';
+          this.hint = 'Not enough scrap';
           this.render();
         }
       });

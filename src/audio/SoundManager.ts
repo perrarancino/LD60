@@ -1,11 +1,56 @@
-import { EventBus } from '../core/EventBus.ts';
+import personDamageUrl from '../../assets/audio/sfx/person_damage.mp3';
+import loseUrl from '../../assets/audio/sfx/lose.mp3';
+import crabAttackUrl from '../../assets/audio/sfx/crab_attack.mp3';
+import otherBossesAttackUrl from '../../assets/audio/sfx/other_bosses_attack.mp3';
+import chirpUrl from '../../assets/audio/sfx/chirp.mp3';
+import ratUrl from '../../assets/audio/sfx/rat.mp3';
+import wardUrl from '../../assets/audio/sfx/ward_tesla.mp3';
+import wormUrl from '../../assets/audio/sfx/worm.mp3';
+import motherSpiderUrl from '../../assets/audio/sfx/mother_spider.mp3';
+import miniSpiderUrl from '../../assets/audio/sfx/mini_spider.mp3';
+import gearThrowUrl from '../../assets/audio/sfx/gear_throw.mp3';
+import winUrl from '../../assets/audio/sfx/win.mp3';
+import zapHandUrl from '../../assets/audio/sfx/zap_hand_attack.mp3';
+import upgradeUrl from '../../assets/audio/sfx/upgrade.mp3';
 
-import kill01Url from '../../assets/audio/sfx/kill_01.wav';
-import kill02Url from '../../assets/audio/sfx/kill_02.wav';
-import armorChangeUrl from '../../assets/audio/sfx/armor_change.wav';
-import scrapPickupUrl from '../../assets/audio/sfx/scrap_pickup.wav';
+export type SoundId =
+  | 'person_damage' | 'lose' | 'crab_attack' | 'other_bosses_attack' | 'chirp' | 'rat' | 'ward' | 'worm'
+  | 'mother_spider' | 'mini_spider' | 'gear_throw' | 'win' | 'zap_hand_attack' | 'upgrade';
 
-export type SoundId = 'kill_01' | 'kill_02' | 'armor_change' | 'scrap_pickup';
+/** Громкость эффектов по умолчанию — 30% (как просили для стартового меню). */
+export const DEFAULT_SFX_VOLUME = 0.3;
+/** Музыка по умолчанию тише эффектов: она фоновая. */
+export const DEFAULT_MUSIC_VOLUME = 0.35;
+
+const SFX_VOLUME_KEY = 'ld60.audio.sfx';
+const MUSIC_VOLUME_KEY = 'ld60.audio.music';
+
+/** URL эффектов: используются и для загрузки в игре, и для прогрева кеша экраном загрузки. */
+export const SFX_URLS: Record<SoundId, string> = {
+  person_damage: personDamageUrl,
+  lose: loseUrl,
+  crab_attack: crabAttackUrl,
+  other_bosses_attack: otherBossesAttackUrl,
+  chirp: chirpUrl,
+  rat: ratUrl,
+  ward: wardUrl,
+  worm: wormUrl,
+  mother_spider: motherSpiderUrl,
+  mini_spider: miniSpiderUrl,
+  gear_throw: gearThrowUrl,
+  win: winUrl,
+  zap_hand_attack: zapHandUrl,
+  upgrade: upgradeUrl
+};
+
+/** Необязательные музыкальные файлы: если положить трек в assets/audio/music, он заменит процедурный эмбиент. */
+export const MUSIC_URLS = Object.values(
+  import.meta.glob('../../assets/audio/music/*.{ogg,mp3,wav,m4a}', {
+    eager: true,
+    query: '?url',
+    import: 'default'
+  }) as Record<string, string>
+);
 
 interface SoundConfig {
   url: string;
@@ -13,37 +58,27 @@ interface SoundConfig {
   echoSend: number;
   reverbSend: number;
   pitchVariance?: number;
+  minGap: number; // с: чаще этого один и тот же звук не запускается (троттлинг)
 }
 
+const cfg = (id: SoundId, baseVolume: number, minGap: number, pitchVariance = 0.05, echoSend = 0.18, reverbSend = 0.3): SoundConfig =>
+  ({ url: SFX_URLS[id], baseVolume, minGap, pitchVariance, echoSend, reverbSend });
+
 const SOUND_CONFIGS: Record<SoundId, SoundConfig> = {
-  kill_01: {
-    url: kill01Url,
-    baseVolume: 0.75,
-    echoSend: 0.40,
-    reverbSend: 0.55,
-    pitchVariance: 0.06
-  },
-  kill_02: {
-    url: kill02Url,
-    baseVolume: 0.48, // сбалансировано по RMS с kill_01
-    echoSend: 0.40,
-    reverbSend: 0.55,
-    pitchVariance: 0.06
-  },
-  armor_change: {
-    url: armorChangeUrl,
-    baseVolume: 0.75,
-    echoSend: 0.30,
-    reverbSend: 0.45,
-    pitchVariance: 0.03
-  },
-  scrap_pickup: {
-    url: scrapPickupUrl,
-    baseVolume: 0.85,
-    echoSend: 0.28,
-    reverbSend: 0.38,
-    pitchVariance: 0.04
-  }
+  person_damage: cfg('person_damage', 0.9, 0.12, 0.04),
+  lose: cfg('lose', 1.0, 1, 0, 0.3, 0.45),
+  crab_attack: cfg('crab_attack', 1.0, 0.3, 0.04, 0.3, 0.45),
+  other_bosses_attack: cfg('other_bosses_attack', 0.95, 0.3, 0.05, 0.25, 0.4),
+  chirp: cfg('chirp', 0.8, 0.12, 0.1),
+  rat: cfg('rat', 0.85, 0.15, 0.08),
+  ward: cfg('ward', 0.8, 0.2, 0.05),
+  worm: cfg('worm', 0.85, 0.2, 0.08),
+  mother_spider: cfg('mother_spider', 0.9, 0.25, 0.05),
+  mini_spider: cfg('mini_spider', 0.7, 0.07, 0.12),
+  gear_throw: cfg('gear_throw', 0.8, 0.12, 0.05),
+  win: cfg('win', 1.0, 1, 0, 0.3, 0.45),
+  zap_hand_attack: cfg('zap_hand_attack', 0.8, 0.12, 0.06),
+  upgrade: cfg('upgrade', 1.0, 0.3, 0, 0.3, 0.4)
 };
 
 /**
@@ -59,6 +94,12 @@ export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+
+  private sfxVolume = DEFAULT_SFX_VOLUME;
+  private musicVolume = DEFAULT_MUSIC_VOLUME;
+  private musicStarted = false;
 
   // Шина эхо (Delay)
   public echoSendNode: GainNode | null = null;
@@ -78,14 +119,14 @@ export class SoundManager {
   private initialized = false;
   private enabled = true;
 
-  // Троттлинг и комбо подбора
-  private lastScrapTime = 0;
-  private scrapComboCount = 0;
-  private lastArmorChangeTime = 0;
+  // Троттлинг одинаковых звуков и положение героя (для громкости и панорамы звуков мобов)
+  private readonly lastPlayed = new Map<SoundId, number>();
+  private listenerX = 0;
+  private listenerY = 0;
 
   private constructor() {
+    this.loadVolumeSettings();
     this.setupAutoUnlock();
-    this.setupEventListeners();
   }
 
   public static get(): SoundManager {
@@ -93,6 +134,28 @@ export class SoundManager {
       SoundManager.instance = new SoundManager();
     }
     return SoundManager.instance;
+  }
+
+  private loadVolumeSettings(): void {
+    this.sfxVolume = this.readStoredVolume(SFX_VOLUME_KEY, DEFAULT_SFX_VOLUME);
+    this.musicVolume = this.readStoredVolume(MUSIC_VOLUME_KEY, DEFAULT_MUSIC_VOLUME);
+  }
+
+  private readStoredVolume(key: string, fallback: number): number {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) {
+        const value = Number(raw);
+        if (Number.isFinite(value)) return Math.max(0, Math.min(1, value));
+      }
+    } catch { /* localStorage недоступен — остаётся значение по умолчанию */ }
+    return fallback;
+  }
+
+  private saveVolume(key: string, value: number): void {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch { /* без сохранения */ }
   }
 
   /**
@@ -114,31 +177,13 @@ export class SoundManager {
     window.addEventListener('touchstart', unlock, { passive: true });
   }
 
-  private setupEventListeners(): void {
-    const bus = EventBus.get();
-
-    bus.on('armor:changed', () => {
-      this.playArmorChange();
-    });
-
-    bus.on('enemy:killed', () => {
-      this.playKill();
-    });
-
-    bus.on('loot:pickup', (data?: { type?: string }) => {
-      if (!data || data.type === 'scrap') {
-        this.playScrapPickup();
-      }
-    });
-  }
-
   /**
    * Инициализация аудио-графа с цепочкой эхо и реверберации
    */
   public init(): void {
     if (this.initialized) return;
     this.ensureContext();
-    this.preloadAll();
+    void this.preloadAll();
     this.initialized = true;
   }
 
@@ -159,13 +204,24 @@ export class SoundManager {
       compressor.release.value = 0.15;
 
       const masterGain = ctx.createGain();
-      masterGain.gain.value = 0.9;
+      masterGain.gain.value = 1.0;
 
-      compressor.connect(masterGain);
+      // Раздельные шины: эффекты и музыка регулируются независимо
+      const sfxGain = ctx.createGain();
+      sfxGain.gain.value = this.sfxVolume;
+
+      const musicGain = ctx.createGain();
+      musicGain.gain.value = this.musicVolume;
+
+      compressor.connect(sfxGain);
+      sfxGain.connect(masterGain);
+      musicGain.connect(masterGain);
       masterGain.connect(ctx.destination);
 
       this.compressor = compressor;
       this.masterGain = masterGain;
+      this.sfxGain = sfxGain;
+      this.musicGain = musicGain;
 
       // 2. Цепочка ЭХО (Delay)
       const echoSend = ctx.createGain();
@@ -267,13 +323,16 @@ export class SoundManager {
   }
 
   /**
-   * Предварительная загрузка всех звуковых файлов
+   * Предварительная загрузка всех звуковых файлов. onProgress — для полосы загрузки на входе.
    */
-  public preloadAll(): void {
+  public async preloadAll(onProgress?: (loaded: number, total: number) => void): Promise<void> {
     const ids = Object.keys(SOUND_CONFIGS) as SoundId[];
-    for (const id of ids) {
-      this.loadSound(id).catch(() => {});
-    }
+    let loaded = 0;
+    await Promise.all(ids.map(async (id) => {
+      await this.loadSound(id);
+      loaded++;
+      onProgress?.(loaded, ids.length);
+    }));
   }
 
   private async loadSound(id: SoundId): Promise<AudioBuffer | null> {
@@ -313,8 +372,11 @@ export class SoundManager {
    * Базовое воспроизведение звука с раздельной маршрутизацией:
    * Dry (прямой сигнал) + посыл на Echo + посыл на Reverb
    */
-  public async play(id: SoundId, options?: { volume?: number; pitch?: number; echoSend?: number; reverbSend?: number }): Promise<void> {
+  public async play(id: SoundId, options?: { volume?: number; pitch?: number; echoSend?: number; reverbSend?: number; pan?: number }): Promise<void> {
     if (!this.enabled) return;
+    const nowT = performance.now() / 1000;
+    if (nowT - (this.lastPlayed.get(id) ?? -9) < SOUND_CONFIGS[id].minGap) return;
+    this.lastPlayed.set(id, nowT);
     const ctx = this.ensureContext();
     if (!ctx) return;
 
@@ -342,9 +404,16 @@ export class SoundManager {
 
     source.connect(soundGain);
 
-    // 1. Dry путь
+    // 1. Dry путь (с панорамой, если звук идёт из точки мира)
     if (this.compressor) {
-      soundGain.connect(this.compressor);
+      if (options?.pan !== undefined && ctx.createStereoPanner) {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, options.pan));
+        soundGain.connect(panner);
+        panner.connect(this.compressor);
+      } else {
+        soundGain.connect(this.compressor);
+      }
     }
 
     // 2. Echo посыл
@@ -368,45 +437,80 @@ export class SoundManager {
     source.start(0);
   }
 
-  /**
-   * Воспроизведение звука при убийстве:
-   * Случайный выбор между эффектами kill_01 и kill_02
-   */
-  public playKill(): void {
-    const choice: SoundId = Math.random() < 0.5 ? 'kill_01' : 'kill_02';
-    this.play(choice);
+  /** Положение героя (мир, px): от него считаются громкость и панорама звуков мобов. */
+  public setListener(x: number, y: number): void {
+    this.listenerX = x;
+    this.listenerY = y;
   }
 
   /**
-   * Воспроизведение звука при смене комплекта брони:
-   * Защита от дребезга (debounce) при быстрых кликах в интерфейсе
+   * Звук из точки мира: чем дальше от героя, тем тише (полная громкость ближе 120 px, тишина дальше 640 px), слева и справа — в своём ухе.
    */
-  public playArmorChange(): void {
-    const now = performance.now();
-    if (now - this.lastArmorChangeTime < 60) return;
-    this.lastArmorChangeTime = now;
-    this.play('armor_change');
+  public playAt(id: SoundId, x: number, y: number, options?: { volume?: number; pitch?: number }): void {
+    const dist = Math.hypot(x - this.listenerX, y - this.listenerY);
+    const k = Math.max(0, Math.min(1, 1 - (dist - 120) / 520));
+    if (k < 0.04) return;
+    const vol = (options?.volume ?? SOUND_CONFIGS[id].baseVolume) * k * k;
+    void this.play(id, { volume: vol, pitch: options?.pitch, pan: Math.max(-0.85, Math.min(0.85, (x - this.listenerX) / 420)) });
+  }
+
+  /** Громкость эффектов (0..1), по умолчанию 30%. Значение переживает перезагрузку страницы. */
+  public setSfxVolume(value: number): void {
+    this.sfxVolume = Math.max(0, Math.min(1, value));
+    if (this.sfxGain) this.sfxGain.gain.value = this.sfxVolume;
+    this.saveVolume(SFX_VOLUME_KEY, this.sfxVolume);
+  }
+
+  public getSfxVolume(): number {
+    return this.sfxVolume;
+  }
+
+  /** Громкость музыки (0..1): плавно применяется и к файловому треку, и к процедурному эмбиенту. */
+  public setMusicVolume(value: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, value));
+    if (this.musicGain) this.musicGain.gain.value = this.musicVolume;
+    this.saveVolume(MUSIC_VOLUME_KEY, this.musicVolume);
+  }
+
+  public getMusicVolume(): number {
+    return this.musicVolume;
   }
 
   /**
-   * Воспроизведение звука при подборе материалов (мусора / scrap):
-   * Динамическое повышение питча при цепочке сбора нескольких предметов подряд
+   * Запускает фоновую музыку (один раз за загрузку страницы).
+   * Играет первый файл из assets/audio/music; пока папка пуста — музыки нет.
    */
-  public playScrapPickup(): void {
-    const now = performance.now();
-    // Минимальный интервал во избежание клиппинга при одновременном сборе
-    if (now - this.lastScrapTime < 35) return;
+  public startMusic(): void {
+    if (this.musicStarted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.musicGain) return;
 
-    if (now - this.lastScrapTime < 450) {
-      this.scrapComboCount = Math.min(8, this.scrapComboCount + 1);
-    } else {
-      this.scrapComboCount = 0;
+    this.musicStarted = true;
+    this.musicGain.gain.value = this.musicVolume;
+
+    const url = MUSIC_URLS[0];
+    if (url) void this.playMusicFile(ctx, url);
+  }
+
+  public stopMusic(): void {
+    this.musicStarted = false;
+  }
+
+  private async playMusicFile(ctx: AudioContext, url: string): Promise<void> {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+      if (!this.musicStarted || !this.musicGain) return;
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(this.musicGain);
+      source.start();
+    } catch (err) {
+      console.warn('[SoundManager] Не удалось включить музыку:', err);
     }
-    this.lastScrapTime = now;
-
-    // Питч плавно возрастает при серии подобранных предметов
-    const comboPitch = 1.0 + this.scrapComboCount * 0.04;
-    this.play('scrap_pickup', { pitch: comboPitch });
   }
 
   public setMasterVolume(value: number): void {

@@ -110,7 +110,7 @@ export interface SteamEngineConfig {
  */
 export class SteamEnginePuzzle implements IPuzzle {
   public readonly id = 'steam_engine_puzzle';
-  public readonly name = 'Калибровка парового двигателя (3 рычага и 3 спидометра)';
+  public readonly name = 'Steam engine calibration (3 levers and 3 gauges)';
 
   public static readonly LEVER_COUNT = 3;
   public static readonly GAUGE_COUNT = 3;
@@ -154,15 +154,15 @@ export class SteamEnginePuzzle implements IPuzzle {
     this.emitEvents = config.emitEvents ?? true;
 
     this.leverNames = config.leverNames ?? [
-      'Впускной клапан пара',
-      'Дроссельная заслонка',
-      'Перепускной регулятор'
+      'Steam intake valve',
+      'Throttle',
+      'Bypass regulator'
     ];
 
     this.gaugeNames = config.gaugeNames ?? [
-      'Давление в котле',
-      'Обороты турбины',
-      'Температура пара'
+      'Boiler pressure',
+      'Turbine RPM',
+      'Steam temperature'
     ];
 
     this.onStateChangeCallback = config.onStateChange;

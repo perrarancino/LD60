@@ -143,7 +143,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
 
   constructor(config: CipherTerminalConfig = {}) {
     this.id = config.id ?? 'cipher_terminal_puzzle';
-    this.name = config.name ?? 'Секретный шифр отсека (Сбор цифр по карте и терминал)';
+    this.name = config.name ?? 'Secret bay code (collect digits, enter at the terminal)';
     this.codeLength = Math.max(2, config.codeLength ?? 4);
     this.emitEvents = config.emitEvents ?? true;
 
@@ -263,7 +263,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
       ? activeRooms
       : [{
           id: 'room_virtual_loc1',
-          name: 'Локация 1',
+          name: 'Zone 1',
           x: 1,
           y: 1,
           width: Math.max(2, level.widthTiles - 2),
@@ -279,7 +279,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
     this.clues.clear();
 
     // 4. Все цифры — в одной комнате: в той, что перед комнатой пароля (ближайшая к ней из обычных); без комнаты пароля — в первой
-    const pwdRoom = allRooms.find((r) => (r.name || '').toLowerCase().includes('пароль'));
+    const pwdRoom = allRooms.find((r) => /пароль|password/.test((r.name || '').toLowerCase()));
     let room: RoomDef = roomsToUse[0];
     if (pwdRoom) {
       const px = pwdRoom.x + pwdRoom.width / 2;
@@ -297,7 +297,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
     const span = Math.max(1.5, Math.min(3, (room.width - 2) / length)); // тайлов между цифрами
     const midX = room.x + room.width / 2;
     const rowY = Math.max(room.y + 2, room.y + room.height - 5); // над героем, выше пола на ~4 тайла: попадает в кадр
-    const roomTitle = room.name || 'Отсек';
+    const roomTitle = room.name || 'Bay';
     for (let i = 0; i < length; i++) {
       const clueId = `clue_${i + 1}`;
       const roman = toRoman(i + 1);
@@ -309,7 +309,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         x: Math.round((midX + (i - (length - 1) / 2) * span) * ts),
         y: Math.round(rowY * ts),
         roomName: roomTitle,
-        label: `${roomTitle}: цифра ${i + 1} = ${digits[i]}`,
+        label: `${roomTitle}: digit ${i + 1} = ${digits[i]}`,
         isDiscovered: true, // цифры видны сразу, находить их не нужно
         discoveryRadius: 0
       });
@@ -324,7 +324,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         interactionRadius: 44
       };
     } else {
-      const passwordRoom = allRooms.find((r) => (r.name || '').toLowerCase().includes('пароль'));
+      const passwordRoom = allRooms.find((r) => /пароль|password/.test((r.name || '').toLowerCase()));
       if (passwordRoom) {
         this.terminalLocation = {
           x: Math.round((passwordRoom.x + passwordRoom.width / 2) * ts),
@@ -356,11 +356,11 @@ export class CipherTerminalPuzzle implements IPuzzle {
 
     // Дефолтные координаты для нарисованных цифр в разных уголках уровня
     const defaultCoords: Array<{ x: number; y: number; label: string; roomName?: string; discoveryRadius?: number }> = [
-      { x: 90, y: 160, label: 'Секция A: За трансформатором [I]' },
-      { x: 260, y: 80, label: 'Секция B: На медном радиаторе [II]' },
-      { x: 380, y: 310, label: 'Секция C: Под вентилятором [III]' },
-      { x: 190, y: 240, label: 'Секция D: Возле шлейфа питания [IV]' },
-      { x: 320, y: 180, label: 'Секция E: За панелью реле [V]' }
+      { x: 90, y: 160, label: 'Section A: behind the transformer [I]' },
+      { x: 260, y: 80, label: 'Section B: on the copper radiator [II]' },
+      { x: 380, y: 310, label: 'Section C: under the fan [III]' },
+      { x: 190, y: 240, label: 'Section D: by the power cable [IV]' },
+      { x: 320, y: 180, label: 'Section E: behind the relay panel [V]' }
     ];
 
     this.clues.clear();
@@ -376,7 +376,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         x: loc.x ?? (100 + i * 80),
         y: loc.y ?? 150,
         roomName: loc.roomName,
-        label: loc.label ?? `Шифр: позиция [${roman}] = ${digits[i]}`,
+        label: loc.label ?? `Code: position [${roman}] = ${digits[i]}`,
         isDiscovered: false,
         discoveryRadius: loc.discoveryRadius ?? 32
       });
@@ -512,7 +512,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         enteredCode: codeToCheck,
         expectedLength: this.codeLength,
         isSolved: false,
-        message: `Шифр не полон! Введено ${codeToCheck.length} из ${this.codeLength} цифр.`
+        message: `Code incomplete! Entered ${codeToCheck.length} of ${this.codeLength} digits.`
       };
     }
 
@@ -535,7 +535,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         enteredCode: codeToCheck,
         expectedLength: this.codeLength,
         isSolved: true,
-        message: 'ДОСТУП РАЗРЕШЕН! Шлюз разблокирован.'
+        message: 'ACCESS GRANTED! Gate unlocked.'
       };
     } else {
       if (this.emitEvents) {
@@ -553,7 +553,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
         enteredCode: codeToCheck,
         expectedLength: this.codeLength,
         isSolved: false,
-        message: 'ОШИБКА ДОСТУПА: Неверный шифр! Ввод сброшен.'
+        message: 'ACCESS DENIED: wrong code! Input cleared.'
       };
     }
   }

@@ -100,6 +100,8 @@ export class Worm implements PartDamageable {
   public hero: (() => { left: number; right: number; top: number; bottom: number } | null) | null = null;
   /** Укус достал героя: (x, y, сторона отбрасывания, урон). Возвращает true, если урон засчитан. */
   public onBite: ((x: number, y: number, dirX: number, damage: number) => boolean) | null = null;
+  /** Червь атакует (замах укуса или вылет в воздух): (x, y) головы — игра играет звук. */
+  public onSfx: ((x: number, y: number) => void) | null = null;
   private readonly biteDamage: number;
   private readonly biteCooldown: number;
   private biteState: 'none' | 'windup' | 'dash' | 'rest' = 'none';
@@ -424,6 +426,7 @@ export class Worm implements PartDamageable {
     this.flyDiving = false;
     this.biteState = 'none';
     this.state = 'fly';
+    this.onSfx?.(this.p.x, this.p.y);
     return true;
   }
 
@@ -537,6 +540,7 @@ export class Worm implements PartDamageable {
           this.biteState = 'windup';
           this.biteT = 0;
           this.biteDone = false;
+          this.onSfx?.(this.p.x, this.p.y);
         }
         break;
       }

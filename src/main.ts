@@ -39,7 +39,7 @@ import { FpsCounter } from './core/FpsCounter.ts';
 import { pal } from './core/Palette.ts';
 import { DamageNumbers, loadDamageFont } from './effects/DamageNumbers.ts';
 import { EventBus } from './core/EventBus.ts';
-import { Armor, MODELS } from './systems/ArmorSystem.ts';
+import { Armor, MAX_TIER, MODELS } from './systems/ArmorSystem.ts';
 import { LootSystem } from './systems/LootSystem.ts';
 import { ProjectileSystem } from './entities/ProjectileSystem.ts';
 import { Hud } from './ui/Hud.ts';
@@ -52,6 +52,7 @@ import { prepareRogueLevel } from './roguelike/RogueLevels.ts';
 import { CubeTransition } from './ui/CubeTransition.ts';
 import { UpgradeUI } from './ui/UpgradeUI.ts';
 import { ScreenWipe } from './ui/ScreenWipe.ts';
+import { BootFlow, wasLaunchedThisSession } from './ui/BootFlow.ts';
 import runData from '../data/roguelike/run.json';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
@@ -347,12 +348,23 @@ class GameApp {
         e.preventDefault();
         window.location.href = './editor.html';
       }
+      // Отладка: «0» — полная броня и сразу к последнему боссу забега (финальный узел), комнаты проходить не нужно
+      if (e.key === '0' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        const run = Run.get();
+        Armor.get().useRun(); // броня ложится в хранилище забега: его же возьмёт рогалик после перезагрузки
+        Armor.get().grantTier(MAX_TIER);
+        run.jump(run.nodes.length - 1);
+        const url = new URL(window.location.href);
+        for (const p of ['level', 'spawn', 'door', 'debug', 'live', 'run', 'node']) url.searchParams.delete(p);
+        window.location.href = url.toString();
+      }
     });
 
     activeLevelDef = ROGUE
       ? prepareRogueLevel(Run.get().current, [await loadLiveLevel(LEVELS.find((l) => l.id === Run.get().current.levelId)!)])
       : await loadLiveLevel(activeLevelDef);
-    document.title = `${activeLevelDef.display_name} — LD60`;
+    document.title = `Scrapbound — ${activeLevelDef.display_name}`;
     console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
     await loadDamageFont();
     await this.setupScene();
@@ -776,6 +788,7 @@ class GameApp {
       if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
       const spider = new Spider(def, spawn, this.level, rig, this.sprites, { fx: this.fx });
       spider.leash = this.bindRoom(spider, spawn);
+      spider.onLeap = (x, y) => SoundManager.get().playAt('mini_spider', x, y);
       this.spiders.push(spider);
       this.worldLayer.addChild(spider.container);
       this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
@@ -787,7 +800,10 @@ class GameApp {
       if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
       const motherRoom = this.homeLeash(spawn);
       const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
-        (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
+        (x, y, vx, vy) => {
+          SoundManager.get().playAt('mother_spider', x, y);
+          return this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom);
+        }, (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
       mother.leash = this.bindRoom(mother, spawn);
       mother.target = () => ({ x: this.player.body.x, y: this.player.body.y - 20 });
       this.mothers.push(mother);
@@ -837,6 +853,7 @@ class GameApp {
       if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
       const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
       worm.leash = this.bindRoom(worm, spawn);
+      worm.onSfx = (x, y) => SoundManager.get().playAt('worm', x, y);
       worm.hero = () => this.heroBox();
       worm.onBite = (x, y, dirX, dmg) => this.strikeHero(x, y, dirX, dmg, false);
       this.worms.push(worm);
@@ -896,7 +913,6 @@ class GameApp {
     }
     // зачищено
     this.rogueCleared = true;
-    SoundManager.get().playKill();
     this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.18;
     this.fx.burst(b.x, b.y - 30, { count: 30, colors: [pal('gold', 5), pal('gold', 6), pal('gold', 7)], speed: [60, 200], spread: Math.PI * 2, life: [0.3, 0.7], size: [1, 3] });
@@ -914,6 +930,7 @@ class GameApp {
     const upgrade = !!next && (next.kind === 'boss' || run.current.kind === 'boss') && UpgradeUI.available();
     const go = () => {
       if (!next) {
+        SoundManager.get().play('win');
         this.cubes?.leave(here, 'victory', () => this.newRun());
         return;
       }
@@ -1073,7 +1090,7 @@ class GameApp {
     const isBoss = target instanceof WormBoss || target instanceof BirdBoss || target instanceof CrabBoss;
     this.bloodFor(target, view.x, view.y, isBoss ? 1.3 : 1);
     this.loot.spawnFromEnemy(view.x, view.y, isBoss ? 'boss' : 'worm');
-    SoundManager.get().playKill();
+    this.mobSound(target, view.x, view.y);
     this.contactDmg.delete(target);
     drop(this.worms, target);
     drop(this.bosses, target);
@@ -1094,6 +1111,23 @@ class GameApp {
       for (const bird of this.birds) bird.burst(6);
     }
     view.destroy({ children: true });
+  }
+
+  /** Звук гибели существа: у каждого вида свой (пауки, матка, червь, крыса, воробей, страж, боссы). */
+  private mobSound(target: Hittable, x: number, y: number): void {
+    const sm = SoundManager.get();
+    if (target instanceof CrabBoss) sm.playAt('crab_attack', x, y, { volume: 1 });
+    else if (target instanceof WormBoss || target instanceof BirdBoss) sm.playAt('other_bosses_attack', x, y, { volume: 1 });
+    else if (target instanceof SpiderMother) sm.playAt('mother_spider', x, y);
+    else if (target instanceof Spider) sm.playAt('mini_spider', x, y);
+    else if (target instanceof Worm) sm.playAt('worm', x, y);
+    else if (target instanceof BossBird) sm.playAt('chirp', x, y);
+    else {
+      const id = (target as unknown as { def?: { id?: string } }).def?.id;
+      if (id === 'electro_rat') sm.playAt('rat', x, y);
+      else if (id === 'vorobei') sm.playAt('chirp', x, y);
+      else if (id === 'ward') sm.playAt('ward', x, y);
+    }
   }
 
   /** Цвет крови по существу: пауки и черви — зелёные, мобы второй локации — синие (крыса — бирюзовая), босс-червь и краб — фиолетовые и розовые. */
@@ -1136,6 +1170,7 @@ class GameApp {
       return;
     }
     if (target instanceof BossBird) {
+      this.mobSound(target, mob.view.x, mob.view.y);
       target.burst(7); // птичка босса рассыпается пёрышками, добычи с неё нет
       this.mobs.delete(target);
       mob.remove();
@@ -1154,7 +1189,7 @@ class GameApp {
     this.bloodFor(target, mob.view.x, mob.view.y);
     if (target instanceof SpiderMother) target.releaseAll();
     this.loot.spawnFromEnemy(mob.view.x, mob.view.y, enemyType);
-    SoundManager.get().playKill();
+    this.mobSound(target, mob.view.x, mob.view.y);
 
     this.contactDmg.delete(target);
     this.mobs.delete(target);
@@ -1180,6 +1215,7 @@ class GameApp {
     this.numbers.spawn(b.x, b.y - 48, amount, false, fromDirX);
     this.shake = Math.max(this.shake, CRIT_SHAKE);
     this.hud.flashHurt();
+    SoundManager.get().play(r === 'dead' ? 'lose' : 'person_damage');
     this.fx.burst(b.x, b.y - 28, { count: 10, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [50, 140], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
     if (r === 'dead') {
       this.deathTimer = 1.5;
@@ -1236,6 +1272,7 @@ class GameApp {
     const [lo, hi] = this.combat.punch_damage;
     const dmg = Math.max(1, Math.round(((lo + hi) / 2) * armor.punchMult * armor.flashMult));
     this.boltFx.flash(x, y, 30, 0.22);
+    SoundManager.get().play('zap_hand_attack');
     this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.28;
     this.shake = Math.max(this.shake, CRIT_SHAKE + 0.8);
@@ -1412,9 +1449,13 @@ class GameApp {
     return {
       hero: () => this.heroBox(),
       hurt: (amount, dirX, knock) => this.strikeHero(0, 0, dirX, amount, knock),
-      spawnSpider: (x, y, vx, vy) => this.spawnBossSpider(def, x, y, vx, vy),
+      spawnSpider: (x, y, vx, vy) => {
+        SoundManager.get().playAt('other_bosses_attack', x, y);
+        return this.spawnBossSpider(def, x, y, vx, vy);
+      },
       shake: (power) => {
         this.shake = Math.max(this.shake, power);
+        if (power >= 2) SoundManager.get().play('other_bosses_attack'); // таран червя
       },
       fx: this.fx
     };
@@ -1459,7 +1500,10 @@ class GameApp {
         this.track(orb, ORB_HP, orb.container, () => this.orbs.splice(this.orbs.indexOf(orb), 1));
         return orb;
       },
-      throwMob: (enemyId, x, y, vx, vy) => this.throwMob(enemyId, x, y, vx, vy),
+      throwMob: (enemyId, x, y, vx, vy) => {
+        SoundManager.get().playAt('crab_attack', x, y);
+        this.throwMob(enemyId, x, y, vx, vy);
+      },
       mobsAlive: () => {
         for (const c of this.bossSummons) if (this.gone.has(c)) this.bossSummons.delete(c);
         for (const sp of this.thrownSpiders) if (sp.expired || this.gone.has(sp)) this.thrownSpiders.delete(sp);
@@ -1471,6 +1515,7 @@ class GameApp {
       },
       shake: (power) => {
         this.shake = Math.max(this.shake, power);
+        if (power >= 1.3) SoundManager.get().play('crab_attack'); // прыжок, удар клешнёй, шары
       },
       fx: this.fx
     };
@@ -1516,7 +1561,10 @@ class GameApp {
       this.fx.burst(x, y, { count: 14, colors: ZAP_COLORS, speed: [60, 180], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2] });
       return true;
     };
-    mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+    mob.onCrack = (x, y) => {
+      SoundManager.get().playAt('rat', x, y);
+      this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+    };
     // бросок воробья: прыгает в героя, на касании — урон
     mob.heroBox = () => this.heroBox();
     mob.onLungeHit = (x, y, dirX, dmg) => {
@@ -1524,7 +1572,10 @@ class GameApp {
       this.fx.burst(x, y, { count: 6, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
       return true;
     };
-    mob.onLungeFx = (kind, x, y, k, dirX) => this.lungeFx(kind, x, y, k, dirX);
+    mob.onLungeFx = (kind, x, y, k, dirX) => {
+      if (kind === 'leap') SoundManager.get().playAt('chirp', x, y);
+      this.lungeFx(kind, x, y, k, dirX);
+    };
     // страж: сходящиеся к глазу искры при зарядке и синяя молния на выстреле
     mob.onCharge = (x, y, k) => {
       if (Math.random() > 0.7) return;
@@ -1534,6 +1585,7 @@ class GameApp {
       this.fx.emit(x + Math.cos(a) * r, y + Math.sin(a) * r, (-Math.cos(a) * r) / life, (-Math.sin(a) * r) / life, BLUE.sparks[Math.floor(Math.random() * BLUE.sparks.length)], life, 1 + k * 1.5, { grow: 0.4 });
     };
     mob.onShoot = (x, y, angle, cfg) => {
+      SoundManager.get().playAt('ward', x, y);
       this.enemyBolts.fire(x, y, angle, { speed: cfg.speed, bounces: cfg.bounces, life: cfg.life, damage: cfg.damage });
       this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, angle, spread: 0.6, speed: [50, 140], life: [0.1, 0.25], size: [1, 2] });
     };
@@ -1557,11 +1609,15 @@ class GameApp {
       hurt: (amount, dirX, knock) => {
         if (this.hurtPlayer(amount, dirX) && knock && Armor.get().hp > 0) this.player.knockdown(dirX);
       },
-      spawnBird: (x, y, angle, enraged) => this.spawnBossBird(birdSprite, x, y, angle, enraged),
+      spawnBird: (x, y, angle, enraged) => {
+        SoundManager.get().playAt('chirp', x, y);
+        this.spawnBossBird(birdSprite, x, y, angle, enraged);
+      },
       birdsAlive: () => this.birds.length,
       summon: (x, floorY) => this.summonBeside(def, x, floorY),
       shake: (power) => {
         this.shake = Math.max(this.shake, power);
+        if (power >= 2.4) SoundManager.get().play('other_bosses_attack'); // пике, посадка
       },
       fx: this.fx
     };
@@ -1634,6 +1690,7 @@ class GameApp {
     const spawn = { enemy_id: babyDef.id, sprite_id: cfg.sprite_id ?? babyDef.sprite_variants[0], x: 0, y: 0 };
     const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds, fx: this.fx });
     baby.launch(x, y, vx, vy);
+    baby.onLeap = (px, py) => SoundManager.get().playAt('mini_spider', px, py);
     if (room) {
       baby.leash = room; // паучки матки ползают в её комнате
       this.leashOf.set(baby, room);
@@ -1774,6 +1831,7 @@ class GameApp {
       if (armor.canSpend(armor.gearCost)) this.player.startThrow(aim, true);
       else armor.spend(armor.gearCost); // не хватило энергии — шкала мигает
     }
+    SoundManager.get().setListener(pb.x, pb.y);
     const bo = this.player.beamOrigin;
     if (bo && aim) {
       // Направление луча — из кисти точно в курсор. Раньше оно считалось от корпуса и уводило луч в сторону,
@@ -1783,7 +1841,10 @@ class GameApp {
       const bl = Math.hypot(bdx, bdy);
       if (bl > 1) { bo.dirX = bdx / bl; bo.dirY = bdy / bl; }
     }
-    if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
+    if (bo) {
+      armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
+      SoundManager.get().play('zap_hand_attack'); // повторы режет троттлинг звука
+    }
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
 
     // Терминал ввода шифра: интерактивный спрайт (курсор — через setCursor выше)
@@ -1900,10 +1961,21 @@ class GameApp {
 
 // Запуск приложения при готовности DOM
 window.addEventListener('DOMContentLoaded', () => {
-  const game = new GameApp();
-  game.start().catch(console.error);
-  if (import.meta.env.DEV) {
-    (window as unknown as { __game: GameApp; __armor: Armor }).__game = game; // отладка из консоли браузера
-    (window as unknown as { __armor: Armor }).__armor = Armor.get();
-  }
+  // Меню нужно только на первом входе: каждая комната рогалика — перезагрузка страницы, и там меню показывать нельзя.
+  // Отладочные адреса редактора и закладки (?level, ?live, ?debug, ?spawn, ?door, ?run, ?node) идут сразу в игру; ?menu=1 — принудительно меню.
+  const params = new URLSearchParams(window.location.search);
+  const directPlay = ['level', 'live', 'debug', 'spawn', 'door', 'run', 'node'].some((p) => params.has(p));
+  const skipMenu = params.get('menu') !== '1' && (directPlay || wasLaunchedThisSession());
+
+  const boot = new BootFlow(() => {
+    const game = new GameApp();
+    if (import.meta.env.DEV) {
+      (window as unknown as { __game: GameApp; __armor: Armor }).__game = game; // отладка из консоли браузера
+      (window as unknown as { __armor: Armor }).__armor = Armor.get();
+      (window as unknown as { __sound: SoundManager }).__sound = SoundManager.get();
+    }
+    return game;
+  }, skipMenu);
+
+  boot.run().catch((err) => console.error('[Boot] запуск провалился:', err));
 });

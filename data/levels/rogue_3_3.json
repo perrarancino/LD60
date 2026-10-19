@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "rogue_3_3",
-  "display_name": "Уровень 3 · комната 3: Электрошторм",
+  "display_name": "Level 2 · Room 3: Thunderstorm",
   "background_id": "bg_loc2",
   "tile_size": 32,
   "width": 28,
@@ -129,7 +129,7 @@
   "rooms": [
     {
       "id": "arena",
-      "name": "Электрошторм",
+      "name": "Thunderstorm",
       "x": 0,
       "y": 0,
       "width": 28,

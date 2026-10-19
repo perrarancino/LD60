@@ -91,11 +91,11 @@ export class MemoryMelodyPuzzle implements IPuzzle {
   public readonly name: string;
 
   public static readonly DEFAULT_COLORS: MemoryColorDef[] = [
-    { id: 0, name: 'Красный', hex: '#ff4d4f', frequencyHz: 261.63 }, // Нота C4
-    { id: 1, name: 'Синий', hex: '#1890ff', frequencyHz: 329.63 },   // Нота E4
-    { id: 2, name: 'Жёлтый', hex: '#ffc53d', frequencyHz: 392.0 },   // Нота G4
-    { id: 3, name: 'Зелёный', hex: '#52c41a', frequencyHz: 440.0 },  // Нота A4
-    { id: 4, name: 'Фиолетовый', hex: '#9254de', frequencyHz: 523.25 } // Нота C5
+    { id: 0, name: 'Red', hex: '#ff4d4f', frequencyHz: 261.63 }, // Нота C4
+    { id: 1, name: 'Blue', hex: '#1890ff', frequencyHz: 329.63 },   // Нота E4
+    { id: 2, name: 'Yellow', hex: '#ffc53d', frequencyHz: 392.0 },   // Нота G4
+    { id: 3, name: 'Green', hex: '#52c41a', frequencyHz: 440.0 },  // Нота A4
+    { id: 4, name: 'Purple', hex: '#9254de', frequencyHz: 523.25 } // Нота C5
   ];
 
   public static readonly DEFAULT_ROUND_LENGTHS = [4, 6, 8];
@@ -116,7 +116,7 @@ export class MemoryMelodyPuzzle implements IPuzzle {
 
   constructor(config: MemoryMelodyConfig = {}) {
     this.id = config.id ?? 'memory_melody_puzzle';
-    this.name = config.name ?? 'Светозвуковая калибровка (5 цветов, 3 раунда: 4, 6, 8 гудков)';
+    this.name = config.name ?? 'Light and sound calibration (5 colors, 3 rounds: 4, 6, 8 beeps)';
     this.colors = config.colors ?? MemoryMelodyPuzzle.DEFAULT_COLORS;
     this.roundLengths = config.roundLengths ?? MemoryMelodyPuzzle.DEFAULT_ROUND_LENGTHS;
     this.emitEvents = config.emitEvents ?? true;

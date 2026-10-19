@@ -3,12 +3,12 @@
   "tiers": [
     {
       "id": "model1",
-      "name": "Модель 1",
+      "name": "Copper",
       "color": "#dda31c"
     },
     {
       "id": "model2",
-      "name": "Модель 2",
+      "name": "Blue",
       "color": "#41bafc"
     }
   ],

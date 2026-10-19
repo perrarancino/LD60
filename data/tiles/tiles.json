@@ -140,6 +140,14 @@
       "one_way": false
     },
     {
+      "id": "final",
+      "display_name": "Плита финала",
+      "group": "Блоки",
+      "sprite_id": "tile_final",
+      "solid": true,
+      "one_way": false
+    },
+    {
       "id": "textalite_0",
       "display_name": "Textalite 0 (толща)",
       "group": "Textalite",

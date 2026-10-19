@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "rogue_1_3",
-  "display_name": "Уровень 1 · комната 3: Гнездо",
+  "display_name": "Level 1 · Room 3: Nest",
   "background_id": "bg_textalite",
   "tile_size": 32,
   "width": 28,
@@ -179,7 +179,7 @@
   "rooms": [
     {
       "id": "room_1",
-      "name": "Комната 1",
+      "name": "Room 1",
       "x": 0,
       "y": 0,
       "width": 28,

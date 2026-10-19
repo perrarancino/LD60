@@ -118,7 +118,7 @@ export class ItemSocketPuzzle implements IPuzzle {
 
   constructor(config: ItemSocketPuzzleConfig = {}) {
     this.id = config.id ?? 'item_socket_puzzle';
-    this.name = config.name ?? 'Установка аккумулятора питания в стойку';
+    this.name = config.name ?? 'Install the power battery in the rack';
     this.emitEvents = config.emitEvents ?? true;
     this.onItemInsertedCallback = config.onItemInserted;
     this.onSolvedCallback = config.onSolved;
@@ -141,7 +141,7 @@ export class ItemSocketPuzzle implements IPuzzle {
   public static createBattery(x: number, y: number, id: string = BATTERY_ITEM_ID): PuzzleItem {
     return {
       id,
-      name: 'Батарея питания',
+      name: 'Power battery',
       spriteId: BATTERY_SPRITE_ID,
       image: BATTERY_IMAGE_PATH,
       x,
@@ -158,7 +158,7 @@ export class ItemSocketPuzzle implements IPuzzle {
   public static createBatteryStand(x: number, y: number, id: string = BATTERY_STAND_SOCKET_ID): PuzzleSocket {
     return {
       id,
-      name: 'Стойка аккумулятора',
+      name: 'Battery rack',
       spriteId: BATTERY_STAND_SPRITE_ID,
       image: BATTERY_STAND_IMAGE_PATH,
       x,
@@ -414,7 +414,7 @@ export class ItemSocketPuzzle implements IPuzzle {
               targetId: socket.id,
               targetName: socket.name,
               distance: dist,
-              message: `Установить ${carriedItem?.name ?? 'деталь'} в ${socket.name} (E)`
+              message: `Install ${carriedItem?.name ?? 'part'} in ${socket.name} (E)`
             };
           }
         }
@@ -424,7 +424,7 @@ export class ItemSocketPuzzle implements IPuzzle {
         targetId: this.carriedItemId,
         targetName: carriedItem?.name ?? null,
         distance: 0,
-        message: `Положить ${carriedItem?.name ?? 'деталь'} на землю (E)`
+        message: `Drop ${carriedItem?.name ?? 'part'} (E)`
       };
     } else {
       // Проверяем, есть ли рядом деталь на полу
@@ -437,7 +437,7 @@ export class ItemSocketPuzzle implements IPuzzle {
               targetId: item.id,
               targetName: item.name,
               distance: dist,
-              message: `Подобрать: ${item.name} (E)`
+              message: `Pick up: ${item.name} (E)`
             };
           }
         }

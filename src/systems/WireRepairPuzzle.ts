@@ -85,7 +85,7 @@ export class WireRepairPuzzle implements IPuzzle {
 
   constructor(config: WireRepairPuzzleConfig = {}) {
     this.id = config.id ?? 'room_wire_repair_puzzle';
-    this.name = config.name ?? 'Восстановление кабельных линий в отсеке';
+    this.name = config.name ?? 'Restore the cable lines in the bay';
     this.emitEvents = config.emitEvents ?? true;
     this.onWireConnectedCallback = config.onWireConnected;
     this.onSolvedCallback = config.onSolved;
@@ -94,7 +94,7 @@ export class WireRepairPuzzle implements IPuzzle {
     const defaultWires: RoomWire[] = config.wires ?? [
       {
         id: 'power_cable_main',
-        name: 'Главная шина питания (Красная)',
+        name: 'Main power bus (Red)',
         color: '#ff4444',
         endpointA: { x: 80, y: 180, isFixed: true },
         endpointB: { x: 340, y: 180, isFixed: true },
@@ -106,7 +106,7 @@ export class WireRepairPuzzle implements IPuzzle {
       },
       {
         id: 'data_cable_sub',
-        name: 'Линия синхронизации (Синяя)',
+        name: 'Sync line (Blue)',
         color: '#3399ff',
         endpointA: { x: 140, y: 260, isFixed: true },
         endpointB: { x: 420, y: 120, isFixed: true },
@@ -305,14 +305,14 @@ export class WireRepairPuzzle implements IPuzzle {
           action: 'connect',
           wireId: wire.id,
           wireName: wire.name,
-          message: `Соединить: ${wire.name} [E]`
+          message: `Connect: ${wire.name} [E]`
         };
       } else {
         return {
           action: 'release',
           wireId: wire.id,
           wireName: wire.name,
-          message: 'Бросить провод [E]'
+          message: 'Drop the wire [E]'
         };
       }
     } else {
@@ -326,7 +326,7 @@ export class WireRepairPuzzle implements IPuzzle {
             action: 'grab',
             wireId: wire.id,
             wireName: wire.name,
-            message: `Взять конец кабеля: ${wire.name} [E]`
+            message: `Take the cable end: ${wire.name} [E]`
           };
         }
       }

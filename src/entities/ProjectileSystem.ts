@@ -4,6 +4,7 @@ import type { Level } from '../world/Level.ts';
 import type { Hittable } from './Hittable.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { Armor } from '../systems/ArmorSystem.ts';
+import { SoundManager } from '../audio/SoundManager.ts';
 
 interface GearBullet {
   sprite: Sprite;
@@ -133,6 +134,7 @@ export class ProjectileSystem {
   /** Веер из GEAR_COUNT шестерёнок вокруг направления броска. */
   private fireGear(x: number, y: number, dirX: number, dirY: number): void {
     const base = Math.atan2(dirY, dirX);
+    SoundManager.get().play('gear_throw');
     for (let k = 0; k < GEAR_COUNT; k++) {
       const a = base + (k - (GEAR_COUNT - 1) / 2) * GEAR_SPREAD + (Math.random() - 0.5) * 0.06;
       const speed = GEAR_SPEED * (0.92 + Math.random() * 0.16);

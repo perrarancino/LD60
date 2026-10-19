@@ -3,6 +3,7 @@ import type { Slot } from '../systems/ArmorSystem.ts';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { RigDef, RigPartDef } from '../data/types.ts';
 import { pal } from '../core/Palette.ts';
+import { SoundManager } from '../audio/SoundManager.ts';
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const ROLE_SLOT: Record<RigPartDef['role'], Slot> = { head: 'head', torso: 'torso', arm: 'arms', leg: 'legs' };
@@ -47,7 +48,7 @@ export class UpgradeUI {
     this.canvas.style.cssText = 'position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated;';
     this.title.style.cssText = `position: absolute; left: 0; right: 0; top: 7%; text-align: center; font-size: 30px; letter-spacing: 1px; color: ${hex(pal('gold', 6))};
       text-shadow: 0 0 12px ${hex(pal('gold', 4))}aa;`;
-    this.title.textContent = 'Выбери часть, которую надо прокачать';
+    this.title.textContent = 'Choose a part to upgrade';
     this.info.style.cssText = `position: absolute; left: 0; right: 0; bottom: 7%; text-align: center; font-size: 18px; line-height: 1.5; min-height: 80px; padding: 0 8%;`;
     this.root.append(this.canvas, this.title, this.info);
     document.body.appendChild(this.root);
@@ -171,6 +172,7 @@ export class UpgradeUI {
     const slot = this.partAt(e.clientX, e.clientY);
     if (!slot || !Armor.get().upgrade(slot)) return;
     this.picked = slot;
+    SoundManager.get().play('upgrade');
     this.pickT = 0;
     this.hover = null;
     this.canvas.style.cursor = 'default';
@@ -189,12 +191,12 @@ export class UpgradeUI {
   private updateInfo(): void {
     const a = Armor.get();
     if (this.picked) {
-      this.info.innerHTML = `<span style="color:${hex(pal('cobalt', 6))}">${SLOT_NAMES[this.picked]} улучшены</span>`;
+      this.info.innerHTML = `<span style="color:${hex(pal('cobalt', 6))}">${SLOT_NAMES[this.picked]} upgraded</span>`;
     } else if (this.hover) {
       this.info.innerHTML = `<span style="color:${hex(pal('gold', 6))}">${SLOT_NAMES[this.hover]}</span>: ${Armor.purpose(this.hover)}<br>`
-        + `<span style="color:${hex(pal('cobalt', 6))}">Станет синей: ${a.describe(this.hover, 2)}</span>`;
+        + `<span style="color:${hex(pal('cobalt', 6))}">Becomes blue: ${a.describe(this.hover, 2)}</span>`;
     } else {
-      this.info.innerHTML = `<span style="opacity:.6">Наведи на часть тела</span>`;
+      this.info.innerHTML = `<span style="opacity:.6">Point at a body part</span>`;
     }
   }
 

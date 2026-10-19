@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "loc6",
-  "display_name": "Локация 6: Краб-Ядро",
+  "display_name": "Final Arena: Crab Core",
   "debug_key": 5,
   "start_armor": 2,
   "background_id": "bg_loc6",
@@ -14,7 +14,7 @@
   "height": 22,
   "legend": {
     ".": null,
-    "#": "loc2"
+    "#": "final"
   },
   "rows": [
     "####################################################",

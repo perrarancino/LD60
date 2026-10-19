@@ -130,6 +130,8 @@ export class Spider implements Hittable {
   public hero: (() => { x: number; y: number } | null) | null = null;
   /** Дальность, на которой паук замечает героя, px (0 — не гонится). */
   public sight = 0;
+  /** Прыжок на героя начался: (x, y) — откуда (игра играет звук). */
+  public onLeap: ((x: number, y: number) => void) | null = null;
   private chasing = false;
   private chaseCd = 0;
   private leapCd = rand(LEAP_COOLDOWN);
@@ -499,6 +501,7 @@ export class Spider implements Hittable {
       vy *= LEAP_SPEED_MAX / v;
     }
     this.launch(c.x, c.y, vx, vy, false);
+    this.onLeap?.(c.x, c.y);
     this.fx?.burst(c.x, c.y, { count: 6, colors: [0xb9ff97, 0x56f436], speed: [20, 60], spread: Math.PI * 2, life: [0.15, 0.3], size: [1, 2] });
   }
 

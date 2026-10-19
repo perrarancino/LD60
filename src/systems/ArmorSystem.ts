@@ -4,7 +4,7 @@ import armorData from '../../data/player/armor.json';
 /** Части тела, на которые надевается броня. */
 export type Slot = 'head' | 'torso' | 'arms' | 'legs';
 export const SLOTS: Slot[] = ['head', 'torso', 'arms', 'legs'];
-export const SLOT_NAMES: Record<Slot, string> = { head: 'Голова', torso: 'Туловище', arms: 'Руки', legs: 'Ноги' };
+export const SLOT_NAMES: Record<Slot, string> = { head: 'Head', torso: 'Torso', arms: 'Arms', legs: 'Legs' };
 
 export interface TierDef {
   id: string;
@@ -139,10 +139,10 @@ export class Armor {
   /** Что делает часть тела — для окна улучшения. */
   public static purpose(slot: Slot): string {
     switch (slot) {
-      case 'head': return 'Быстрее бьёт и больше энергии на броски и луч';
-      case 'torso': return 'Больше здоровья и шанс не получить урон';
-      case 'arms': return 'Сильнее удар; медные кидают шестерёнки (правая кнопка), синие бьют молнией и лучом';
-      case 'legs': return 'Прыжки в воздухе и скорость бега';
+      case 'head': return 'Hits faster, more energy for throws and the beam';
+      case 'torso': return 'More health and a chance to ignore damage';
+      case 'arms': return 'Stronger punch; copper throws gears (right click), blue strikes with lightning and a beam';
+      case 'legs': return 'Air jumps and run speed';
     }
   }
 
@@ -345,15 +345,15 @@ export class Armor {
     const i = tier - 1;
     switch (slot) {
       case 'head':
-        return `Атака быстрее на ${Math.round((1 - a.head.attack_speed[i]) * 100)}%, шкала энергии +${a.head.energy_bonus[i]}, восстановление +${a.head.regen_bonus[i]}/с`;
+        return `Attack ${Math.round((1 - a.head.attack_speed[i]) * 100)}% faster, energy +${a.head.energy_bonus[i]}, regen +${a.head.regen_bonus[i]}/s`;
       case 'torso':
-        return `Здоровье ${a.torso.max_hp[i]}, ${Math.round(a.torso.block_chance[i] * 100)}% шанс не получить урон`;
+        return `Health ${a.torso.max_hp[i]}, ${Math.round(a.torso.block_chance[i] * 100)}% chance to ignore damage`;
       case 'arms':
         return tier < 2
-          ? `Удар ×${a.arms.punch_mult[i]}, ПКМ — три шестерёнки`
-          : `Удар ×${a.arms.punch_mult[i]}, молния каждого ${a.arms.flash_every}-го удара (цепь на ${a.arms.flash_targets[i]}), ПКМ — луч молнии с ${a.arms.beam_bounces[i]} отскоками`;
+          ? `Punch ×${a.arms.punch_mult[i]}, right click throws three gears`
+          : `Punch ×${a.arms.punch_mult[i]}, lightning on every ${a.arms.flash_every}rd punch (chains to ${a.arms.flash_targets[i]}), right click: lightning beam with ${a.arms.beam_bounces[i]} bounces`;
       case 'legs':
-        return `${a.legs.air_jumps[i] === 1 ? 'Двойной' : 'Тройной'} прыжок, скорость ×${a.legs.speed[i]}`;
+        return `${a.legs.air_jumps[i] === 1 ? 'Double' : 'Triple'} jump, speed ×${a.legs.speed[i]}`;
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "loc2_boss",
-  "display_name": "Арена: Бонзай",
+  "display_name": "Arena: Bonsai",
   "debug_key": 4,
   "start_armor": 2,
   "background_id": "bg_loc2",

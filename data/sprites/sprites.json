@@ -1741,6 +1741,19 @@
       "animations": {}
     },
     {
+      "id": "tile_final",
+      "category": "tiles",
+      "image": "tiles/final_tile.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
       "id": "terminal_loc1",
       "category": "decor",
       "image": "decor/terminal_loc1.png",

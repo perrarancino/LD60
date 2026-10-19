@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "rogue_3_2",
-  "display_name": "Уровень 3 · комната 2: Разряд",
+  "display_name": "Level 2 · Room 2: Discharge",
   "background_id": "bg_loc2",
   "tile_size": 32,
   "width": 32,
@@ -103,7 +103,7 @@
   "rooms": [
     {
       "id": "room_1",
-      "name": "Комната 1",
+      "name": "Room 1",
       "x": 0,
       "y": 0,
       "width": 32,

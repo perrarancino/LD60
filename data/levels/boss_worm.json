@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/level.schema.json",
   "id": "boss_worm",
-  "display_name": "Арена: червь-пожиратель",
+  "display_name": "Arena: Devourer Worm",
   "debug_key": 3,
   "start_armor": 1,
   "background_id": "bg_textalite",

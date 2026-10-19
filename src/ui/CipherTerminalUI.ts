@@ -61,8 +61,8 @@ export class CipherTerminalUI {
   public open(): void {
     this.opened = true;
     this.statusMsg = this.puzzle.isSolved
-      ? 'ДОСТУП УЖЕ РАЗРЕШЕН! ШЛЮЗ ОТКРЫТ.'
-      : 'ВВЕДИТЕ 4 ЦИФРЫ ШИФРА ИЗ КОМНАТ 1-Й ЛОКАЦИИ';
+      ? 'ACCESS ALREADY GRANTED! GATE OPEN.'
+      : 'ENTER THE 4-DIGIT CODE';
     this.isError = false;
     this.isSuccess = this.puzzle.isSolved;
     this.root.style.display = 'block';
@@ -83,7 +83,7 @@ export class CipherTerminalUI {
   private handleBackspace(): void {
     if (this.puzzle.isSolved) return;
     this.puzzle.backspace();
-    this.statusMsg = 'ВВЕДИТЕ ЦИФРЫ ШИФРА';
+    this.statusMsg = 'ENTER THE CODE DIGITS';
     this.isError = false;
     this.render();
   }
@@ -91,7 +91,7 @@ export class CipherTerminalUI {
   private handleClear(): void {
     if (this.puzzle.isSolved) return;
     this.puzzle.clearInput();
-    this.statusMsg = 'ПОЛЕ ВВОДА ОЧИЩЕНО';
+    this.statusMsg = 'INPUT CLEARED';
     this.isError = false;
     this.render();
   }

@@ -101,7 +101,7 @@ export interface PuzzleSubmitResult {
  */
 export class BinaryPuzzle implements IPuzzle {
   public readonly id = 'binary_conversion_puzzle';
-  public readonly name = 'Калибровка двоичного регистра (Десятичные -> Двоичные)';
+  public readonly name = 'Binary register calibration (decimal -> binary)';
 
   private readonly minNumber: number;
   private readonly maxNumber: number;
@@ -359,7 +359,7 @@ export class BinaryPuzzle implements IPuzzle {
         submittedBinaryString: this.numberToBinaryString(submittedValue),
         newStreak: this.currentStreak,
         isSolved: true,
-        message: 'Головоломка уже решена!'
+        message: 'Puzzle already solved!'
       };
     }
 
@@ -412,8 +412,8 @@ export class BinaryPuzzle implements IPuzzle {
         newStreak: this.currentStreak,
         isSolved: this.isPuzzleSolved,
         message: isNowSolved
-          ? 'Поздравляем! Все 5 чисел угаданы, все 5 лампочек зажглись!'
-          : `Верно! Лампочка #${this.currentStreak} зажглась. Осталось: ${this.requiredStreak - this.currentStreak}.`
+          ? 'Done! All 5 numbers solved, all 5 lamps are lit!'
+          : `Correct! Lamp #${this.currentStreak} is lit. Left: ${this.requiredStreak - this.currentStreak}.`
       };
     } else {
       // Ошибка: один раз ошибся — прогресс сбрасывается в 0, лампочки гаснут
@@ -452,7 +452,7 @@ export class BinaryPuzzle implements IPuzzle {
         submittedBinaryString: this.numberToBinaryString(submittedValue),
         newStreak: 0,
         isSolved: false,
-        message: `Ошибка! Ожидалось число ${state.targetNumber} (в двоичной: ${state.targetBinaryString}), но введено ${submittedValue}. Лампочки сброшены!`
+        message: `Wrong! Expected ${state.targetNumber} (binary: ${state.targetBinaryString}), got ${submittedValue}. Lamps reset!`
       };
     }
   }
