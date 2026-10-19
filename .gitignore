@@ -37,5 +37,7 @@ General.md
 __pycache__/
 *.pyc
 
-# Готовые сборки (exe)
-release/
+# Готовые сборки (exe): в репозитории лежит только редактор уровней
+release/*
+!release/LD60Editor.exe
+!release/README.md
