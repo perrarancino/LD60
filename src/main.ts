@@ -60,7 +60,7 @@ import { Debris } from './effects/Debris.ts';
 import { BLUE, LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import { EnemyBolts } from './effects/EnemyBolts.ts';
 import { BloodFx } from './effects/BloodFx.ts';
-import { buildCobwebs } from './world/Cobwebs.ts';
+import { CobwebLayer } from './world/Cobwebs.ts';
 import type { Ramp } from './core/Palette.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
@@ -236,6 +236,7 @@ class GameApp {
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private lastErrorAt = 0;
+  private cobwebs: CobwebLayer | null = null; // паутина в углах, на потолке и стенах
   private blood!: BloodFx; // кровь: всплески при гибели и пятна на тайлах
   private readonly upgradeUI = new UpgradeUI(); // улучшение части перед боссом и после него
   private cubes: CubeTransition | null = null; // экран перехода на кубиках (рогалик)
@@ -558,16 +559,10 @@ class GameApp {
     this.blood = new BloodFx(this.level);
     this.worldLayer.addChild(this.blood.stains); // пятна крови — на тайлах, под существами и передним декором
     if ((levelDef.webs ?? 1) > 0) {
-      // паутина в углах: шейдер запекается один раз в текстуру уровня; цвет — холодный белый, у уровней с цветным светом чуть подкрашен им
-      let tint: number | undefined;
+      // паутина: углы, потолок и стены; шейдер запекается при загрузке, спрайты покачиваются; у уровней с цветным светом нити чуть подкрашены им
       const rim = levelDef.light?.rim_color;
-      if (rim) {
-        const n = parseInt(rim.slice(1), 16);
-        const mix = (c: number) => Math.round(c + (255 - c) * 0.55);
-        tint = (mix((n >> 16) & 255) << 16) | (mix((n >> 8) & 255) << 8) | mix(n & 255);
-      }
-      const webs = buildCobwebs(this.app.renderer, this.level, tint, levelDef.webs ?? 1);
-      if (webs) this.worldLayer.addChild(webs);
+      this.cobwebs = new CobwebLayer(this.app.renderer, this.level, rim ? parseInt(rim.slice(1), 16) : undefined, levelDef.webs ?? 1);
+      this.worldLayer.addChild(this.cobwebs.container);
     }
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
@@ -1850,6 +1845,7 @@ class GameApp {
     }
     this.fx.update(dt);
     this.blood.update(dt);
+    this.cobwebs?.update(dt, { left: this.player.body.left, right: this.player.body.right, top: this.player.body.top, bottom: this.player.body.bottom, vx: this.player.body.vx });
     this.spriteFx.update(dt);
     this.numbers.update(dt);
     // Выплюнутые паучки живут ограниченное время

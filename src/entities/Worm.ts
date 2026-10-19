@@ -25,6 +25,10 @@ const STUCK_TIME = 0.5; // с: столько голова упирается в
 const DIG_SPEED = 2.2; // множитель скорости под землёй
 const TUNNEL_MIN = 2; // длина подземного хода в клетках (от входа до выхода)
 const TUNNEL_MAX = 14;
+const TUNNEL_WAIT = 1.5; // с: у выхода кто-то ползает — ждём не дольше (иначе два червя ждут друг друга вечно)
+const DIVE_TIME = 2; // с: столько ныряем без найденного хода — потом обратно в воздух
+const HIDDEN_MAX = 10; // с: дольше этого голова не должна торчать в блоках (червь недосягаем для удара)
+const IDLE_MAX = 4; // с: столько стоять без движения нельзя — выбираемся из застревания
 
 // ---- Укус: заметил героя — ползёт к нему, у цели замирает, отводит голову назад и рывком бросается вперёд
 const SIGHT = 190; // px: на таком расстоянии червь замечает героя и ползёт к нему
@@ -119,6 +123,14 @@ export class Worm implements PartDamageable {
   private flyCd = rand(FLY_COOLDOWN);
   private flyDiving = false;
 
+  // ---- Сторож: червь не должен уползти из уровня или застрять в блоках навсегда (иначе волна не зачищается)
+  private hiddenT = 0; // с: голова подряд сидит в твёрдых клетках
+  private idleT = 0; // с: голова не сдвинулась с места
+  private idleRef: Vec = { x: 0, y: 0 };
+  private diveT = 0; // с: ныряем в землю без найденного хода
+  private planCd = 0; // с: пауза между попытками проложить ход
+  private waitT = 0; // с: ждём у выхода из туннеля
+
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
     private readonly flock: Worm[] = [] // все черви уровня (включая этого): чтобы не пересекаться
@@ -151,6 +163,7 @@ export class Worm implements PartDamageable {
     this.placeOnSurface(spawn, level.tileSize);
     this.p = { x: this.s.x + this.n.x * this.radius, y: this.s.y + this.n.y * this.radius };
     this.vis = { ...this.p };
+    this.idleRef = { ...this.p };
     this.chain.reset(this.p, this.t); // след изначально — прямая за головой
   }
 
@@ -254,12 +267,89 @@ export class Worm implements PartDamageable {
     else if (this.state === 'fly') this.updateFly(dt);
     else this.updateTunnel(dt);
 
+    // Голова не покидает уровень: иначе червь уходит в пустоту, его не достать и волна не заканчивается
+    const W = this.level.pixelWidth;
+    const H = this.level.pixelHeight;
+    this.p.x = Math.max(1, Math.min(W - 1, this.p.x));
+    this.p.y = Math.max(1, Math.min(H - 1, this.p.y));
+
+    this.updateWatchdog(dt);
+
     // Видимая голова догоняет истинную: углы и стыки с туннелем скругляются; перед укусом голова отводится назад
     const kp = 1 - Math.exp(-FOLLOW_POS * dt);
     this.vis.x += (this.p.x - this.vis.x) * kp;
     this.vis.y += (this.p.y - this.vis.y) * kp;
     const back = this.recoil * BITE_RECOIL;
     this.chain.update(dt, { x: this.vis.x - this.t.x * back, y: this.vis.y - this.t.y * back }, this.phase);
+  }
+
+  /**
+   * Сторож: голова не должна подолгу сидеть в блоках (червя нельзя ударить) или стоять на месте
+   * (упёрся в угол/тело и зациклился). Выбираемся — иначе волна не добивается и уровень не заканчивается.
+   */
+  private updateWatchdog(dt: number): void {
+    const ts = this.level.tileSize;
+    const hidden = this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts));
+    this.hiddenT = hidden ? this.hiddenT + dt : 0;
+    if (this.hiddenT > HIDDEN_MAX) {
+      this.hiddenT = 0;
+      this.unstick();
+      return;
+    }
+
+    // В укусе и погоне червь может стоять на месте законно — это не застревание
+    if (this.biteState !== 'none' || (this.state === 'crawl' && this.chasing)) {
+      this.idleT = 0;
+      this.idleRef = { x: this.p.x, y: this.p.y };
+      return;
+    }
+    if (Math.hypot(this.p.x - this.idleRef.x, this.p.y - this.idleRef.y) > 10) {
+      this.idleRef = { x: this.p.x, y: this.p.y };
+      this.idleT = 0;
+    } else {
+      this.idleT += dt;
+    }
+    if (this.idleT > IDLE_MAX) this.unstick();
+  }
+
+  /** Принудительно выбирается из застревания: пробует зарыться, а если не вышло — вылетает к дому. */
+  private unstick(): void {
+    this.idleT = 0;
+    this.idleRef = { x: this.p.x, y: this.p.y };
+    if (this.state === 'crawl' && this.tryBurrow(0, true)) return;
+    this.takeOff();
+  }
+
+  /** Взлёт из любого состояния: разворачивается к центру комнаты/арены и летит туда, выходя из блоков на свет. */
+  private takeOff(): void {
+    const home = this.leash ? this.leash.center : { x: this.level.pixelWidth / 2, y: this.level.pixelHeight / 2 };
+    const dx = home.x - this.p.x;
+    const dy = home.y - this.p.y;
+    this.heading = Math.hypot(dx, dy) > 1 ? Math.atan2(dy, dx) : -Math.PI / 2;
+    this.flySpeed = this.speed * FLY_BOOST;
+    this.flyT = 0;
+    this.flyLimit = 2;
+    this.flyMode = 'seek';
+    this.flyPasses = 0;
+    this.flyHitCd = 0.4;
+    this.flyDiving = false;
+    this.diveT = 0;
+    this.planCd = 0;
+    this.biteState = 'none';
+    this.stuck = 0;
+    this.hiddenT = 0;
+    this.flyCd = rand(FLY_COOLDOWN);
+    this.state = 'fly';
+  }
+
+  /** Нырок не нашёл хода — выныриваем обратно к дому, а не уходим глубже в пустоту. */
+  private abortDive(): void {
+    this.flyDiving = false;
+    this.diveT = 0;
+    this.flyT = 0;
+    this.flyLimit = 1.6;
+    this.flyPasses = 0;
+    this.flyMode = 'seek';
   }
 
   private updateCrawl(dt: number): void {
@@ -344,11 +434,20 @@ export class Worm implements PartDamageable {
   private updateFly(dt: number): void {
     this.flyT += dt;
     this.flyHitCd -= dt;
+    this.planCd -= dt;
     const ts = this.level.tileSize;
     const box = this.heroBox();
     const hx = box ? (box.left + box.right) / 2 : this.p.x + Math.cos(this.heading) * 100;
     const hy = box ? (box.top + box.bottom) / 2 : this.p.y + Math.sin(this.heading) * 100;
-    if (!this.flyDiving && (this.flyT > this.flyLimit || this.flyPasses > FLY_PASSES)) this.flyDiving = true;
+    if (!this.flyDiving && (this.flyT > this.flyLimit || this.flyPasses > FLY_PASSES)) {
+      this.flyDiving = true;
+      this.diveT = 0;
+    }
+    // нырок затянулся, а хода всё нет — обратно в воздух (иначе червь уходит в пустоту под уровнем)
+    if (this.flyDiving) {
+      this.diveT += dt;
+      if (this.diveT > DIVE_TIME) this.abortDive();
+    }
 
     let tx = hx;
     let ty = hy;
@@ -369,12 +468,16 @@ export class Worm implements PartDamageable {
       tx = this.p.x + Math.cos(this.heading + Math.sin(this.flyT * 1.7) * 0.8) * 100;
       ty = this.p.y + Math.sin(this.heading + Math.sin(this.flyT * 1.7) * 0.8) * 100;
     }
-    // края уровня и чужая комната: возвращаемся к центру
+    // края арены и чужая комната: разворачиваемся к центру комнаты, а не улетаем из уровня
     const W = this.level.pixelWidth;
-    if (this.p.x < 40 || this.p.x > W - 40 || this.p.y < 24 || (this.leash && !this.leash.contains(this.p.x, this.p.y))) {
-      tx = W / 2;
-      ty = Math.max(this.p.y, 90);
+    const H = this.level.pixelHeight;
+    const home = this.leash ? this.leash.center : { x: W / 2, y: H / 2 };
+    const outsideRoom = !!this.leash && !this.leash.contains(this.p.x, this.p.y);
+    if (this.p.x < 40 || this.p.x > W - 40 || this.p.y < 24 || outsideRoom) {
+      tx = home.x;
+      ty = home.y;
       steer = true;
+      if (outsideRoom) this.abortDive();
     }
     if (steer) {
       const want = Math.atan2(ty - this.p.y, tx - this.p.x);
@@ -396,19 +499,18 @@ export class Worm implements PartDamageable {
       }
     }
 
-    // нырнул в землю: ход под землёй и выход
-    if (this.flyDiving && this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts))) {
+    // нырнул в землю: ход под землёй и выход (пробуем не каждый кадр, а с паузой — поиск хода не бесплатный)
+    if (this.flyDiving && this.planCd <= 0 && this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts))) {
+      this.planCd = 0.3;
       const plan = this.planTunnel(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts));
       if (plan) {
         this.waypoints = plan.points;
         this.exitDir = plan.dir;
+        this.waitT = 0;
         this.state = 'tunnel';
         this.flyCd = rand(FLY_COOLDOWN);
-      } else {
-        this.heading += 0.5 * dt; // ход не нашёлся — продолжаем нырять глубже
       }
     }
-    if (this.flyT > this.flyLimit + 8) this.flyDiving = true;
   }
 
   /** Укус: ползёт к герою, у цели замирает, отводит голову и бросается вперёд по поверхности; задел — урон, потом передышка. */
@@ -524,24 +626,27 @@ export class Worm implements PartDamageable {
 
   // ---------- Зарывание ----------
 
-  /** Начинает зарываться, когда голова встала ровно над серединой клетки под ней. */
-  private tryBurrow(step: number, force: boolean): void {
+  /** Начинает зарываться, когда голова встала ровно над серединой клетки под ней. Возвращает true, если ход начат. */
+  private tryBurrow(step: number, force: boolean): boolean {
     const ts = this.level.tileSize;
     const horizontal = Math.abs(this.t.x) > 0.5;
     const along = horizontal ? this.s.x : this.s.y;
     const off = along - (Math.floor(along / ts) + 0.5) * ts;
-    if (!force && Math.abs(off) > Math.max(1.5, step)) return;
+    if (!force && Math.abs(off) > Math.max(1.5, step)) return false;
 
     const under = { x: this.s.x - this.n.x * 2, y: this.s.y - this.n.y * 2 };
     const entry = { cx: Math.floor(under.x / ts), cy: Math.floor(under.y / ts) };
     const plan = this.planTunnel(entry.cx, entry.cy);
     if (!plan) {
       this.burrowTimer = 2; // подходящего хода нет — попробуем чуть позже
-      return;
+      return false;
     }
     this.waypoints = plan.points;
     this.exitDir = plan.dir;
+    this.waitT = 0;
+    this.hiddenT = 0;
     this.state = 'tunnel';
+    return true;
   }
 
   /**
@@ -616,7 +721,12 @@ export class Worm implements PartDamageable {
       // (пока голова ещё внутри блока; уже вышедшая наружу не останавливается)
       const ts = this.level.tileSize;
       const hidden = this.cellSolid(Math.floor(this.p.x / ts), Math.floor(this.p.y / ts));
-      if (this.waypoints.length === 1 && hidden && this.occupied(w.x, w.y, MIN_GAP + 8, true)) break;
+      if (this.waypoints.length === 1 && hidden && this.occupied(w.x, w.y, MIN_GAP + 8, true)) {
+        this.waitT += dt;
+        if (this.waitT < TUNNEL_WAIT) break; // ждём, но не вечно: иначе два червя могут ждать друг друга навсегда
+      } else {
+        this.waitT = 0;
+      }
       const dx = w.x - this.p.x;
       const dy = w.y - this.p.y;
       const d = Math.hypot(dx, dy);
@@ -642,6 +752,10 @@ export class Worm implements PartDamageable {
     this.state = 'crawl';
     this.burrowTimer = rand(CRAWL_TIME);
     this.mul = 0.6;
+    this.waitT = 0;
+    this.hiddenT = 0;
+    this.idleT = 0;
+    this.idleRef = { x: this.p.x, y: this.p.y };
   }
 
   // ---------- Столкновения с телами ----------
