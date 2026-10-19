@@ -44,51 +44,7 @@
     "x": 4,
     "y": 19
   },
-  "decor": [
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 10,
-      "y": 1,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 23,
-      "y": 1,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 36,
-      "y": 1,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_left",
-      "x": 0.5,
-      "y": 18,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_left",
-      "x": 44.5,
-      "y": 18,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 12,
-      "y": 18,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 33,
-      "y": 18,
-      "layer": "front"
-    }
-  ],
+  "decor": [],
   "terminals": [
     {
       "sprite_id": "terminal_loc2",
