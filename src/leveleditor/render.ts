@@ -190,13 +190,12 @@ function drawTiles(ctx: CanvasRenderingContext2D, ed: Editor, x0: number, y0: nu
   const ts = ed.ts;
   const xforms = xformMap(def.tile_xform);
   const tileAt = (cx: number, cy: number) => ed.tileDef(tileIdAt(def, cx, cy));
-  const env = { tileAt, solidAt: (cx: number, cy: number) => !!tileAt(cx, cy)?.solid };
   for (let cy = y0; cy <= y1; cy++) {
     for (let cx = x0; cx <= x1; cx++) {
       const tile = tileAt(cx, cy);
       if (!tile) continue;
       const xf = xforms.get(cellKey(cx, cy));
-      const look = tileVisual(tile, cx, cy, env);
+      const look = tileVisual(tile);
       const c = xf ? canonXf(xf) : undefined;
       if (tile.slope) {
         const slope = transformSlope(tile.slope, xf);

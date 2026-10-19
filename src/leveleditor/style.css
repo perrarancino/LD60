@@ -159,3 +159,14 @@ small { color: var(--muted); }
 .placed-row:hover { background: var(--panel-2); }
 .placed-row.active { border-color: var(--gold); background: #2a2310; }
 .placed-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.layers-title { margin: 6px 0 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.group { margin-bottom: 8px; }
+.group-title { margin: 6px 0 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.panel h3 { margin: 4px 0 6px; font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; }
+.placed { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.placed summary { cursor: pointer; color: var(--muted); font-size: 12px; user-select: none; }
+.placed[open] summary { margin-bottom: 4px; }
+.placed .btn.small { margin-top: 4px; }
+.inspector.empty { display: none; }
+.statusbar span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

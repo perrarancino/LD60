@@ -1,48 +1,55 @@
 {
   "$schema": "../schemas/tile.schema.json",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "tile_size": 32,
   "tiles": [
     {
-      "id": "platform_block",
-      "display_name": "Блок платформы (текстолит, 3 зацикленных тайла)",
+      "id": "platform_loop_0",
+      "display_name": "Платформа: левый край",
+      "group": "Платформа",
       "sprite_id": "tile_tileset_loop",
-      "solid": true,
-      "one_way": false,
-      "loop_frames": 3,
-      "fill_sprite_id": "tile_doptileset"
-    },
-    {
-      "id": "tileset1",
-      "display_name": "Тайл платформы 1",
-      "sprite_id": "tile_tileset1",
+      "frame": 0,
       "solid": true,
       "one_way": false
     },
     {
-      "id": "tileset2",
-      "display_name": "Тайл платформы 2",
-      "sprite_id": "tile_tileset2",
+      "id": "platform_loop_1",
+      "display_name": "Платформа: середина",
+      "group": "Платформа",
+      "sprite_id": "tile_tileset_loop",
+      "frame": 1,
       "solid": true,
       "one_way": false
     },
     {
-      "id": "tileset3",
-      "display_name": "Тайл платформы 3",
-      "sprite_id": "tile_tileset3",
+      "id": "platform_loop_2",
+      "display_name": "Платформа: правый край",
+      "group": "Платформа",
+      "sprite_id": "tile_tileset_loop",
+      "frame": 2,
       "solid": true,
       "one_way": false
     },
     {
-      "id": "tileset4",
-      "display_name": "Тайл платформы 4",
-      "sprite_id": "tile_tileset4",
+      "id": "doptileset",
+      "display_name": "Платформа: заливка",
+      "group": "Платформа",
+      "sprite_id": "tile_doptileset",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "platform_block_single",
+      "display_name": "Платформа: одиночный",
+      "group": "Платформа",
+      "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false
     },
     {
       "id": "platform_slope_ur",
-      "display_name": "Скос платформы вправо (/)",
+      "display_name": "Скос ⟋",
+      "group": "Скосы",
       "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false,
@@ -50,7 +57,8 @@
     },
     {
       "id": "platform_slope_ul",
-      "display_name": "Скос платформы влево (\\)",
+      "display_name": "Скос ⟍",
+      "group": "Скосы",
       "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false,
@@ -58,7 +66,8 @@
     },
     {
       "id": "platform_slope_cr",
-      "display_name": "Скос потолка вправо",
+      "display_name": "Скос потолка ◥",
+      "group": "Скосы",
       "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false,
@@ -66,66 +75,157 @@
     },
     {
       "id": "platform_slope_cl",
-      "display_name": "Скос потолка влево",
+      "display_name": "Скос потолка ◤",
+      "group": "Скосы",
       "sprite_id": "tile_platform_block",
       "solid": true,
       "one_way": false,
       "slope": "ceil_left"
     },
     {
-      "id": "tile1",
-      "display_name": "Блок платформы (tile1)",
-      "sprite_id": "tile_tile1",
-      "solid": true,
-      "one_way": false
-    },
-    {
       "id": "step",
-      "display_name": "Лестница / Ступени (step)",
+      "display_name": "Ступень",
+      "group": "Скосы",
       "sprite_id": "tile_step",
       "solid": true,
       "one_way": false,
       "slope": "up_right"
     },
     {
-      "id": "textalite",
-      "display_name": "Блок текстолита (textalite, 10 вариантов)",
-      "sprite_id": "tile_textalite",
+      "id": "tileset1",
+      "display_name": "Тайл 1",
+      "group": "Блоки",
+      "sprite_id": "tile_tileset1",
       "solid": true,
-      "one_way": false,
-      "top_frames": [
-        5,
-        6,
-        7,
-        8,
-        9
-      ],
-      "fill_frames": [
-        0,
-        1,
-        2,
-        3,
-        4
-      ]
+      "one_way": false
+    },
+    {
+      "id": "tileset2",
+      "display_name": "Тайл 2",
+      "group": "Блоки",
+      "sprite_id": "tile_tileset2",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tileset3",
+      "display_name": "Тайл 3",
+      "group": "Блоки",
+      "sprite_id": "tile_tileset3",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tileset4",
+      "display_name": "Тайл 4",
+      "group": "Блоки",
+      "sprite_id": "tile_tileset4",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "tile1",
+      "display_name": "Тайл синий",
+      "group": "Блоки",
+      "sprite_id": "tile_tile1",
+      "solid": true,
+      "one_way": false
     },
     {
       "id": "loc2",
-      "display_name": "Блок второй локации (loc2, loc2_tile.aseprite)",
+      "display_name": "Плита loc2",
+      "group": "Блоки",
       "sprite_id": "tile_loc2",
       "solid": true,
       "one_way": false
     },
     {
-      "id": "doptileset",
-      "display_name": "Доп. тайлсет платформы (doptileset)",
-      "sprite_id": "tile_doptileset",
+      "id": "textalite_0",
+      "display_name": "Textalite 0 (толща)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 0,
       "solid": true,
       "one_way": false
     },
     {
-      "id": "platform_block_single",
-      "display_name": "Одиночный блок платформы (32x32)",
-      "sprite_id": "tile_platform_block",
+      "id": "textalite_1",
+      "display_name": "Textalite 1 (толща)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 1,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_2",
+      "display_name": "Textalite 2 (толща)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 2,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_3",
+      "display_name": "Textalite 3 (толща)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 3,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_4",
+      "display_name": "Textalite 4 (толща)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 4,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_5",
+      "display_name": "Textalite 5 (верх)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 5,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_6",
+      "display_name": "Textalite 6 (верх)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 6,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_7",
+      "display_name": "Textalite 7 (верх)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 7,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_8",
+      "display_name": "Textalite 8 (верх)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 8,
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "textalite_9",
+      "display_name": "Textalite 9 (верх)",
+      "group": "Textalite",
+      "sprite_id": "tile_textalite",
+      "frame": 9,
       "solid": true,
       "one_way": false
     }

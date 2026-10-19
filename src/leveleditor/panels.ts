@@ -1,20 +1,21 @@
-import type { EnemyDef, EnemySpawnDef, LevelObjectDef } from '../data/types.ts';
+import type { EnemyDef, EnemySpawnDef, LevelObjectDef, TileDef } from '../data/types.ts';
 import type { DecorKind, ObjectKind, PropDef } from '../world/placeables.ts';
 import { checkbox, clear, field, h, numberInput, select, textInput } from './dom.ts';
 import { canonXf, roomCellCount, roomsAt } from './model.ts';
 import type { Editor, RoomMode } from './state.ts';
 
-type Tab = 'tiles' | 'decor' | 'threads' | 'mobs' | 'objects' | 'rooms' | 'level';
+export type Tab = 'tiles' | 'decor' | 'mobs' | 'objects' | 'rooms' | 'level';
 
 const TABS: Array<[Tab, string]> = [
   ['tiles', 'Тайлы'],
   ['decor', 'Декор'],
-  ['threads', 'Нити'],
   ['mobs', 'Мобы'],
   ['objects', 'Объекты'],
   ['rooms', 'Комнаты'],
   ['level', 'Уровень']
 ];
+
+type PlacedKind = 'decor' | 'thread' | 'enemy' | 'object' | 'terminal';
 
 /** Фолбэк для декор-спрайтов, которых нет в каталоге: свободно на любой пиксель, поверх тайлов. */
 function fallbackDecor(id: string): DecorKind {
@@ -22,8 +23,8 @@ function fallbackDecor(id: string): DecorKind {
 }
 
 /**
- * Правая колонка редактора: вкладки палитр (что ставить) и инспектор (свойства выбранного). Перерисовывается по событиям Editor;
- * палитры не пересобираются на каждую правку тайлов.
+ * Правая колонка редактора: вкладки палитр (что ставить) и инспектор (свойства выбранного). Текста минимум: подсказки по
+ * инструменту показывает строка состояния, а не абзацы в панелях. Палитры не пересобираются на каждую правку тайлов.
  */
 export class Panels {
   private tab: Tab = 'tiles';
@@ -87,7 +88,6 @@ export class Panels {
     switch (this.tab) {
       case 'tiles': this.bodyEl.append(this.tilesPanel()); break;
       case 'decor': this.bodyEl.append(this.decorPanel()); break;
-      case 'threads': this.bodyEl.append(this.threadsPanel()); break;
       case 'mobs': this.bodyEl.append(this.mobsPanel()); break;
       case 'objects': this.bodyEl.append(this.objectsPanel()); break;
       case 'rooms': this.bodyEl.append(this.roomsPanel()); break;
@@ -104,26 +104,29 @@ export class Panels {
     return h('button', { class: `pal-item${active ? ' active' : ''}`, title, onclick }, thumb, h('span', {}, label));
   }
 
-  /** Список всего расставленного данного вида: выбрать строкой, удалить по одному или все сразу. */
-  private placedList(kind: 'decor' | 'thread' | 'enemy' | 'object'): HTMLElement {
+  private group(title: string, items: HTMLElement[]): HTMLElement {
+    return h('div', { class: 'group' }, h('div', { class: 'group-title' }, title), h('div', { class: 'pal-grid' }, ...items));
+  }
+
+  /** Расставленное: свёрнутый список (выбрать, удалить) и «удалить все». */
+  private placedList(kinds: Array<'decor' | 'thread' | 'enemy' | 'object'>): HTMLElement {
     const ed = this.ed;
     const def = ed.def;
-    const rows: Array<{ kind: 'decor' | 'thread' | 'enemy' | 'object' | 'terminal'; index: number; label: string }> = [];
-    if (kind === 'decor') (def.decor ?? []).forEach((d, i) => rows.push({ kind: 'decor', index: i, label: `${ed.decorKind(d.sprite_id)?.label ?? d.sprite_id} · ${Math.round(d.x * ed.ts)}, ${Math.round(d.y * ed.ts)}` }));
-    if (kind === 'thread') (def.threads ?? []).forEach((t, i) => rows.push({ kind: 'thread', index: i, label: `${t.kind === 'vine' ? 'Лиана' : 'Нитка с неба'} · ${Math.round(t.x)}, ${Math.round(t.y)}` }));
-    if (kind === 'enemy') def.enemies.forEach((e, i) => rows.push({ kind: 'enemy', index: i, label: `${ed.enemyDef(e.enemy_id)?.display_name ?? e.enemy_id} · клетка ${e.x}, ${e.y}` }));
-    if (kind === 'object') {
-      (def.objects ?? []).forEach((o, i) => rows.push({ kind: 'object', index: i, label: `${ed.objectKind(o.type)?.label ?? o.type} (${o.id})` }));
-      (def.terminals ?? []).forEach((t, i) => rows.push({ kind: 'terminal', index: i, label: `Терминал · клетка ${t.x}, ${t.y}` }));
+    const rows: Array<{ kind: PlacedKind; index: number; label: string }> = [];
+    for (const kind of kinds) {
+      if (kind === 'decor') (def.decor ?? []).forEach((d, i) => rows.push({ kind: 'decor', index: i, label: `${ed.decorKind(d.sprite_id)?.label ?? d.sprite_id} · ${Math.round(d.x * ed.ts)}, ${Math.round(d.y * ed.ts)}` }));
+      if (kind === 'thread') (def.threads ?? []).forEach((t, i) => rows.push({ kind: 'thread', index: i, label: `${t.kind === 'vine' ? 'Лиана' : 'Нитка'} · ${Math.round(t.x)}, ${Math.round(t.y)}` }));
+      if (kind === 'enemy') def.enemies.forEach((e, i) => rows.push({ kind: 'enemy', index: i, label: `${ed.enemyDef(e.enemy_id)?.display_name ?? e.enemy_id} · ${e.x}, ${e.y}` }));
+      if (kind === 'object') {
+        (def.objects ?? []).forEach((o, i) => rows.push({ kind: 'object', index: i, label: `${ed.objectKind(o.type)?.label ?? o.type} · ${o.id}` }));
+        (def.terminals ?? []).forEach((t, i) => rows.push({ kind: 'terminal', index: i, label: `Терминал · ${t.x}, ${t.y}` }));
+      }
     }
-    const wrap = h('div', {});
-    wrap.append(h('h4', {}, `Расставлено: ${rows.length}`));
-    if (!rows.length) {
-      wrap.append(h('p', { class: 'hint' }, 'Пока ничего. Правая кнопка на карте удаляет предмет под курсором, Ctrl+клик — выбирает.'));
-      return wrap;
-    }
-    const list = h('div', { class: 'placed-list' });
     const sel = ed.selection;
+    const open = rows.some((r) => sel.kind === r.kind && 'index' in sel && sel.index === r.index);
+    const box = h('details', { class: 'placed', open }, h('summary', {}, `Расставлено · ${rows.length}`));
+    if (!rows.length) return box;
+    const list = h('div', { class: 'placed-list' });
     for (const r of rows) {
       const active = sel.kind === r.kind && 'index' in sel && sel.index === r.index;
       list.append(h('div', { class: `placed-row${active ? ' active' : ''}`, onclick: () => ed.setSelection({ kind: r.kind, index: r.index }) },
@@ -132,11 +135,10 @@ export class Panels {
           e.stopPropagation();
           ed.setSelection({ kind: r.kind, index: r.index });
           ed.deleteSelection();
-        } }, '🗑')));
+        } }, '✕')));
     }
-    wrap.append(list, h('div', { class: 'btn-row' },
-      h('button', { class: 'btn danger', onclick: () => { if (confirm(`Удалить всё из списка (${rows.length})?`)) ed.deleteAllOf(kind); } }, '🗑 Удалить все')));
-    return wrap;
+    box.append(list, h('button', { class: 'btn small danger', onclick: () => { if (confirm(`Удалить всё (${rows.length})?`)) for (const k of kinds) ed.deleteAllOf(k); } }, 'Удалить все'));
+    return box;
   }
 
   // ---------- Тайлы ----------
@@ -144,33 +146,29 @@ export class Panels {
   private tilesPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Тайлы'));
-    const grid = h('div', { class: 'pal-grid' });
-    for (const tile of ed.project.tiles.tiles) {
-      const frame = tile.top_frames ? tile.top_frames[0] : tile.loop_frames ? 1 : 0;
-      grid.append(this.palItem(ed.brushTile === tile.id && ed.tool !== 'eraser', `${tile.display_name ?? tile.id}${tile.slope ? ' (скос)' : ''}`, this.thumb(tile.sprite_id, frame), tile.display_name?.replace(/\s*\(.*\)/, '') ?? tile.id, () => {
-        ed.brushTile = tile.id;
-        if (!['brush', 'rect', 'fill'].includes(ed.tool)) ed.setTool('brush');
-        else ed.emit('tool');
-      }));
+    const groups = new Map<string, TileDef[]>();
+    for (const t of ed.project.tiles.tiles) groups.set(t.group ?? 'Тайлы', [...(groups.get(t.group ?? 'Тайлы') ?? []), t]);
+    for (const [name, list] of groups) {
+      wrap.append(this.group(name, list.map((tile) => this.palItem(
+        ed.brushTile === tile.id && ed.tool !== 'eraser', `${tile.display_name ?? tile.id}${tile.slope ? ' (скос)' : ''}`,
+        this.thumb(tile.sprite_id, tile.frame ?? 0), tile.display_name?.replace(/^[^:]+:\s*/, '') ?? tile.id,
+        () => {
+          ed.brushTile = tile.id;
+          if (!['brush', 'rect', 'fill'].includes(ed.tool)) ed.setTool('brush');
+          else ed.emit('tool');
+        }))));
     }
-    wrap.append(grid);
-
     const c = canonXf(ed.brushXf);
-    wrap.append(
-      h('h3', {}, 'Отражение и поворот'),
-      h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', title: 'Отразить по горизонтали (X)', onclick: () => ed.transform('flipH') }, '⇆ Гориз.'),
-        h('button', { class: 'btn', title: 'Отразить по вертикали (Y)', onclick: () => ed.transform('flipV') }, '⇅ Верт.'),
-        h('button', { class: 'btn', title: 'Повернуть на 90° (R)', onclick: () => ed.transform('rotate') }, '↻ 90°'),
-        h('button', { class: 'btn', title: 'Сбросить', onclick: () => { ed.brushXf = { flip_x: false, rot: 0 }; ed.emit('tool'); } }, '✕')
-      ),
-      h('p', { class: 'hint' }, `Кисть: ${c.flip_x ? 'отражён по горизонтали, ' : ''}поворот ${c.rot}°. Клавиши X, Y, R меняют кисть; когда выделен блок тайлов или предмет — его самого.`)
-    );
+    wrap.append(h('div', { class: 'btn-row' },
+      h('button', { class: 'btn', title: 'Отразить по горизонтали (X)', onclick: () => ed.transform('flipH') }, '⇆'),
+      h('button', { class: 'btn', title: 'Отразить по вертикали (Y)', onclick: () => ed.transform('flipV') }, '⇅'),
+      h('button', { class: 'btn', title: 'Повернуть на 90° (R)', onclick: () => ed.transform('rotate') }, '↻'),
+      h('button', { class: 'btn', title: 'Сбросить', onclick: () => { ed.brushXf = { flip_x: false, rot: 0 }; ed.emit('tool'); } }, '✕'),
+      h('small', {}, `${c.flip_x ? '⇆ ' : ''}${c.rot}°`)));
     return wrap;
   }
 
-  // ---------- Декор ----------
+  // ---------- Декор и нитки ----------
 
   private decorKinds(): DecorKind[] {
     const ed = this.ed;
@@ -184,50 +182,22 @@ export class Panels {
   private decorPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Декор'));
     const groups = new Map<string, DecorKind[]>();
-    for (const k of this.decorKinds()) {
-      const g = k.group ?? 'Прочее';
-      groups.set(g, [...(groups.get(g) ?? []), k]);
-    }
+    for (const k of this.decorKinds()) groups.set(k.group ?? 'Прочее', [...(groups.get(k.group ?? 'Прочее') ?? []), k]);
     for (const [name, list] of groups) {
-      wrap.append(h('h4', {}, name));
-      const grid = h('div', { class: 'pal-grid' });
-      for (const k of list) {
-        grid.append(this.palItem(ed.tool === 'decor' && ed.armedDecor?.sprite_id === k.sprite_id, `${k.label}: ${anchorText(k)}`, this.thumb(k.sprite_id), k.label, () => {
-          ed.armedDecor = k;
-          ed.setTool('decor');
-        }));
-      }
-      wrap.append(grid);
+      wrap.append(this.group(name, list.map((k) => this.palItem(ed.tool === 'decor' && ed.armedDecor?.sprite_id === k.sprite_id, `${k.label}: ${anchorText(k)}`, this.thumb(k.sprite_id), k.label, () => {
+        ed.armedDecor = k;
+        ed.setTool('decor');
+      }))));
     }
-    const k = ed.armedDecor;
-    wrap.append(this.placedList('decor'));
-    wrap.append(
-      h('div', { class: 'btn-row' },
-        h('button', { class: `btn${ed.placeFlipX ? ' on' : ''}`, onclick: () => ed.transform('flipH') }, '⇆ Отразить'),
-        h('button', { class: `btn${ed.placeFlipY ? ' on' : ''}`, onclick: () => ed.transform('flipV') }, '⇅ Перевернуть')
-      ),
-      h('p', { class: 'hint' }, k
-        ? `${k.label}: ${anchorText(k)}. Alt при установке — без привязки, на любой пиксель. Правая кнопка — удалить предмет под курсором.`
-        : 'Выберите декор и кликните на карте. Каждый предмет знает свою привязку: стоит на полу, висит под потолком или встаёт куда угодно с точностью до пикселя.')
-    );
-    return wrap;
-  }
-
-  // ---------- Нити ----------
-
-  private threadsPanel(): HTMLElement {
-    const ed = this.ed;
-    const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Нитки (по пикселям)'));
-    for (const k of ed.project.placeables.threads) {
-      wrap.append(h('button', { class: `pal-wide${ed.tool === 'thread' && ed.armedThread?.kind === k.kind ? ' active' : ''}`, onclick: () => { ed.armedThread = k; ed.setTool('thread'); } },
-        this.thumb(k.sprite_id, 0, 'thumb small'),
-        h('span', {}, h('b', {}, k.label), h('br'), h('small', {}, k.hint ?? ''))));
-    }
-    wrap.append(h('p', { class: 'hint' }, 'Лиана цепляется строго по сетке — к нижним пикселям тайла над курсором (Alt — свободно). Нитка с неба — на любой пиксель. Зажмите и потяните вниз — длина задаётся протяжкой. ПКМ — удалить нитку под курсором, Ctrl+клик — выбрать для правки.'));
-    wrap.append(this.placedList('thread'));
+    wrap.append(this.group('Нитки', ed.project.placeables.threads.map((k) => this.palItem(ed.tool === 'thread' && ed.armedThread?.kind === k.kind, `${k.label}: ${k.hint ?? ''}`, this.thumb(k.sprite_id), k.label, () => {
+      ed.armedThread = k;
+      ed.setTool('thread');
+    }))));
+    wrap.append(h('div', { class: 'btn-row' },
+      h('button', { class: `btn${ed.placeFlipX ? ' on' : ''}`, title: 'Отразить по горизонтали (X)', onclick: () => ed.transform('flipH') }, '⇆'),
+      h('button', { class: `btn${ed.placeFlipY ? ' on' : ''}`, title: 'Отразить по вертикали (Y)', onclick: () => ed.transform('flipV') }, '⇅')));
+    wrap.append(this.placedList(['decor', 'thread']));
     return wrap;
   }
 
@@ -236,7 +206,6 @@ export class Panels {
   private mobsPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Мобы и боссы'));
     const placeable = ed.project.enemies.filter((e) => e.sprite_variants.length > 0);
     const groups: Array<[string, EnemyDef[]]> = [
       ['Мобы', placeable.filter((e) => e.behavior_type !== 'flying_worm')],
@@ -244,26 +213,21 @@ export class Panels {
     ];
     for (const [title, list] of groups) {
       if (!list.length) continue;
-      wrap.append(h('h4', {}, title));
-      const grid = h('div', { class: 'pal-grid' });
+      const items: HTMLElement[] = [];
       for (const e of list) {
         for (const v of e.sprite_variants) {
           const active = ed.tool === 'mob' && ed.armedEnemy?.def.id === e.id && ed.armedEnemy.sprite_id === v;
-          grid.append(this.palItem(active, `${e.display_name} — ${e.behavior_type}`, this.thumb(v), e.sprite_variants.length > 1 ? `${shortName(e)} ${e.sprite_variants.indexOf(v) + 1}` : shortName(e), () => {
+          items.push(this.palItem(active, `${e.display_name} — HP ${e.stats.max_health}, урон ${e.stats.contact_damage}`, this.thumb(v), e.sprite_variants.length > 1 ? `${shortName(e)} ${e.sprite_variants.indexOf(v) + 1}` : shortName(e), () => {
             ed.armedEnemy = { def: e, sprite_id: v };
             ed.setTool('mob');
           }));
         }
       }
-      wrap.append(grid);
+      wrap.append(this.group(title, items));
     }
-    const a = ed.armedEnemy;
-    wrap.append(h('p', { class: 'hint' }, a
-      ? `${a.def.display_name}: HP ${a.def.stats.max_health}, урон касанием ${a.def.stats.contact_damage}. Моб замечает героя и атакует только в своей комнате (определяется по клетке; можно задать вручную в «Свойствах»).`
-      : 'Выберите моба и кликните по клетке. Ползающие (пауки) сами выберут пол, стену или потолок; остальное — в «Свойствах».'));
-    wrap.append(this.placedList('enemy'));
     const outside = ed.rooms.length ? ed.def.enemies.filter((e) => !e.room && roomsAt(ed.def, e.x, e.y).length === 0) : [];
-    if (outside.length) wrap.append(h('p', { class: 'warn' }, `⚠ Мобов вне комнат: ${outside.length}. Они будут нападать без ограничений — поставьте их внутрь комнаты.`));
+    if (outside.length) wrap.append(h('p', { class: 'warn' }, `Вне комнат: ${outside.length}`));
+    wrap.append(this.placedList(['enemy']));
     return wrap;
   }
 
@@ -272,28 +236,16 @@ export class Panels {
   private objectsPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Объекты'));
     const groups = new Map<string, ObjectKind[]>();
     for (const k of ed.project.placeables.objects) groups.set(k.group ?? 'Прочее', [...(groups.get(k.group ?? 'Прочее') ?? []), k]);
     for (const [name, list] of groups) {
-      wrap.append(h('h4', {}, name));
-      const grid = h('div', { class: 'pal-grid' });
-      for (const k of list) {
-        const frame = 0;
-        grid.append(this.palItem(ed.tool === 'object' && ed.armedObject?.type === k.type, `${k.label}: ${anchorText(k)}${k.hint ? `\n${k.hint}` : ''}`, this.thumb(k.sprite_id, frame), k.label, () => {
-          ed.armedObject = k;
-          ed.setTool('object');
-        }));
-      }
-      wrap.append(grid);
+      wrap.append(this.group(name, list.map((k) => this.palItem(ed.tool === 'object' && ed.armedObject?.type === k.type, `${k.label}${k.hint ? `\n${k.hint}` : ''}`, this.thumb(k.sprite_id), k.label, () => {
+        ed.armedObject = k;
+        ed.setTool('object');
+      }))));
     }
-    wrap.append(
-      h('h4', {}, 'Старт героя'),
-      h('button', { class: `pal-wide${ed.tool === 'spawn' ? ' active' : ''}`, onclick: () => ed.setTool('spawn') }, h('span', {}, h('b', {}, '🏁 Точка появления героя'), h('br'), h('small', {}, `Сейчас: клетка ${ed.def.player_spawn.x}, ${ed.def.player_spawn.y}`)))
-    );
-    wrap.append(this.placedList('object'));
-    const k = ed.armedObject;
-    wrap.append(h('p', { class: 'hint' }, k?.hint ?? 'Дверь ведёт к другой двери — этого уровня или другого. Батарейка — квестовый предмет, подставка принимает её и ставит флаг, который открывает запертую дверь.'));
+    wrap.append(h('button', { class: `pal-wide${ed.tool === 'spawn' ? ' active' : ''}`, onclick: () => ed.setTool('spawn') }, h('span', {}, '⚑ Старт героя')));
+    wrap.append(this.placedList(['object']));
     return wrap;
   }
 
@@ -302,48 +254,38 @@ export class Panels {
   private roomsPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Комнаты (границы уровней)'));
-    wrap.append(h('p', { class: 'hint' }, 'Закрасьте клетки, из которых состоит комната (вместе со стенами вокруг). В игре герой видит только ту комнату, где стоит, — всё остальное чёрное (туман войны). Мобы и боссы нападают на героя только в своей комнате.'));
-
     const fogOn = !!ed.def.fog;
     const fogMode = typeof ed.def.fog === 'object' ? ed.def.fog.mode ?? 'current' : 'current';
-    wrap.append(
-      field('Туман войны', checkbox(fogOn, (v) => ed.edit(() => { if (v) ed.def.fog = fogMode === 'explored' ? { mode: 'explored' } : true; else delete ed.def.fog; })), 'Включить скрытие всего, что вне комнаты героя'),
-      field('Режим', select(fogMode, [['current', 'Только текущая комната'], ['explored', 'Текущая + посещённые']], (v) => ed.edit(() => { ed.def.fog = v === 'explored' ? { mode: 'explored' } : true; }))),
-      field('Предпросмотр тумана', checkbox(ed.show.fog, (v) => { ed.show.fog = v; ed.emit('view'); }), 'Показать на карте, что видно из активной комнаты')
-    );
+    wrap.append(field('Туман войны', checkbox(fogOn, (v) => ed.edit(() => { if (v) ed.def.fog = fogMode === 'explored' ? { mode: 'explored' } : true; else delete ed.def.fog; })), 'Вне комнаты героя мир чёрный'));
+    if (fogOn) wrap.append(field('Открытые', select(fogMode, [['current', 'только текущая'], ['explored', 'и посещённые']], (v) => ed.edit(() => { ed.def.fog = v === 'explored' ? { mode: 'explored' } : true; }))));
 
-    wrap.append(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { ed.addRoom(); ed.setTool('room'); } }, '+ Новая комната')));
     const list = h('div', { class: 'room-list' });
     for (const room of ed.rooms) {
       const active = room.id === ed.activeRoom;
-      const color = ed.roomColor(room);
       list.append(h('div', { class: `room-row${active ? ' active' : ''}`, onclick: () => { ed.activeRoom = room.id; ed.setTool('room'); } },
         h('input', {
-          type: 'color', value: color, title: 'Цвет комнаты в редакторе',
+          type: 'color', value: ed.roomColor(room), title: 'Цвет',
           onchange: (e: Event) => ed.edit(() => { room.color = (e.target as HTMLInputElement).value; }),
           onclick: (e: Event) => e.stopPropagation()
         }),
         h('input', { class: 'room-name', type: 'text', value: room.name, onclick: (e: Event) => e.stopPropagation(), onchange: (e: Event) => ed.edit(() => { room.name = (e.target as HTMLInputElement).value; }) }),
-        h('small', {}, `${roomCellCount(room)} кл.`),
-        h('button', { class: 'btn small', title: 'Удалить комнату', onclick: (e: Event) => { e.stopPropagation(); ed.deleteRoom(room.id); } }, '🗑')));
+        h('small', {}, String(roomCellCount(room))),
+        h('button', { class: 'btn small', title: 'Удалить комнату', onclick: (e: Event) => { e.stopPropagation(); ed.deleteRoom(room.id); } }, '✕')));
     }
-    if (!ed.rooms.length) list.append(h('p', { class: 'hint' }, 'Комнат пока нет.'));
-    wrap.append(list);
+    wrap.append(list, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { ed.addRoom(); ed.setTool('room'); } }, '+ Комната')));
 
     const modes: Array<[RoomMode, string, string]> = [
-      ['brush', '✏ Кисть', 'Закрашивать клетки комнаты (правая кнопка — стирать)'],
-      ['erase', '🧽 Ластик', 'Убирать клетки из комнаты'],
-      ['rect', '▭ Область', 'Прямоугольник (правая кнопка — убрать область)'],
-      ['flood', '🪣 Залить помещение', 'Клик внутри помещения: заливает всё свободное пространство и кольцо стен вокруг него']
+      ['brush', '✏', 'Кисть (ПКМ — стереть)'],
+      ['erase', '⌫', 'Ластик'],
+      ['rect', '▭', 'Область'],
+      ['flood', '◧', 'Залить помещение: клик внутри — всё свободное место и стены вокруг']
     ];
-    wrap.append(h('h4', {}, 'Режим закраски'));
-    wrap.append(h('div', { class: 'btn-row wrap' }, ...modes.map(([m, label, tip]) => h('button', { class: `btn${ed.roomMode === m && ed.tool === 'room' ? ' on' : ''}`, title: tip, onclick: () => { ed.roomMode = m; ed.setTool('room'); } }, label))));
+    wrap.append(h('div', { class: 'btn-row' }, ...modes.map(([m, label, tip]) => h('button', { class: `btn${ed.roomMode === m && ed.tool === 'room' ? ' on' : ''}`, title: tip, onclick: () => { ed.roomMode = m; ed.setTool('room'); } }, label)),
+      h('button', { class: `btn${ed.show.fog ? ' on' : ''}`, title: 'Предпросмотр тумана (F)', onclick: () => { ed.show.fog = !ed.show.fog; ed.emit('view'); ed.emit('tool'); } }, '☁')));
 
-    // двери и мобы вне комнат
     const outside = ed.rooms.length ? ed.def.enemies.filter((e) => !e.room && roomsAt(ed.def, e.x, e.y).length === 0) : [];
-    if (outside.length) wrap.append(h('p', { class: 'warn' }, `⚠ Мобов вне комнат: ${outside.length}`));
-    if (ed.def.fog && !ed.rooms.length) wrap.append(h('p', { class: 'warn' }, '⚠ Туман включён, но комнат нет — игра покажет всё чёрным. Нарисуйте хотя бы одну комнату.'));
+    if (outside.length) wrap.append(h('p', { class: 'warn' }, `Мобов вне комнат: ${outside.length}`));
+    if (fogOn && !ed.rooms.length) wrap.append(h('p', { class: 'warn' }, 'Туман включён, а комнат нет — игра покажет чёрный экран'));
     return wrap;
   }
 
@@ -353,32 +295,28 @@ export class Panels {
     const ed = this.ed;
     const def = ed.def;
     const wrap = h('div', { class: 'panel' });
-    wrap.append(h('h3', {}, 'Свойства уровня'));
     wrap.append(
-      field('Id (файл)', h('input', { type: 'text', value: def.id, disabled: true })),
       field('Название', textInput(def.display_name ?? '', (v) => ed.edit(() => { def.display_name = v; }))),
-      field('Фон', select(def.background_id ?? '', [['', '(нет)'], ...ed.project.backgrounds.map((b): [string, string] => [b.id, b.id])], (v) => ed.edit(() => { if (v) def.background_id = v; else delete def.background_id; }))),
-      field('Герой входит в броне', select(String(def.start_armor ?? 0), [['0', 'без брони'], ['1', 'модель 1'], ['2', 'модель 2 (синяя)']], (v) => ed.edit(() => { if (Number(v)) def.start_armor = Number(v); else delete def.start_armor; }))),
-      field('Клавиша перехода (1–9)', numberInput(def.debug_key ?? 0, (v) => ed.edit(() => { if (v >= 1 && v <= 9) def.debug_key = v; else delete def.debug_key; }), { min: 0, max: 9 }), 'Отладка: клавиша в игре, переключающая на этот уровень. 0 — нет'),
+      field('Фон', select(def.background_id ?? '', [['', '—'], ...ed.project.backgrounds.map((b): [string, string] => [b.id, b.id])], (v) => ed.edit(() => { if (v) def.background_id = v; else delete def.background_id; }))),
+      field('Броня на входе', select(String(def.start_armor ?? 0), [['0', 'нет'], ['1', 'модель 1'], ['2', 'модель 2']], (v) => ed.edit(() => { if (Number(v)) def.start_armor = Number(v); else delete def.start_armor; }))),
+      field('Клавиша 1–9', numberInput(def.debug_key ?? 0, (v) => ed.edit(() => { if (v >= 1 && v <= 9) def.debug_key = v; else delete def.debug_key; }), { min: 0, max: 9 }), 'Переход на этот уровень в игре. 0 — нет'),
       field('Свет: кромка', colorField(def.light?.rim_color, (v) => ed.edit(() => { def.light = { ...def.light, rim_color: v }; }))),
-      field('Свет: туман у пола', colorField(def.light?.fog_color, (v) => ed.edit(() => { def.light = { ...def.light, fog_color: v }; })))
+      field('Свет: туман', colorField(def.light?.fog_color, (v) => ed.edit(() => { def.light = { ...def.light, fog_color: v }; })))
     );
 
-    wrap.append(h('h3', {}, `Размер: ${def.width} × ${def.height} клеток`));
     const grow = { left: 0, top: 0, right: 0, bottom: 0 };
     const row = h('div', { class: 'grow-grid' });
     const addNum = (label: string, key: keyof typeof grow) => {
       row.append(h('label', { class: 'field mini' }, h('span', { class: 'field-label' }, label), numberInput(0, (v) => { grow[key] = v; })));
     };
-    addNum('Слева', 'left');
-    addNum('Сверху', 'top');
-    addNum('Справа', 'right');
-    addNum('Снизу', 'bottom');
-    wrap.append(row, h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => ed.resize(grow.left, grow.top, grow.right, grow.bottom) }, 'Изменить размер')),
-      h('p', { class: 'hint' }, 'Число — сколько клеток добавить с этой стороны (минус — обрезать). Всё содержимое сдвигается вместе с картой.'));
-
-    wrap.append(h('h3', {}, 'Опасная зона'), h('div', { class: 'btn-row' },
-      h('button', { class: 'btn danger', onclick: () => { if (confirm(`Удалить уровень «${def.id}» (файл data/levels/${ed.filename})?`)) void ed.deleteCurrentLevel(); } }, '🗑 Удалить уровень')));
+    addNum('←', 'left');
+    addNum('↑', 'top');
+    addNum('→', 'right');
+    addNum('↓', 'bottom');
+    wrap.append(h('div', { class: 'group-title' }, `Размер ${def.width} × ${def.height}`), row,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', title: '+ добавить клетки с этой стороны, − обрезать', onclick: () => ed.resize(grow.left, grow.top, grow.right, grow.bottom) }, 'Изменить'),
+        h('button', { class: 'btn danger', onclick: () => { if (confirm(`Удалить уровень «${def.id}» (data/levels/${ed.filename})?`)) void ed.deleteCurrentLevel(); } }, 'Удалить уровень')));
     return wrap;
   }
 
@@ -391,9 +329,10 @@ export class Panels {
     const box = h('div', { class: 'panel' });
     this.inspectorEl.append(box);
     if (s.kind === 'none') {
-      box.append(h('h3', {}, 'Свойства'), h('p', { class: 'hint' }, 'Ничего не выбрано. Инструмент «Выбор» (V) — клик по предмету, враг, объекту, нитке; рамкой — блок тайлов.'));
+      this.inspectorEl.classList.add('empty');
       return;
     }
+    this.inspectorEl.classList.remove('empty');
     if (s.kind === 'tiles') {
       this.tilesInspector(box, s);
       return;
@@ -406,18 +345,18 @@ export class Panels {
     }
     const ts = ed.ts;
     const actions = h('div', { class: 'btn-row' },
-      h('button', { class: 'btn', onclick: () => ed.duplicateSelection() }, '⧉ Дубль'),
-      h('button', { class: 'btn danger', onclick: () => ed.deleteSelection() }, '🗑 Удалить'));
+      h('button', { class: 'btn', onclick: () => ed.duplicateSelection() }, 'Дубль'),
+      h('button', { class: 'btn danger', onclick: () => ed.deleteSelection() }, 'Удалить'));
     switch (s.kind) {
       case 'decor': {
         const d = ed.def.decor?.[s.index];
         if (!d) return;
-        box.append(h('h3', {}, `Декор: ${d.sprite_id}`),
+        box.append(h('h3', {}, ed.decorKind(d.sprite_id)?.label ?? d.sprite_id),
           field('X, px', numberInput(Math.round(d.x * ts), (v) => ed.edit(() => { d.x = v / ts; }))),
           field('Y, px', numberInput(Math.round(d.y * ts), (v) => ed.edit(() => { d.y = v / ts; }))),
-          field('Слой', select(d.layer ?? 'front', [['front', 'Перед тайлами'], ['back', 'За тайлами']], (v) => ed.edit(() => { d.layer = v as 'back' | 'front'; }))),
-          field('Отразить по гор.', checkbox(!!d.flip_x, (v) => ed.edit(() => { if (v) d.flip_x = true; else delete d.flip_x; }))),
-          field('Отразить по верт.', checkbox(!!d.flip_y, (v) => ed.edit(() => { if (v) d.flip_y = true; else delete d.flip_y; }))),
+          field('Слой', select(d.layer ?? 'front', [['front', 'перед тайлами'], ['back', 'за тайлами']], (v) => ed.edit(() => { d.layer = v as 'back' | 'front'; }))),
+          field('Отразить ⇆', checkbox(!!d.flip_x, (v) => ed.edit(() => { if (v) d.flip_x = true; else delete d.flip_x; }))),
+          field('Отразить ⇅', checkbox(!!d.flip_y, (v) => ed.edit(() => { if (v) d.flip_y = true; else delete d.flip_y; }))),
           actions);
         break;
       }
@@ -426,12 +365,12 @@ export class Panels {
         if (!t) return;
         box.append(h('h3', {}, t.kind === 'vine' ? 'Лиана' : 'Нитка с неба'),
           field('X, px', numberInput(t.x, (v) => ed.edit(() => { t.x = Math.round(v); }))),
-          field('Y (точка закрепления), px', numberInput(t.y, (v) => ed.edit(() => { t.y = Math.round(v); }))));
-        if (t.kind === 'vine') box.append(field('Звеньев (по 14 px)', numberInput(t.pieces ?? 3, (v) => ed.edit(() => { t.pieces = Math.max(1, Math.min(12, Math.round(v))); }), { min: 1, max: 12 })));
+          field('Y, px', numberInput(t.y, (v) => ed.edit(() => { t.y = Math.round(v); }))));
+        if (t.kind === 'vine') box.append(field('Звеньев', numberInput(t.pieces ?? 3, (v) => ed.edit(() => { t.pieces = Math.max(1, Math.min(12, Math.round(v))); }), { min: 1, max: 12 })));
         else box.append(
           field('Длина, px', numberInput(t.length ?? 160, (v) => ed.edit(() => { t.length = Math.max(16, Math.round(v)); }), { min: 16 })),
-          field('Размах качания, px', numberInput(t.swing ?? 10, (v) => ed.edit(() => { t.swing = Math.max(0, v); }), { min: 0 })));
-        box.append(field('Капля на конце', checkbox(t.bead ?? true, (v) => ed.edit(() => { t.bead = v; }))), actions);
+          field('Качание, px', numberInput(t.swing ?? 10, (v) => ed.edit(() => { t.swing = Math.max(0, v); }), { min: 0 })));
+        box.append(field('Капля', checkbox(t.bead ?? true, (v) => ed.edit(() => { t.bead = v; }))), actions);
         break;
       }
       case 'enemy': {
@@ -449,7 +388,7 @@ export class Panels {
       case 'terminal': {
         const t = ed.def.terminals?.[s.index];
         if (!t) return;
-        box.append(h('h3', {}, `Терминал брони: ${t.sprite_id}`),
+        box.append(h('h3', {}, 'Терминал брони'),
           field('Клетка X', numberInput(t.x, (v) => ed.edit(() => { t.x = Math.round(v); }))),
           field('Клетка Y', numberInput(t.y, (v) => ed.edit(() => { t.y = Math.round(v); }))),
           actions);
@@ -461,18 +400,17 @@ export class Panels {
   private tilesInspector(box: HTMLElement, s: { x0: number; y0: number; x1: number; y1: number }): void {
     const ed = this.ed;
     box.append(
-      h('h3', {}, `Выделено тайлов: ${s.x1 - s.x0 + 1} × ${s.y1 - s.y0 + 1}`),
+      h('h3', {}, `Блок ${s.x1 - s.x0 + 1} × ${s.y1 - s.y0 + 1}`),
       h('div', { class: 'btn-row wrap' },
-        h('button', { class: 'btn', title: 'Каждый тайл отразить на месте (X)', onclick: () => ed.transform('flipH') }, '⇆ Тайлы'),
-        h('button', { class: 'btn', title: 'Каждый тайл перевернуть на месте (Y)', onclick: () => ed.transform('flipV') }, '⇅ Тайлы'),
-        h('button', { class: 'btn', title: 'Каждый тайл повернуть на 90° (R)', onclick: () => ed.transform('rotate') }, '↻ Тайлы'),
-        h('button', { class: 'btn', title: 'Зеркало всего блока: раскладка и тайлы', onclick: () => ed.mirrorBlock('h') }, '⇆ Блок'),
-        h('button', { class: 'btn', title: 'Зеркало всего блока вертикально', onclick: () => ed.mirrorBlock('v') }, '⇅ Блок')),
+        h('button', { class: 'btn', title: 'Отразить каждый тайл (X)', onclick: () => ed.transform('flipH') }, '⇆'),
+        h('button', { class: 'btn', title: 'Перевернуть каждый тайл (Y)', onclick: () => ed.transform('flipV') }, '⇅'),
+        h('button', { class: 'btn', title: 'Повернуть каждый тайл (R)', onclick: () => ed.transform('rotate') }, '↻'),
+        h('button', { class: 'btn', title: 'Зеркало всего блока по горизонтали', onclick: () => ed.mirrorBlock('h') }, '▤⇆'),
+        h('button', { class: 'btn', title: 'Зеркало всего блока по вертикали', onclick: () => ed.mirrorBlock('v') }, '▤⇅')),
       h('div', { class: 'btn-row wrap' },
-        h('button', { class: 'btn', title: 'Копировать (Ctrl+C)', onclick: () => ed.copySelection() }, '⧉ Копировать'),
-        h('button', { class: 'btn', title: 'Вставить в клетку под курсором (Ctrl+V)', disabled: !ed.clipboard, onclick: () => ed.paste(ed.hover.cx, ed.hover.cy) }, '📋 Вставить'),
-        h('button', { class: 'btn danger', onclick: () => ed.clearSelectionTiles() }, '🗑 Очистить')),
-      h('p', { class: 'hint' }, 'Блок целиком: «⇆ Блок» зеркалит и раскладку, и каждый тайл. «Тайлы» — только повернуть/отразить сами тайлы на месте.'));
+        h('button', { class: 'btn', title: 'Копировать (Ctrl+C)', onclick: () => ed.copySelection() }, 'Копировать'),
+        h('button', { class: 'btn', title: 'Вставить под курсором (Ctrl+V)', disabled: !ed.clipboard, onclick: () => ed.paste(ed.hover.cx, ed.hover.cy) }, 'Вставить'),
+        h('button', { class: 'btn danger', onclick: () => ed.clearSelectionTiles() }, 'Очистить')));
   }
 
   private enemyInspector(e: EnemySpawnDef): HTMLElement {
@@ -481,28 +419,28 @@ export class Panels {
     const wrap = h('div', {});
     wrap.append(h('h3', {}, def?.display_name ?? e.enemy_id));
     if (def && def.sprite_variants.length > 1) {
-      wrap.append(field('Внешность', select(e.sprite_id, def.sprite_variants.map((v): [string, string] => [v, v]), (v) => ed.edit(() => { e.sprite_id = v; }))));
+      wrap.append(field('Вид', select(e.sprite_id, def.sprite_variants.map((v): [string, string] => [v, v]), (v) => ed.edit(() => { e.sprite_id = v; }))));
     }
     wrap.append(
       field('Клетка X', numberInput(e.x, (v) => ed.edit(() => { e.x = Math.round(v); }))),
       field('Клетка Y', numberInput(e.y, (v) => ed.edit(() => { e.y = Math.round(v); })))
     );
     if (def?.behavior_type === 'crawler') {
-      wrap.append(field('Поверхность', select(e.surface ?? 'floor', [['floor', 'Пол'], ['ceiling', 'Потолок'], ['wall_left', 'Стена слева'], ['wall_right', 'Стена справа']], (v) => ed.edit(() => { e.surface = v as EnemySpawnDef['surface']; }))));
+      wrap.append(field('Поверхность', select(e.surface ?? 'floor', [['floor', 'пол'], ['ceiling', 'потолок'], ['wall_left', 'стена слева'], ['wall_right', 'стена справа']], (v) => ed.edit(() => { e.surface = v as EnemySpawnDef['surface']; }))));
     }
     if (def?.behavior_type === 'spawner') {
-      wrap.append(field('Верх нитки (ряд)', numberInput(e.anchor_y ?? -2, (v) => ed.edit(() => { e.anchor_y = Math.round(v); }))));
+      wrap.append(field('Верх нитки, ряд', numberInput(e.anchor_y ?? -2, (v) => ed.edit(() => { e.anchor_y = Math.round(v); }))));
     }
     if (def?.behavior_type === 'burrower') {
-      wrap.append(field('Длина (звеньев)', numberInput(e.length ?? 4, (v) => ed.edit(() => { e.length = Math.max(3, Math.min(5, Math.round(v))); }), { min: 3, max: 5 })));
+      wrap.append(field('Длина', numberInput(e.length ?? 4, (v) => ed.edit(() => { e.length = Math.max(3, Math.min(5, Math.round(v))); }), { min: 3, max: 5 })));
     }
     if (def?.behavior_type === 'flying_worm') {
-      wrap.append(field('Длина (звеньев)', numberInput(e.length ?? 10, (v) => ed.edit(() => { e.length = Math.max(3, Math.round(v)); }), { min: 3 })));
+      wrap.append(field('Длина', numberInput(e.length ?? 10, (v) => ed.edit(() => { e.length = Math.max(3, Math.round(v)); }), { min: 3 })));
     }
     if (ed.rooms.length) {
       const auto = roomsAt(ed.def, e.x, e.y)[0];
-      wrap.append(field('Комната-дом', select(e.room ?? '', [['', auto ? `авто: ${auto.name}` : 'авто: вне комнат'], ...ed.rooms.map((r): [string, string] => [r.id, r.name])], (v) => ed.edit(() => { if (v) e.room = v; else delete e.room; })),
-        'Моб замечает героя и атакует только пока герой в этой комнате'));
+      wrap.append(field('Комната', select(e.room ?? '', [['', auto ? `авто · ${auto.name}` : 'авто · вне комнат'], ...ed.rooms.map((r): [string, string] => [r.id, r.name])], (v) => ed.edit(() => { if (v) e.room = v; else delete e.room; })),
+        'Моб нападает, только пока герой в этой комнате'));
     }
     return wrap;
   }
@@ -517,13 +455,12 @@ export class Panels {
         if (!next || (ed.def.objects ?? []).some((p) => p !== o && p.id === next)) return;
         for (const p of ed.def.objects ?? []) if (p.props?.to_door === o.id && !p.props.to_level) p.props.to_door = next; // ссылки на эту дверь
         o.id = next;
-      }), 'Уникален на уровне; на него ссылаются двери и сохранения')),
+      }), 'Уникален на уровне; на него ссылаются двери')),
       field('X, px', numberInput(o.x, (v) => ed.edit(() => { o.x = Math.round(v); }))),
-      field('Y, px (низ предмета)', numberInput(o.y, (v) => ed.edit(() => { o.y = Math.round(v); })))
+      field('Y, px', numberInput(o.y, (v) => ed.edit(() => { o.y = Math.round(v); })))
     );
-    if (kind?.flip) out.push(field('Отразить', checkbox(!!o.flip_x, (v) => ed.edit(() => { if (v) o.flip_x = true; else delete o.flip_x; }))));
+    if (kind?.flip) out.push(field('Отразить ⇆', checkbox(!!o.flip_x, (v) => ed.edit(() => { if (v) o.flip_x = true; else delete o.flip_x; }))));
     for (const p of kind?.props ?? []) out.push(this.propField(o, p));
-    if (kind?.hint) out.push(h('p', { class: 'hint' }, kind.hint));
     return out;
   }
 
@@ -540,21 +477,21 @@ export class Panels {
       case 'bool': return field(p.label, checkbox(!!cur, (v) => set(v)));
       case 'number': return field(p.label, numberInput(Number(cur ?? p.default ?? 0), (v) => set(v)));
       case 'select': return field(p.label, select(String(cur ?? p.default ?? ''), (p.options ?? []).map((v): [string, string] => [v, v]), (v) => set(v)));
-      case 'item': return field(p.label, select(String(cur ?? ''), [['', '(нет)'], ...ed.project.placeables.items.map((i): [string, string] => [i.id, i.label])], (v) => set(v)));
-      case 'level': return field(p.label, select(String(cur ?? ''), [['', '(этот уровень)'], ...ed.levelIds().filter((id) => id !== ed.def.id).map((id): [string, string] => [id, id])], (v) => set(v)));
+      case 'item': return field(p.label, select(String(cur ?? ''), [['', '—'], ...ed.project.placeables.items.map((i): [string, string] => [i.id, i.label])], (v) => set(v)));
+      case 'level': return field(p.label, select(String(cur ?? ''), [['', 'этот уровень'], ...ed.levelIds().filter((id) => id !== ed.def.id).map((id): [string, string] => [id, id])], (v) => set(v)));
       case 'door': {
         const target = ed.levelById(String(o.props?.to_level ?? '') || ed.def.id);
         const doors = (target?.objects ?? []).filter((d) => d !== o && ed.objectKind(d.type)?.behavior === 'door').map((d): [string, string] => [d.id, d.id]);
-        return field(p.label, select(String(cur ?? ''), [['', '(не выбрана)'], ...doors], (v) => set(v)), 'Дверь, в которую попадёт герой');
+        return field(p.label, select(String(cur ?? ''), [['', '—'], ...doors], (v) => set(v)));
       }
       default: return field(p.label, textInput(String(cur ?? ''), (v) => set(v)));
     }
   }
 }
 
-function anchorText(k: { anchor: string; snap: string; layer?: string }): string {
-  const a = { floor: 'встаёт на пол', ceiling: 'вешается под потолок', free: 'ставится на любой пиксель' }[k.anchor] ?? k.anchor;
-  const s = { pixel: 'шаг — пиксель', half: 'шаг — полклетки', tile: 'по центру клетки' }[k.snap] ?? k.snap;
+function anchorText(k: { anchor: string; snap: string }): string {
+  const a = { floor: 'на пол', ceiling: 'под потолок', free: 'куда угодно' }[k.anchor] ?? k.anchor;
+  const s = { pixel: 'по пикселям', half: 'через полклетки', tile: 'по клеткам' }[k.snap] ?? k.snap;
   return `${a}, ${s}`;
 }
 
@@ -567,4 +504,3 @@ function colorField(value: string | undefined, onChange: (v: string) => void): H
   input.addEventListener('change', () => onChange(input.value));
   return input;
 }
-

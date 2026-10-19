@@ -1,6 +1,8 @@
 /**
  * Квестовое состояние героя: предметы (батарейка), флаги (подставка включена), что уже подобрано на уровнях.
- * Переживает перезагрузку страницы и смену уровня (localStorage), как броня.
+ * Живёт только в одном «прохождении»: каждый запуск игры и перезагрузка страницы начинают с чистого листа (карта восстанавливается целиком —
+ * батарейки лежат на местах, подставки пусты). Состояние переносится лишь через дверь на другой уровень (carryOver перед переходом):
+ * страница перезагружается, и герой приносит с собой предметы и флаги.
  */
 export class Quest {
   private static instance: Quest;
@@ -10,6 +12,7 @@ export class Quest {
   }
 
   private static readonly KEY = 'ld60.quest';
+  private static readonly CARRY = 'ld60.quest.carry';
 
   private readonly items = new Map<string, number>();
   private readonly flags = new Set<string>();
@@ -17,18 +20,30 @@ export class Quest {
 
   private constructor() {
     try {
-      const d = JSON.parse(localStorage.getItem(Quest.KEY) ?? 'null');
+      const carried = sessionStorage.getItem(Quest.CARRY) === '1';
+      sessionStorage.removeItem(Quest.CARRY); // перенос действует на одну загрузку
+      const saved = carried ? sessionStorage.getItem(Quest.KEY) : null;
+      sessionStorage.removeItem(Quest.KEY); // не перенесли — забываем всё прежнее
+      const d = JSON.parse(saved ?? 'null');
       if (!d) return;
       for (const [id, n] of Object.entries(d.items ?? {})) if (Number(n) > 0) this.items.set(id, Number(n));
       for (const f of d.flags ?? []) this.flags.add(String(f));
       for (const t of d.taken ?? []) this.taken.add(String(t));
-    } catch { /* хранилище недоступно или повреждено — начинаем с нуля */ }
+    } catch { /* хранилище недоступно — чистый лист */ }
   }
 
   private save(): void {
     try {
-      localStorage.setItem(Quest.KEY, JSON.stringify({ items: Object.fromEntries(this.items), flags: [...this.flags], taken: [...this.taken] }));
+      sessionStorage.setItem(Quest.KEY, JSON.stringify({ items: Object.fromEntries(this.items), flags: [...this.flags], taken: [...this.taken] }));
     } catch { /* без сохранения */ }
+  }
+
+  /** Вызывать перед уходом через дверь на другой уровень: следующая загрузка страницы продолжит с этим состоянием. */
+  public carryOver(): void {
+    this.save();
+    try {
+      sessionStorage.setItem(Quest.CARRY, '1');
+    } catch { /* без переноса */ }
   }
 
   public count(item: string): number {

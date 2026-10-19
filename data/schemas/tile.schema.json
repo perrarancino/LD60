@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "TileSet",
-  "description": "Определения тайлов уровня. Один тайл = один спрайт (категория tiles) квадратного размера tile_size.",
+  "description": "Определения тайлов уровня. Один тайл = один кадр спрайта (категория tiles) квадратного размера tile_size. Листы из нескольких кадров описываются отдельным тайлом на каждый кадр.",
   "type": "object",
   "required": ["version", "tile_size", "tiles"],
   "properties": {
@@ -18,10 +18,8 @@
           "sprite_id": { "type": "string", "description": "Id спрайта из data/sprites/sprites.json" },
           "solid": { "type": "boolean", "description": "Твёрдый тайл блокирует движение" },
           "one_way": { "type": "boolean", "description": "Проходим снизу, твёрд сверху (платформа-«облачко»)" },
-          "fill_sprite_id": { "type": "string", "description": "Спрайт заливки: рисуется вместо основного у клеток, над которыми тоже твёрдая клетка (стены и толща под верхним слоем тайлов)" },
-          "top_frames": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1, "description": "Кадры листа sprite_id для верхнего слоя (над клеткой нет твёрдой); вариант выбирается по клетке детерминированно" },
-          "fill_frames": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1, "description": "Кадры листа для толщи (над клеткой твёрдая клетка): то же" },
-          "loop_frames": { "type": "integer", "minimum": 2, "description": "Спрайт — лист из стольких кадров-тайлов подряд; в ряду тайлов кадры чередуются по кругу (0, 1, 2, 0, 1, 2…) с начала ряда" },
+          "frame": { "type": "integer", "minimum": 0, "description": "Кадр листа sprite_id (0 по умолчанию). Каждый кадр листа — отдельный тайл; игра и редактор ничего не выбирают сами по соседям — какой тайл поставлен в клетку, такой и рисуется" },
+          "group": { "type": "string", "description": "Раздел в палитре редактора" },
           "slope": { "type": "string", "enum": ["up_right", "up_left", "ceil_right", "ceil_left"], "description": "Диагональный скос/срез тайла под 45 градусов для создания непрямоугольных границ и срезанных углов" }
         }
       }

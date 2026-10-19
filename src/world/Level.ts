@@ -34,7 +34,7 @@ export class Level {
   public static spriteIds(def: LevelDef, tileset: TileSetDef): string[] {
     const used = new Set(Object.values(def.legend).filter((v): v is string => v !== null));
     return [
-      ...tileset.tiles.filter((t) => used.has(t.id)).flatMap((t) => (t.fill_sprite_id ? [t.sprite_id, t.fill_sprite_id] : [t.sprite_id])),
+      ...tileset.tiles.filter((t) => used.has(t.id)).flatMap((t) => [t.sprite_id]),
       ...(def.decor ?? []).map((d) => d.sprite_id),
       ...(def.objects ?? []).flatMap((o) => objectSpriteIds(o)),
       THREAD_SPRITE
@@ -52,12 +52,7 @@ export class Level {
     this.heightTiles = def.height;
 
     const tilesById = new Map(tileset.tiles.map((t) => [t.id, t]));
-    const tileAt = (cx: number, cy: number) => {
-      const tileId = def.legend[def.rows[cy]?.[cx]];
-      return tileId ? tilesById.get(tileId) : undefined;
-    };
     const xforms = xformMap(def.tile_xform);
-    const env = { tileAt, solidAt: (cx: number, cy: number) => this.solid[cy]?.[cx] ?? false };
     const ts = this.tileSize;
     for (let cy = 0; cy < def.height; cy++) {
       this.solid[cy] = [];
@@ -75,7 +70,7 @@ export class Level {
         this.slopes[cy][cx] = slope;
         if (!tile) continue;
 
-        const look = tileVisual(tile, cx, cy, env);
+        const look = tileVisual(tile);
         const sprite = sprites.createSprite(look.sprite_id, look.frame);
         const ox = cx * ts;
         const oy = cy * ts;

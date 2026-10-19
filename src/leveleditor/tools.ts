@@ -491,8 +491,7 @@ export class Tools {
         if (ed.brushTile) {
           const tile = ed.tileDef(ed.brushTile);
           if (tile) {
-            const frame = tile.top_frames ? tile.top_frames[0] : tile.loop_frames ? 1 : 0;
-            ed.atlas.drawTile(ctx, tile.sprite_id, frame, h.cx * ts, h.cy * ts, ts, ed.brushXf, 0.65);
+            ed.atlas.drawTile(ctx, tile.sprite_id, tile.frame ?? 0, h.cx * ts, h.cy * ts, ts, ed.brushXf, 0.65);
           }
         }
         cellOutline('#4ade80');

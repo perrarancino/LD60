@@ -18,6 +18,7 @@ import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { LevelObjects } from './world/Objects.ts';
 import { Fog, RoomMap } from './world/Rooms.ts';
+import { Quest } from './systems/Quest.ts';
 import type { Leash } from './world/Rooms.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
@@ -640,6 +641,7 @@ class GameApp {
 
   /** Дверь ведёт на другой уровень: страница перезагружается с адресом уровня и двери, у которой герой появится. */
   private travelTo(levelId: string, doorId: string): void {
+    Quest.get().carryOver(); // предметы и флаги переходят вместе с героем
     const url = new URL(window.location.href);
     url.searchParams.set('level', levelId);
     url.searchParams.delete('spawn');

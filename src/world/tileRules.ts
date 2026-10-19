@@ -1,41 +1,18 @@
 import type { Slope, TileDef, TileXformDef } from '../data/types.ts';
 
 /**
- * Правила тайлов, общие для игры (Level.ts) и редактора уровней: какой кадр рисуется в клетке и как поворот/отражение
+ * Правила тайлов, общие для игры (Level.ts) и редактора уровней: какой кадр рисует тайл и как поворот/отражение
  * меняют рисунок и наклон скоса. Так редактор показывает ровно то, что потом увидит игра.
  */
-
-/** Окружение клетки: что стоит в соседях (для выбора кадра). */
-export interface TileEnv {
-  tileAt: (cx: number, cy: number) => TileDef | undefined;
-  solidAt: (cx: number, cy: number) => boolean;
-}
 
 export interface TileVisual {
   sprite_id: string;
   frame: number;
 }
 
-/** Какой спрайт и кадр рисуется в клетке (cx, cy) для тайла tile. */
-export function tileVisual(tile: TileDef, cx: number, cy: number, env: TileEnv): TileVisual {
-  const under = cy > 0 && env.solidAt(cx, cy - 1);
-  if ((tile.top_frames || tile.fill_frames) && !tile.slope) {
-    // Лист вариантов (textalite): сверху — кадры верхнего слоя, в толще — кадры заливки; вариант выбирается по клетке, всегда один и тот же
-    const pool = (under ? tile.fill_frames : tile.top_frames) ?? tile.top_frames ?? tile.fill_frames!;
-    return { sprite_id: tile.sprite_id, frame: pool[(((cx * 73856093) ^ (cy * 19349663)) >>> 0) % pool.length] };
-  }
-  if (tile.fill_sprite_id && under && !tile.slope) {
-    // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
-    return { sprite_id: tile.fill_sprite_id, frame: 0 };
-  }
-  let frame = 0;
-  if (tile.loop_frames && tile.loop_frames >= 3) {
-    // Платформа из трёх кадров: левый край (0), середина (1, повторяется), правый край (2). Одиночный тайл (стенка) — середина.
-    const left = env.tileAt(cx - 1, cy) === tile;
-    const right = env.tileAt(cx + 1, cy) === tile;
-    frame = left && right ? 1 : right ? 0 : left ? tile.loop_frames - 1 : 1;
-  }
-  return { sprite_id: tile.sprite_id, frame };
+/** Какой спрайт и кадр рисует тайл. Никакой автоматики по соседям: что выбрано в редакторе, то и стоит. */
+export function tileVisual(tile: TileDef): TileVisual {
+  return { sprite_id: tile.sprite_id, frame: tile.frame ?? 0 };
 }
 
 // ---------- Поворот и отражение ----------

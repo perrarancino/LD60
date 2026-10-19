@@ -7,26 +7,35 @@
   "width": 30,
   "height": 16,
   "legend": {
-    "#": "textalite",
-    ".": null
+    ".": null,
+    "#": "textalite_5",
+    "@": "textalite_1",
+    "%": "textalite_2",
+    "&": "textalite_3",
+    "$": "textalite_9",
+    "A": "textalite_7",
+    "B": "textalite_0",
+    "C": "textalite_8",
+    "D": "textalite_6",
+    "E": "textalite_4"
   },
   "rows": [
     "..............................",
     "..............................",
     "..............................",
     "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "..........................#...",
-    "...................####...#...",
-    "...####.####..............#...",
-    ".......................#..#...",
-    ".......................#..#...",
-    "##############################"
+    "..........................@...",
+    "..........................@...",
+    "..........................%...",
+    "..........................&...",
+    "..........................%...",
+    "..........................&...",
+    "..........................&...",
+    "...................$AAA...B...",
+    "...$C$A.DCAA..............B...",
+    ".......................#..%...",
+    ".......................B..B...",
+    "#DACD##A#CCDCD#ADAA#AC#%##E$#C"
   ],
   "player_spawn": {
     "x": 2,
@@ -39,105 +48,7 @@
       "y": 14
     }
   ],
-  "enemies": [
-    {
-      "enemy_id": "spider",
-      "sprite_id": "enemy_spider",
-      "x": 20,
-      "y": 10,
-      "surface": "floor"
-    },
-    {
-      "enemy_id": "spider",
-      "sprite_id": "enemy_spider",
-      "x": 25,
-      "y": 8,
-      "surface": "wall_right"
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 12,
-      "y": 14,
-      "surface": "floor",
-      "length": 4
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 19,
-      "y": 14,
-      "surface": "floor",
-      "length": 5
-    },
-    {
-      "enemy_id": "spider_mother",
-      "sprite_id": "enemy_spider_mother",
-      "x": 12,
-      "y": 8,
-      "anchor_y": -2
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 16,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 17,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 18,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 20,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 19,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 15,
-      "y": 7
-    },
-    {
-      "enemy_id": "worm",
-      "sprite_id": "enemy_worm",
-      "x": 14,
-      "y": 7
-    },
-    {
-      "enemy_id": "electro_rat",
-      "sprite_id": "enemy_electro_rat",
-      "x": 6,
-      "y": 11
-    },
-    {
-      "enemy_id": "electro_rat",
-      "sprite_id": "enemy_electro_rat",
-      "x": 9,
-      "y": 11
-    },
-    {
-      "enemy_id": "electro_rat",
-      "sprite_id": "enemy_electro_rat",
-      "x": 11,
-      "y": 11
-    }
-  ],
+  "enemies": [],
   "decor": [
     {
       "sprite_id": "deco_cooler",
@@ -146,170 +57,8 @@
       "layer": "back"
     },
     {
-      "sprite_id": "deco_ram",
-      "x": 4.5,
-      "y": 12,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_ram",
-      "x": 10,
-      "y": 12,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 6.5,
-      "y": 12,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 8.5,
-      "y": 12,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 11.5,
-      "y": 12,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 4.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 5.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 6.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
       "sprite_id": "deco_transistor",
       "x": 7.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 8.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 9.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 10.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 11.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 12.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 19.5,
-      "y": 11,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 21.5,
-      "y": 11,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 22.5,
-      "y": 11,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 18.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 20.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 21.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 22.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 26.5,
-      "y": 3,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 23.5,
-      "y": 13,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 24.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 25.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 27.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 28.5,
-      "y": 15,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 29.5,
       "y": 15,
       "layer": "front"
     }
@@ -348,211 +97,31 @@
   },
   "debug_key": 1,
   "start_armor": 1,
-  "threads": [
+  "objects": [
     {
-      "kind": "vine",
-      "x": 616,
-      "y": 384,
-      "pieces": 3,
-      "bead": false
+      "id": "battery_stand_1",
+      "type": "battery_stand",
+      "x": 688,
+      "y": 352,
+      "props": {
+        "needs_item": "battery",
+        "sets_flag": "power_on"
+      }
     },
     {
-      "kind": "vine",
-      "x": 623,
-      "y": 384,
-      "pieces": 6,
-      "bead": true
+      "id": "battery_1",
+      "type": "battery",
+      "x": 323,
+      "y": 344,
+      "props": {
+        "item": "battery"
+      }
     },
     {
-      "kind": "vine",
-      "x": 631,
-      "y": 384,
-      "pieces": 3,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 647,
-      "y": 384,
-      "pieces": 3,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 657,
-      "y": 384,
-      "pieces": 5,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 664,
-      "y": 384,
-      "pieces": 6,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 682,
-      "y": 384,
-      "pieces": 3,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 692,
-      "y": 384,
-      "pieces": 2,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 712,
-      "y": 384,
-      "pieces": 5,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 720,
-      "y": 384,
-      "pieces": 4,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 727,
-      "y": 384,
-      "pieces": 3,
-      "bead": false
-    },
-    {
-      "kind": "sky",
-      "x": 652,
-      "y": -64,
-      "length": 408,
-      "swing": 14,
-      "bead": true
-    },
-    {
-      "kind": "sky",
-      "x": 714,
-      "y": -64,
-      "length": 367,
-      "swing": 9,
-      "bead": true
-    },
-    {
-      "kind": "sky",
-      "x": 793,
-      "y": -64,
-      "length": 459,
-      "swing": 12,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 136,
-      "y": 416,
-      "pieces": 2,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 145,
-      "y": 416,
-      "pieces": 1,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 152,
-      "y": 416,
-      "pieces": 2,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 203,
-      "y": 416,
-      "pieces": 3,
-      "bead": true
-    },
-    {
-      "kind": "vine",
-      "x": 214,
-      "y": 416,
-      "pieces": 2,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 296,
-      "y": 416,
-      "pieces": 3,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 304,
-      "y": 416,
-      "pieces": 2,
-      "bead": false
-    },
-    {
-      "kind": "vine",
-      "x": 312,
-      "y": 416,
-      "pieces": 1,
-      "bead": false
-    },
-    {
-      "kind": "sky",
-      "x": 101,
-      "y": -64,
-      "length": 440,
-      "swing": 13,
-      "bead": true
-    },
-    {
-      "kind": "sky",
-      "x": 295,
-      "y": -64,
-      "length": 440,
-      "swing": 11,
-      "bead": false
-    },
-    {
-      "kind": "sky",
-      "x": 407,
-      "y": -64,
-      "length": 398,
-      "swing": 7,
-      "bead": true
-    },
-    {
-      "kind": "sky",
-      "x": 402,
-      "y": -64,
-      "length": 256,
-      "swing": 11,
-      "bead": false
-    },
-    {
-      "kind": "sky",
-      "x": 474,
-      "y": -64,
-      "length": 175,
-      "swing": 10,
-      "bead": false
-    },
-    {
-      "kind": "sky",
-      "x": 566,
-      "y": -64,
-      "length": 231,
-      "swing": 13,
-      "bead": false
+      "id": "password_1",
+      "type": "password",
+      "x": 592,
+      "y": 480
     }
   ]
 }

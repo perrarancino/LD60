@@ -14,22 +14,23 @@ interface ToolButton {
   key: string;
   icon: string;
   label: string;
-  tab: 'tiles' | 'decor' | 'threads' | 'mobs' | 'objects' | 'rooms' | null;
+  tab: 'tiles' | 'decor' | 'mobs' | 'objects' | 'rooms' | null;
+  hint: string; // подсказка в строке состояния
 }
 
 const TOOLS: ToolButton[] = [
-  { id: 'select', key: 'V', icon: '⬚', label: 'Выбор и перемещение', tab: null },
-  { id: 'brush', key: 'B', icon: '✏', label: 'Кисть тайлов (Shift — линия, ПКМ — стереть)', tab: 'tiles' },
-  { id: 'eraser', key: 'E', icon: '⌫', label: 'Ластик', tab: 'tiles' },
-  { id: 'rect', key: 'U', icon: '▭', label: 'Прямоугольник (Shift — рамка, ПКМ — стереть)', tab: 'tiles' },
-  { id: 'fill', key: 'G', icon: '◧', label: 'Заливка', tab: 'tiles' },
-  { id: 'pick', key: 'I', icon: '⌖', label: 'Пипетка: взять тайл с карты', tab: 'tiles' },
-  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor' },
-  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки на пиксели', tab: 'threads' },
-  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы и боссы', tab: 'mobs' },
-  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты: двери, квестовые предметы', tab: 'objects' },
-  { id: 'spawn', key: 'S', icon: '⚑', label: 'Старт героя', tab: 'objects' },
-  { id: 'room', key: 'K', icon: '▦', label: 'Комнаты (границы уровней, туман войны)', tab: 'rooms' }
+  { id: 'select', key: 'V', icon: '⬚', label: 'Выбор', tab: null, hint: 'Клик — выбрать · перетащить — двигать · рамка — блок тайлов · Delete — удалить · стрелки — сдвиг' },
+  { id: 'brush', key: 'B', icon: '✏', label: 'Кисть', tab: 'tiles', hint: 'ЛКМ — рисовать · ПКМ — стереть · Shift — линия · X / Y / R — отразить, повернуть' },
+  { id: 'eraser', key: 'E', icon: '⌫', label: 'Ластик', tab: 'tiles', hint: 'ЛКМ — стереть тайл' },
+  { id: 'rect', key: 'U', icon: '▭', label: 'Прямоугольник', tab: 'tiles', hint: 'Протяжка — залить прямоугольник · Shift — только рамка · ПКМ — стереть' },
+  { id: 'fill', key: 'G', icon: '◧', label: 'Заливка', tab: 'tiles', hint: 'Клик — залить связную область' },
+  { id: 'pick', key: 'I', icon: '⌖', label: 'Пипетка', tab: 'tiles', hint: 'Клик — взять тайл с карты' },
+  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor', hint: 'Клик — поставить · Alt — без привязки · ПКМ — удалить · Ctrl+клик — выбрать · X / Y — отразить' },
+  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки', tab: 'decor', hint: 'Клик — закрепить (лиана — по сетке) · протяжка вниз — длина · Alt — свободно · ПКМ — удалить' },
+  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы', tab: 'mobs', hint: 'Клик — поставить в клетку · ПКМ — удалить · Ctrl+клик — выбрать' },
+  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты', tab: 'objects', hint: 'Клик — поставить · ПКМ — удалить · Ctrl+клик — выбрать' },
+  { id: 'spawn', key: 'S', icon: '⚑', label: 'Старт героя', tab: 'objects', hint: 'Клик — поставить точку появления героя' },
+  { id: 'room', key: 'K', icon: '▦', label: 'Комнаты', tab: 'rooms', hint: 'ЛКМ — закрасить комнату · ПКМ — стереть · режимы — во вкладке «Комнаты»' }
 ];
 
 async function start(): Promise<void> {
@@ -98,72 +99,68 @@ async function start(): Promise<void> {
   const btn = (label: string, title: string, onclick: () => void, cls = '') => h('button', { class: `btn ${cls}`.trim(), title, onclick }, label);
   const undoBtn = btn('↩', 'Отмена (Ctrl+Z)', () => ed.undo(), 'icon');
   const redoBtn = btn('↪', 'Повтор (Ctrl+Y)', () => ed.redo(), 'icon');
-  const saveBtn = btn('💾 Сохранить', 'Сохранить уровень (Ctrl+S)', () => void ed.save(), 'primary');
+  const saveBtn = btn('💾', 'Сохранить уровень (Ctrl+S)', () => void ed.save(), 'primary icon');
   const zoomLabel = h('span', { class: 'zoom-label' }, '100%');
 
-  const toggle = (key: LayerKey, label: string, title: string) => {
-    const b = h('button', { class: 'btn toggle', title, onclick: () => { ed.show[key] = !ed.show[key]; sync(); ed.emit('view'); } }, label);
-    return { el: b, key };
-  };
-  const toggles = [
-    toggle('grid', 'Сетка', 'Сетка клеток'),
-    toggle('rooms', 'Комнаты', 'Контуры комнат и привязка мобов'),
-    toggle('fog', 'Туман', 'Предпросмотр тумана: видна только активная комната (F)'),
-    toggle('collisions', 'Коллизии', 'Обвести твёрдые клетки'),
-    toggle('background', 'Фон', 'Цвет фона уровня'),
-    toggle('labels', 'Подписи', 'Подписи дверей и комнат')
+  // ---- «Вид»: что показывать. Скрытое не рисуется и не выбирается мышью — чтобы не мешало
+  const VIEW_OPTIONS: Array<[LayerKey, string]> = [
+    ['grid', 'Сетка'],
+    ['rooms', 'Контуры комнат'],
+    ['fog', 'Предпросмотр тумана'],
+    ['collisions', 'Коллизии'],
+    ['labels', 'Подписи'],
+    ['background', 'Цвет фона']
   ];
-
-  // ---- слои: что показывать (скрытое не рисуется и не выбирается мышью), чтобы не мешало
-  const layersMenu = h('div', { class: 'layers-menu' });
-  layersMenu.style.display = 'none';
-  const layersBtn = h('button', { class: 'btn toggle', title: 'Слои: скрыть то, что мешает', onclick: (e: Event) => {
+  const viewMenu = h('div', { class: 'layers-menu' });
+  viewMenu.style.display = 'none';
+  const viewBtn = h('button', { class: 'btn', title: 'Вид и слои', onclick: (e: Event) => {
     e.stopPropagation();
-    layersMenu.style.display = layersMenu.style.display === 'none' ? 'block' : 'none';
-    const r = layersBtn.getBoundingClientRect();
-    layersMenu.style.top = `${r.bottom + 4}px`;
-    layersMenu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 290))}px`;
-    renderLayers();
-  } }, '👁 Слои');
-  function renderLayers(): void {
-    clear(layersMenu);
-    layersMenu.append(
-      h('div', { class: 'layers-head' },
-        h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = true; ed.emit('view'); } }, 'Показать все'),
-        h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = k === 'tiles'; ed.emit('view'); } }, 'Только тайлы'))
-    );
-    for (const [key, label] of CONTENT_LAYERS) {
-      const cb = h('input', { type: 'checkbox', checked: ed.show[key] }) as HTMLInputElement;
-      cb.addEventListener('change', () => { ed.show[key] = cb.checked; ed.emit('view'); });
-      layersMenu.append(h('label', { class: 'layer-row' }, cb, h('span', {}, label),
-        h('button', { class: 'btn small', title: 'Показать только этот слой (и тайлы)', onclick: (e: Event) => {
-          e.preventDefault();
-          for (const [k] of CONTENT_LAYERS) ed.show[k] = k === key || k === 'tiles';
-          ed.emit('view');
-        } }, 'solo')));
-    }
+    viewMenu.style.display = viewMenu.style.display === 'none' ? 'block' : 'none';
+    const r = viewBtn.getBoundingClientRect();
+    viewMenu.style.top = `${r.bottom + 4}px`;
+    viewMenu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 290))}px`;
+    renderView();
+  } }, '👁 Вид');
+  function checkRow(key: LayerKey, label: string, solo = false): HTMLElement {
+    const cb = h('input', { type: 'checkbox', checked: ed.show[key] }) as HTMLInputElement;
+    cb.addEventListener('change', () => { ed.show[key] = cb.checked; ed.emit('view'); });
+    return h('label', { class: 'layer-row' }, cb, h('span', {}, label),
+      solo ? h('button', { class: 'btn small', title: 'Показать только этот слой (и тайлы)', onclick: (e: Event) => {
+        e.preventDefault();
+        for (const [k] of CONTENT_LAYERS) ed.show[k] = k === key || k === 'tiles';
+        ed.emit('view');
+      } }, 'solo') : null);
+  }
+  function renderView(): void {
+    clear(viewMenu);
+    viewMenu.append(h('div', { class: 'layers-title' }, 'Слои'));
+    for (const [key, label] of CONTENT_LAYERS) viewMenu.append(checkRow(key, label, true));
+    viewMenu.append(h('div', { class: 'layers-head' },
+      h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = true; ed.emit('view'); } }, 'Все'),
+      h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = k === 'tiles'; ed.emit('view'); } }, 'Только тайлы')));
+    viewMenu.append(h('div', { class: 'layers-title' }, 'Показывать'));
+    for (const [key, label] of VIEW_OPTIONS) viewMenu.append(checkRow(key, label));
   }
   document.addEventListener('click', (e) => {
-    if (!layersMenu.contains(e.target as Node)) layersMenu.style.display = 'none';
+    if (!viewMenu.contains(e.target as Node)) viewMenu.style.display = 'none';
   });
-  document.body.append(layersMenu);
-  ed.on('view', () => { if (layersMenu.style.display !== 'none') renderLayers(); });
+  document.body.append(viewMenu);
+  ed.on('view', () => { if (viewMenu.style.display !== 'none') renderView(); });
 
   topbar.append(
-    h('div', { class: 'brand' }, h('b', {}, 'LD60'), h('span', {}, 'Редактор уровней')),
+    h('div', { class: 'brand' }, h('b', {}, 'LD60')),
     levelSelect,
-    btn('+ Новый', 'Создать новый уровень', () => openNewLevelDialog()),
+    btn('+', 'Новый уровень', () => openNewLevelDialog(), 'icon'),
     saveBtn, dirtyMark, undoBtn, redoBtn,
     h('span', { class: 'sep' }),
     btn('⇆', 'Отразить (X): кисть, выбранное или блок тайлов', () => ed.transform('flipH'), 'icon'),
     btn('⇅', 'Перевернуть (Y)', () => ed.transform('flipV'), 'icon'),
     btn('↻', 'Повернуть на 90° (R)', () => ed.transform('rotate'), 'icon'),
     h('span', { class: 'sep' }),
-    btn('▶ Играть', 'Сохранить и запустить игру на этом уровне (P)', () => void play(false), 'success'),
-    btn('▶ Отсюда', 'Запустить с клетки под курсором (Shift+P)', () => void play(true), 'success'),
+    btn('▶', 'Играть: сохранить и запустить этот уровень с нуля (P)', () => void play(false), 'success icon'),
+    btn('▶⌖', 'Играть с клетки под курсором (Shift+P)', () => void play(true), 'success'),
     h('span', { class: 'sep' }),
-    ...toggles.map((t) => t.el),
-    layersBtn,
+    viewBtn,
     h('span', { class: 'sep' }),
     btn('−', 'Уменьшить', () => ed.zoomAt(1 / 1.25, canvas.width / 2, canvas.height / 2), 'icon'),
     zoomLabel,
@@ -172,17 +169,17 @@ async function start(): Promise<void> {
   );
 
   function sync(): void {
-    for (const t of toggles) t.el.classList.toggle('on', ed.show[t.key]);
     undoBtn.disabled = !ed.canUndo;
     redoBtn.disabled = !ed.canRedo;
-    dirtyMark.textContent = ed.dirty ? '● не сохранено' : '';
+    dirtyMark.textContent = ed.dirty ? '●' : '';
+    dirtyMark.title = ed.dirty ? 'Есть несохранённые правки' : '';
     zoomLabel.textContent = `${Math.round(ed.view.zoom * 100)}%`;
     document.title = `${ed.dirty ? '● ' : ''}${ed.def?.display_name ?? ed.def?.id ?? ''} — Редактор LD60`;
   }
 
   function fillLevels(): void {
     clear(levelSelect);
-    for (const l of ed.project.levels) levelSelect.append(h('option', { value: l.filename, selected: l.filename === ed.filename }, `${l.data.display_name ?? l.data.id} (${l.data.id})`));
+    for (const l of ed.project.levels) levelSelect.append(h('option', { value: l.filename, selected: l.filename === ed.filename }, l.data.display_name && l.data.display_name !== l.data.id ? `${l.data.display_name} · ${l.data.id}` : l.data.id));
     levelSelect.value = ed.filename;
   }
 
@@ -216,17 +213,28 @@ async function start(): Promise<void> {
     canvas.style.cursor = ed.tool === 'select' ? 'default' : 'crosshair';
   });
 
-  // ---- статусная строка
-  ed.on('status', () => {
+  // ---- строка состояния: сообщение (5 с), потом подсказка по текущему инструменту
+  let lastText = '';
+  let lastAt = 0;
+  const renderStatus = () => {
     const s = ed.statusText;
+    if (s.text !== lastText) {
+      lastText = s.text;
+      lastAt = performance.now();
+      setTimeout(renderStatus, 5200);
+    }
+    const fresh = !!s.text && performance.now() - lastAt < 5000;
+    const hint = TOOLS.find((t) => t.id === ed.tool)?.hint ?? '';
     const hv = ed.hover;
     const rooms = hv.inside ? ed.roomsAtCell(hv.cx, hv.cy).map((r) => r.name).join(', ') : '';
     clear(statusbar);
     statusbar.append(
-      h('span', { class: s.error ? 'err' : '' }, s.text || 'Готов'),
-      h('span', { class: 'right' }, hv.inside ? `клетка ${hv.cx}, ${hv.cy} · px ${Math.round(hv.wx)}, ${Math.round(hv.wy)}${rooms ? ` · комната: ${rooms}` : ''}` : '')
+      h('span', { class: fresh && s.error ? 'err' : '' }, fresh ? s.text : hint),
+      h('span', { class: 'right' }, hv.inside ? `${hv.cx}, ${hv.cy} · ${Math.round(hv.wx)}, ${Math.round(hv.wy)}${rooms ? ` · ${rooms}` : ''}` : '')
     );
-  });
+  };
+  ed.on('status', renderStatus);
+  ed.on('tool', renderStatus);
   for (const ch of ['doc', 'view', 'tool', 'project'] as const) ed.on(ch, sync);
   ed.on('project', fillLevels);
   ed.on('doc', () => {
