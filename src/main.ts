@@ -1678,7 +1678,7 @@ class GameApp {
     this.lighting?.update();
     if (this.fog) {
       this.fog.container.position.copyFrom(this.worldLayer.position);
-      this.fog.update(-this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, { x: b.x, y: b.y - 28 }, this.player.facingDir);
+      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, { x: b.x, y: b.y - 28 }, this.player.facingDir);
     }
     if (this.minimap.container.visible) {
       this.minimap.update(dt, this.level, this.fog ? this.fog.explored : null, this.fog?.exploredChanged ?? false, { x: b.x, y: b.y - 20 });
