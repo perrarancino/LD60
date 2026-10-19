@@ -185,6 +185,7 @@ class GameApp {
   private beam!: LightningBeam; // луч молнии из руки
   private flashLayer = new Graphics(); // вспышка на весь экран
   private flashAlpha = 0;
+  private flashColor = pal('gold', 7); // цвет вспышки на весь экран (молния героя — золотая, удары краба — розовая)
   private flashDone = -1; // номер удара, для которого вспышка уже сработала
   private deathTimer = 0; // с до возрождения (герой погиб)
   private readonly contactDmg = new Map<Hittable, number>(); // контактный урон мобов по герою
@@ -937,6 +938,7 @@ class GameApp {
     const [lo, hi] = this.combat.punch_damage;
     const dmg = Math.max(1, Math.round(((lo + hi) / 2) * armor.punchMult * armor.flashMult));
     this.boltFx.flash(x, y, 30, 0.22);
+    this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.28;
     this.shake = Math.max(this.shake, CRIT_SHAKE + 0.8);
     this.damage(primary, x, y, dirX, part, dmg);
@@ -1088,6 +1090,10 @@ class GameApp {
         for (const c of this.bossSummons) if (this.gone.has(c)) this.bossSummons.delete(c);
         for (const sp of this.thrownSpiders) if (sp.expired || this.gone.has(sp)) this.thrownSpiders.delete(sp);
         return this.bossSummons.size + this.thrownSpiders.size;
+      },
+      flash: (alpha) => {
+        this.flashColor = pal('virus', 6);
+        this.flashAlpha = Math.max(this.flashAlpha, alpha);
       },
       shake: (power) => {
         this.shake = Math.max(this.shake, power);
@@ -1373,7 +1379,7 @@ class GameApp {
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 2.6);
       this.flashLayer.clear();
-      if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: pal('gold', 7), alpha: this.flashAlpha });
+      if (this.flashAlpha > 0) this.flashLayer.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: this.flashColor, alpha: this.flashAlpha });
     }
     this.hud.update();
     {

@@ -28,12 +28,15 @@ const SLAM_RAISE = 0.42; // с: клешня взлетает над целью 
 const SLAM_HOLD = 0.4; // с: клешня лежит после удара
 const SLAM_GAP = 0.55; // с: между ударами левой и правой
 const SLAM_DAMAGE = 26;
-const SLAM_RADIUS = 38; // px: на таком расстоянии от удара герой на полу задет
-const ORB_CHARGE = 1.0; // с: клешни лепят шары
+const SLAM_RADIUS = 46; // px: на таком расстоянии от удара герой на полу задет
+const ORB_CHARGE = 1.0; // с: клешни лепят первую пару шаров
+const ORB_CHARGE_NEXT = 0.55; // с: следующие пары — быстрее
+const ORB_GAP = 0.3; // с: пауза между парами
+const ORBS_MAX = 8; // шаров на арене больше не лепит
 const ORB_SPEED = 175; // px/с: шар катится
 /** Урон шара по герою (шар бьёт сам, см. игру). */
 export const CRAB_ORB_DAMAGE = 20;
-const MOB_GAP = 1.1; // с: между бросками мобов
+const MOB_GAP = 0.95; // с: между бросками мобов
 const BODY_TOUCH_DAMAGE = 14;
 const TOUCH_COOLDOWN = 1.2;
 const CLAW_REST: [number, number] = [64, 54]; // где висит клешня (от плеча: наружу, вниз)
@@ -48,7 +51,7 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 type State =
   | 'idle' | 'intro' | 'stalk' | 'jump_wind' | 'jump_air' | 'land' | 'slam'
   | 'orb_charge' | 'orb_throw' | 'orb_wait'
-  | 'ledge_walk' | 'ledge_wind' | 'ledge_air' | 'ledge_throw' | 'ledge_down' | 'rest';
+  | 'orb_gap' | 'ledge_wind' | 'ledge_air' | 'ledge_throw' | 'ledge_down' | 'rest';
 type Attack = 'jump' | 'orbs' | 'platform';
 type ClawMode = 'idle' | 'raise' | 'smash' | 'hold' | 'orb' | 'throw' | 'pose';
 
@@ -85,6 +88,8 @@ interface Claw {
 export interface CrabBossHooks {
   hero(): HeroRect & { x: number };
   hurt(amount: number, dirX: number, knock: boolean): void;
+  /** Вспышка на весь экран (0..1). */
+  flash(alpha: number): void;
   /** Новый шар (держится в клешне, пока босс не бросит). */
   spawnOrb(x: number, y: number): CrabOrb;
   /** Швырнуть моба: (id врага, x, y, vx, vy). */
@@ -113,6 +118,14 @@ export class CrabBoss implements PartDamageable {
   private readonly claws: Claw[] = [];
   private readonly clawLayer = new Container();
   private readonly marker = new Graphics(); // отметка удара на полу
+  private readonly impactGfx = new Graphics(); // кольца и трещины от ударов
+  private readonly rings: Array<{ x: number; y: number; t: number; life: number; r: number }> = [];
+  private readonly cracks: Array<{ pts: Vec[]; t: number; life: number }> = [];
+  private impactLight: { x: number; y: number; t: number } | null = null;
+  private readonly clawReact: HitReaction[] = [];
+  private flight: { x0: number; y0: number; tx: number; ty: number; T: number; t: number; vy0: number } | null = null;
+  private ledgeSide: -1 | 1 = 1; // с какого края уступа стоит и швыряет
+  private orbCharge = ORB_CHARGE;
   private readonly react: HitReaction;
   private readonly summonIds: string[];
   private readonly summonCount: number;
@@ -142,7 +155,6 @@ export class CrabBoss implements PartDamageable {
   private orbsOut: CrabOrb[] = [];
   private throwsLeft = 0;
   private throwT = 0;
-  private throwSide: -1 | 1 = 1;
   private stalkTime = 1;
   private walkPhase = 0;
   private crouch = 0;
@@ -185,6 +197,7 @@ export class CrabBoss implements PartDamageable {
     }
     this.container.addChild(this.node);
     this.container.addChild(this.marker);
+    this.container.addChild(this.impactGfx);
 
     // клешни на нитях
     for (const side of [-1, 1] as const) {
@@ -203,6 +216,7 @@ export class CrabBoss implements PartDamageable {
     }
     this.container.addChild(this.clawLayer);
     this.react = new HitReaction([...this.bodySprites, ...this.claws.map((c) => c.sprite)]);
+    for (const c of this.claws) this.clawReact.push(new HitReaction(c.sprite));
 
     this.findLedges();
     this.buildPlan();
@@ -271,6 +285,10 @@ export class CrabBoss implements PartDamageable {
   /** Огни босса: клешни и нити светятся неоном (для освещения мира). */
   public lights(): Array<{ x: number; y: number; r: number; i: number; c: [number, number, number] }> {
     const out: Array<{ x: number; y: number; r: number; i: number; c: [number, number, number] }> = [];
+    if (this.impactLight) {
+      const k = 1 - this.impactLight.t / 0.3;
+      out.push({ x: this.impactLight.x, y: this.impactLight.y, r: 110 + 90 * k, i: 1.6 * k, c: [0.95, 0.4, 1.0] });
+    }
     for (const c of this.claws) {
       out.push({ x: c.p.x, y: c.p.y, r: 70 + 40 * c.energy, i: 0.55 + 0.7 * c.energy, c: [0.82, 0.05, 0.97] });
       const a = this.anchor(c.side);
@@ -289,7 +307,8 @@ export class CrabBoss implements PartDamageable {
   private anchor(side: -1 | 1): Vec {
     const s = side < 0 ? this.cfg.shoulders.left : this.cfg.shoulders.right;
     const f = this.feet();
-    return { x: f.x + (s.x - this.cfg.feet.x), y: f.y + (s.y - this.cfg.feet.y) + this.crouch * 8 };
+    // торс сжимается/растягивается от стоп (node.scale): крайний пиксель едет вместе с ним
+    return { x: f.x + (s.x - this.cfg.feet.x) * this.node.scale.x, y: f.y + (s.y - this.cfg.feet.y) * this.node.scale.y };
   }
 
   /** Кончик клешни (челюсти) в мире. */
@@ -413,8 +432,10 @@ export class CrabBoss implements PartDamageable {
         this.crouch = Math.max(0, this.crouch - dt * 6);
         this.tuck = Math.min(1, this.tuck + dt * 5);
         this.poseClaws(1.0);
-        this.physics(dt);
-        if (this.body.grounded && this.airT > 0.2) this.landed();
+        if (this.stepFlight(dt)) {
+          this.landed();
+          this.enter('land');
+        }
         break;
 
       case 'land':
@@ -443,7 +464,7 @@ export class CrabBoss implements PartDamageable {
       // --- шары ---
       case 'orb_charge': {
         this.settle(dt);
-        const t = clamp(this.stateT / (ORB_CHARGE / fast), 0, 1);
+        const t = clamp(this.stateT / (this.orbCharge / fast), 0, 1);
         for (const c of this.claws) {
           c.mode = 'orb';
           c.goal = this.offset(this.anchor(c.side), c.side * 84, -64 + Math.sin(this.time * 7 + c.side) * 3);
@@ -453,7 +474,7 @@ export class CrabBoss implements PartDamageable {
           if (c.orb && Math.random() < 0.5) this.hooks.fx.burst(this.tip(c, 0.55).x + (Math.random() - 0.5) * 44, this.tip(c, 0.55).y + (Math.random() - 0.5) * 44, { count: 1, colors: [pal('gold', 6), pal('gold', 7)], speed: [10, 30], life: [0.2, 0.4], size: [1, 2] });
         }
         this.crouch = Math.sin(t * 6) * 0.1;
-        if (this.stateT >= ORB_CHARGE / fast) this.enter('orb_throw');
+        if (this.stateT >= this.orbCharge / fast) this.enter('orb_throw');
         break;
       }
 
@@ -466,48 +487,39 @@ export class CrabBoss implements PartDamageable {
           if (c.orb && this.stateT > 0.1) {
             const tip = this.tip(c, 0.55);
             c.orb.x = tip.x; c.orb.y = tip.y;
-            c.orb.release(c.side * this.orbSpeed * (this.enraged ? 1.2 : 1), -150);
+            c.orb.release(c.side * this.orbSpeed * (this.enraged ? 1.2 : 1) * rand(0.85, 1.25), rand(-190, -110));
             this.orbsOut.push(c.orb);
             c.orb = null;
-            this.hooks.shake(1.2);
-            this.hooks.fx.burst(tip.x, tip.y, { count: 14, colors: [pal('gold', 5), pal('gold', 7), pal('virus', 6)], speed: [50, 160], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2], drag: 4 });
+            this.hooks.shake(2.0);
+            this.hooks.fx.burst(tip.x, tip.y, { count: 18, colors: [pal('gold', 5), pal('gold', 7), pal('virus', 6)], speed: [50, 190], spread: Math.PI * 2, life: [0.15, 0.45], size: [1, 2], drag: 4 });
+            c.energy = 1;
           }
         }
         if (this.stateT > 0.4) {
           for (const c of this.claws) { c.mode = 'idle'; c.energy = 0; }
-          this.enter('orb_wait');
+          this.orbsOut = this.orbsOut.filter((o) => !o.expired);
+          if (--this.orbRounds > 0 && this.orbsOut.length < ORBS_MAX) this.enter('orb_gap');
+          else this.enter('orb_wait');
         }
         break;
       }
+
+      case 'orb_gap':
+        this.settle(dt);
+        this.idleClaws();
+        if (this.stateT >= ORB_GAP / fast) this.startOrbs(false);
+        break;
 
       case 'orb_wait': {
         this.settle(dt);
         this.idleClaws();
         this.orbsOut = this.orbsOut.filter((o) => !o.expired);
         const gone = this.orbsOut.length === 0;
-        if ((gone && this.stateT > 0.8) || this.stateT > 7) {
-          if (--this.orbRounds > 0) {
-            this.startOrbs();
-          } else {
-            this.rest(0.9 / fast);
-          }
-        }
+        if ((gone && this.stateT > 0.8) || this.stateT > 8) this.rest(0.9 / fast);
         break;
       }
 
       // --- платформа ---
-      case 'ledge_walk': {
-        const l = this.ledge!;
-        const side = this.body.x < (l.x0 + l.x1) / 2 ? -1 : 1;
-        const gap = this.cfg.box.w / 2 + 70; // разбег с запасом: пока поднимается, угол платформы не задевает
-        const startX = side < 0 ? l.x0 - gap : l.x1 + gap;
-        const dx = startX - this.body.x;
-        this.walkTo(dt, Math.abs(dx) < 12 ? 0 : Math.sign(dx) * WALK * 2.2);
-        this.idleClaws();
-        if (Math.abs(dx) < 14 || this.stateT > 4) this.enter('ledge_wind');
-        break;
-      }
-
       case 'ledge_wind':
         this.settle(dt);
         this.crouch = Math.min(1, this.crouch + dt / 0.5);
@@ -520,8 +532,7 @@ export class CrabBoss implements PartDamageable {
         this.crouch = Math.max(0, this.crouch - dt * 6);
         this.tuck = Math.min(1, this.tuck + dt * 5);
         this.poseClaws(1.0);
-        this.physics(dt);
-        if (this.body.grounded && this.airT > 0.3) {
+        if (this.stepFlight(dt)) {
           this.landed(true);
           this.throwsLeft = this.enraged ? this.summonCount + 2 : this.summonCount;
           this.throwT = 0.8;
@@ -541,8 +552,7 @@ export class CrabBoss implements PartDamageable {
         this.tuck = Math.min(1, this.tuck + dt * 5);
         this.crouch = Math.max(0, this.crouch - dt * 6);
         this.poseClaws(1.0);
-        this.physics(dt);
-        if (this.body.grounded && this.airT > 0.3) {
+        if (this.stepFlight(dt)) {
           this.landed();
           this.rest(0.9 / fast);
         }
@@ -606,51 +616,147 @@ export class CrabBoss implements PartDamageable {
       this.jumpsLeft = this.enraged ? 3 : 2;
       this.enter('jump_wind');
     } else if (a === 'orbs') {
-      this.orbRounds = this.enraged ? 2 : 1;
+      this.orbRounds = this.enraged ? 4 : 3; // несколько пар подряд
       if (this.orbsOut.filter((o) => !o.expired).length > 2) {
         this.rest(0.5);
         return;
       }
-      this.startOrbs();
+      this.startOrbs(true);
     } else {
-      // платформа: ближайший уступок; если босс стоит под ним — сначала выходит из-под него
-      this.ledge = this.ledges.reduce((best, l) => Math.abs((l.x0 + l.x1) / 2 - this.body.x) < Math.abs((best.x0 + best.x1) / 2 - this.body.x) ? l : best, this.ledges[0]);
-      this.enter('ledge_walk');
+      // платформа: ближайший к герою уступ; прыгает прямо с места (в полёте тайлы не мешают)
+      const hx = this.hooks.hero().x;
+      this.ledge = this.ledges.reduce((best, l) => Math.abs((l.x0 + l.x1) / 2 - hx) < Math.abs((best.x0 + best.x1) / 2 - hx) ? l : best, this.ledges[0]);
+      this.enter('ledge_wind');
     }
   }
 
   // ---------- Прыжок ----------
 
-  private launchJump(): void {
-    const h = this.hooks.hero();
-    this.jumpTarget = h.x + rand(-45, 45);
-    const dist = Math.abs(this.jumpTarget - this.body.x);
-    const T = clamp(dist / 330, JUMP_AIR_MIN, JUMP_AIR_MAX) / (this.enraged ? 1.15 : 1);
-    this.body.vx = (this.jumpTarget - this.body.x) / T;
-    this.body.vy = -GRAVITY * T / 2;
+  /**
+   * Прыжок по дуге в точку (tx, ty) за время T — без столкновений с тайлами (ни платформа над головой, ни стена не мешают); в конце босс встаёт
+   * ровно на поверхность цели.
+   */
+  private startFlight(tx: number, ty: number, T: number, state: State): void {
+    const dy = ty - this.body.y;
+    this.flight = { x0: this.body.x, y0: this.body.y, tx, ty, T, t: 0, vy0: (dy - 0.5 * GRAVITY * T * T) / T };
+    this.body.vx = (tx - this.body.x) / T;
+    this.body.vy = this.flight.vy0;
+    this.body.grounded = false;
     this.airT = 0;
-    this.enter('jump_air');
-    this.hooks.shake(1.0);
-    this.hooks.fx.burst(this.body.x, this.body.y - 2, { count: 14, colors: DUST, speed: [50, 150], angle: -Math.PI / 2, spread: 1.3, life: [0.2, 0.5], size: [1, 3], gravity: 100, drag: 3 });
+    this.enter(state);
+    this.hooks.shake(1.4);
+    this.hooks.fx.burst(this.body.x, this.body.y - 2, { count: 16, colors: DUST, speed: [60, 170], angle: -Math.PI / 2, spread: 1.4, life: [0.25, 0.6], size: [1, 3], gravity: 100, drag: 3 });
   }
 
-  /** Приземление: пыль, тряска, ударная волна по полу (задевает героя, который стоит на земле рядом). */
+  /** Шаг полёта; true — приземлился (стоит на цели). */
+  private stepFlight(dt: number): boolean {
+    const f = this.flight;
+    if (!f) return true;
+    f.t = Math.min(f.T, f.t + dt);
+    this.body.x = f.x0 + (f.tx - f.x0) * (f.t / f.T);
+    this.body.y = f.y0 + f.vy0 * f.t + 0.5 * GRAVITY * f.t * f.t;
+    this.body.vy = f.vy0 + GRAVITY * f.t;
+    if (f.t < f.T) return false;
+    this.body.x = f.tx;
+    this.body.y = f.ty;
+    this.body.vx = 0;
+    this.body.vy = 0;
+    this.body.grounded = true;
+    this.flight = null;
+    return true;
+  }
+
+  private launchJump(): void {
+    const h = this.hooks.hero();
+    const ts = this.level.tileSize;
+    const margin = ts * 2 + this.cfg.box.w / 2;
+    this.jumpTarget = clamp(h.x + rand(-45, 45), margin, this.level.pixelWidth - margin);
+    const ty = this.floorAt(this.jumpTarget, h.bottom - 10); // поверхность под героем (пол арены или уступ, на котором он стоит)
+    const dist = Math.abs(this.jumpTarget - this.body.x);
+    let T = clamp(dist / 330, JUMP_AIR_MIN, JUMP_AIR_MAX) / (this.enraged ? 1.15 : 1);
+    const rise = this.body.y - ty; // прыжок вверх (на уступ): время подгоняется, чтобы босс приземлялся на спуске, а не на подъёме
+    if (rise > 0) T = Math.max(T, 0.9 * Math.sqrt((2 * rise) / GRAVITY) + 0.45);
+    this.startFlight(this.jumpTarget, ty, T, 'jump_air');
+  }
+
+  /** Приземление: пыль, обломки, кольца и трещины по полу, сильная тряска; ударная волна задевает героя, который стоит на земле рядом. */
   private landed(quiet = false): void {
     this.body.vx = 0;
     const f = this.feet();
-    this.hooks.shake(quiet ? 3.0 : 4.0);
     this.floorY = f.y;
-    for (const side of [-1, 1]) {
-      this.hooks.fx.burst(f.x + side * 40, f.y - 2, { count: 16, colors: DUST, speed: [60, 190], angle: side > 0 ? -0.15 : Math.PI + 0.15, spread: 0.35, life: [0.25, 0.7], size: [1, 3], gravity: 110, drag: 3 });
-      this.hooks.fx.burst(f.x + side * 70, f.y - 2, { count: 8, colors: MAGENTA, speed: [40, 130], angle: side > 0 ? -0.1 : Math.PI + 0.1, spread: 0.3, life: [0.2, 0.5], size: [1, 2], drag: 3 });
-    }
+    this.impactFx(f.x, f.y, quiet ? 1.25 : 1.6);
     // волна идёт по полу: перепрыгнуть можно; задевает, если ноги героя у пола и он в радиусе
     const h = this.hooks.hero();
     if (h.bottom > f.y - 22 && Math.abs(h.x - f.x) < SHOCK_RADIUS && this.time - this.lastShock > 0.4) {
       this.lastShock = this.time;
       this.hooks.hurt(SHOCK_DAMAGE, h.x >= f.x ? 1 : -1, true);
     }
-    if (this.state === 'jump_air') this.enter('land');
+  }
+
+  /**
+   * Эффект удара о пол в точке (x, y): тряска, вспышка, расходящиеся по полу неоновые кольца, трещины, обломки плит, пыль и искры; power — сила
+   * (клешня 1, приземление 1.25–1.6).
+   */
+  private impactFx(x: number, y: number, power: number): void {
+    this.hooks.shake(4.2 + 2.6 * power);
+    this.hooks.flash(0.1 + 0.08 * power);
+    this.rings.push({ x, y, t: 0, life: 0.42, r: 80 * power });
+    this.rings.push({ x, y, t: -0.07, life: 0.6, r: 140 * power });
+    for (let i = 0; i < 2; i++) {
+      const dir = i === 0 ? -1 : 1;
+      const pts: Vec[] = [];
+      let cx = x + dir * 6;
+      let cy = y - 1;
+      const len = rand(46, 90) * power;
+      for (let d = 0; d < len; d += 3) {
+        cx += dir * 3;
+        cy = y - 1 + Math.round((Math.random() - 0.5) * 3);
+        pts.push({ x: cx, y: cy });
+      }
+      this.cracks.push({ pts, t: 0, life: 1.0 });
+    }
+    this.impactLight = { x, y: y - 8, t: 0 };
+    // обломки плит и крошка
+    this.hooks.fx.burst(x, y - 3, { count: Math.round(26 * power), colors: [pal('steel', 3), pal('steel', 4), pal('steel', 5), pal('steel', 6)], speed: [90, 300], angle: -Math.PI / 2, spread: 1.15, life: [0.35, 0.9], size: [1, 3], gravity: 520, drag: 0.8 });
+    this.hooks.fx.burst(x, y - 3, { count: Math.round(18 * power), colors: THREAD_COLORS, speed: [80, 260], angle: -Math.PI / 2, spread: 1.4, life: [0.2, 0.55], size: [1, 2], gravity: 200, drag: 2.5 });
+    for (const side of [-1, 1]) {
+      this.hooks.fx.burst(x + side * 14, y - 2, { count: Math.round(14 * power), colors: DUST, speed: [70, 230], angle: side > 0 ? -0.12 : Math.PI + 0.12, spread: 0.3, life: [0.3, 0.8], size: [1, 3], gravity: 90, drag: 2.5 });
+      this.hooks.fx.burst(x + side * 30, y - 2, { count: Math.round(8 * power), colors: MAGENTA, speed: [60, 200], angle: side > 0 ? -0.08 : Math.PI + 0.08, spread: 0.25, life: [0.2, 0.55], size: [1, 2], drag: 3 });
+    }
+  }
+
+  /** Кольца, трещины и вспышка света от ударов (рисуются в локальных координатах босса). */
+  private drawImpacts(dt: number): void {
+    const g = this.impactGfx;
+    g.clear();
+    const f = this.feet();
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const r = this.rings[i];
+      r.t += dt;
+      if (r.t >= r.life) { this.rings.splice(i, 1); continue; }
+      if (r.t < 0) continue;
+      const u = r.t / r.life;
+      const radius = r.r * (1 - Math.pow(1 - u, 2)); // быстро расходится, замедляясь
+      const alpha = 1 - u;
+      const ry = Math.max(2, radius * 0.16);
+      for (let a = 0; a <= 180; a += Math.max(3, Math.round(300 / Math.max(10, radius)))) {
+        const rad = (a * Math.PI) / 180;
+        g.rect(Math.round(r.x - f.x + Math.cos(rad) * radius), Math.round(r.y - f.y - 1 - Math.sin(rad) * ry), 2, 1);
+      }
+      g.fill({ color: pal('virus', u < 0.5 ? 7 : 5), alpha });
+    }
+    for (let i = this.cracks.length - 1; i >= 0; i--) {
+      const c = this.cracks[i];
+      c.t += dt;
+      if (c.t >= c.life) { this.cracks.splice(i, 1); continue; }
+      const shown = Math.min(c.pts.length, Math.round(c.pts.length * Math.min(1, c.t / 0.12))); // трещина быстро бежит от места удара
+      for (let k = 0; k < shown; k++) g.rect(Math.round(c.pts[k].x - f.x), Math.round(c.pts[k].y - f.y), 1, 1);
+      g.fill({ color: pal('virus', c.t < 0.35 ? 6 : 3), alpha: Math.max(0, 1 - c.t / c.life) });
+    }
+    if (this.impactLight) {
+      this.impactLight.t += dt;
+      if (this.impactLight.t > 0.3) this.impactLight = null;
+    }
   }
 
   // ---------- Клешни ----------
@@ -779,14 +885,17 @@ export class CrabBoss implements PartDamageable {
       // опасна, пока летит быстро (кроме удара — у него своя проверка)
     }
     this.drawMarker();
+    this.drawImpacts(dt);
+    for (const r of this.clawReact) r.update(dt);
   }
 
   private slamImpact(c: Claw, h: HeroRect & { x: number }): void {
     const tip = this.tip(c);
     const y = this.floorY;
-    this.hooks.shake(3.2);
-    this.hooks.fx.burst(tip.x, y - 2, { count: 22, colors: DUST, speed: [50, 200], angle: -Math.PI / 2, spread: 1.2, life: [0.25, 0.7], size: [1, 3], gravity: 140, drag: 3 });
-    this.hooks.fx.burst(tip.x, y - 4, { count: 14, colors: THREAD_COLORS, speed: [60, 220], angle: -Math.PI / 2, spread: 1.4, life: [0.15, 0.5], size: [1, 2], drag: 4 });
+    this.impactFx(tip.x, y, 1.0);
+    this.clawReact[c.side < 0 ? 0 : 1].trigger(0, 0); // клешня вспыхивает белым
+    c.energy = 1;
+    c.v.y = -90; // отдача: клешню подбрасывает
     if (h.bottom > y - 30 && Math.abs(h.x - tip.x) < SLAM_RADIUS) {
       this.hooks.hurt(SLAM_DAMAGE, h.x >= tip.x ? 1 : -1, true);
     }
@@ -832,7 +941,8 @@ export class CrabBoss implements PartDamageable {
 
   // ---------- Шары ----------
 
-  private startOrbs(): void {
+  private startOrbs(first: boolean): void {
+    this.orbCharge = first ? ORB_CHARGE : ORB_CHARGE_NEXT;
     for (const c of this.claws) {
       const tip = this.tip(c, 0.55);
       c.orb = this.hooks.spawnOrb(tip.x, tip.y);
@@ -843,67 +953,66 @@ export class CrabBoss implements PartDamageable {
 
   // ---------- Платформа ----------
 
+  /** Прыжок на уступ: встаёт у того края, что ближе к герою (там удобно швырять вниз). */
   private launchLedge(): void {
     const l = this.ledge!;
-    const mid = (l.x0 + l.x1) / 2;
-    const side = this.body.x < mid ? -1 : 1;
-    const tx = clamp(mid + side * (l.x1 - l.x0) * 0.22, l.x0 + 60, l.x1 - 60);
-    const T = 1.15;
-    const dy = l.y - this.body.y;
-    this.body.vx = (tx - this.body.x) / T;
-    this.body.vy = (dy - 0.5 * GRAVITY * T * T) / T;
-    this.airT = 0;
-    this.enter('ledge_air');
-    this.hooks.shake(1.4);
-    this.hooks.fx.burst(this.body.x, this.body.y - 2, { count: 18, colors: DUST, speed: [60, 170], angle: -Math.PI / 2, spread: 1.4, life: [0.25, 0.6], size: [1, 3], gravity: 100, drag: 3 });
+    const h = this.hooks.hero();
+    this.ledgeSide = h.x < (l.x0 + l.x1) / 2 ? -1 : 1;
+    const tx = this.ledgeSide < 0 ? l.x0 + 76 : l.x1 - 76;
+    this.startFlight(tx, l.y, 1.1, 'ledge_air');
   }
 
-  /** На платформе: клешня хватает моба и швыряет в героя дугой. */
+  /**
+   * На платформе: клешня свешивается за край, из-под платформы возникает моб, и его швыряют вниз — в сторону героя. Моб появляется за краем
+   * платформы чуть ниже её верха, чтобы не рождаться внутри тайлов.
+   */
   private updateThrow(dt: number, h: HeroRect & { x: number }, fast: number): void {
     this.idleClaws();
     this.throwT -= dt;
-    // стоит лицом к герою, клешня, что ближе, отведена назад
+    const l = this.ledge!;
+    const side = this.ledgeSide;
     if (this.throwT <= 0 && this.throwsLeft > 0) {
       if (this.hooks.mobsAlive() >= this.summonMax) {
         this.throwsLeft--; // арена и так полна: бросок пропущен (иначе босс ждал бы вечно)
         this.throwT = 0.5;
         return;
       }
-      this.throwSide = h.x < this.body.x ? -1 : 1;
-      const c = this.claws[this.throwSide < 0 ? 0 : 1];
-      const tip = this.tip(c, 0.6);
+      const ex = side < 0 ? l.x0 - 24 : l.x1 + 24;
+      const ey = l.y + 26;
+      const c = this.claws[side < 0 ? 0 : 1];
       const id = this.summonIds[Math.floor(Math.random() * this.summonIds.length)];
-      const T = rand(0.75, 1.0);
-      const g = 850;
-      const tx = h.x;
-      const ty = (h.top + h.bottom) / 2;
-      const vx = (tx - tip.x) / T;
-      const vy = (ty - tip.y - 0.5 * g * T * T) / T;
-      this.hooks.throwMob(id, tip.x, tip.y, vx, vy);
+      const vx = clamp((h.x - ex) / 0.9 + rand(-30, 30), -300, 300);
+      const vy = rand(40, 170); // вниз
+      this.hooks.throwMob(id, ex, ey, vx, vy);
       this.throwsLeft--;
       this.throwT = MOB_GAP / fast;
-      // отмашка клешни
+      // клешня выбрасывается за край вслед за мобом
       c.mode = 'throw';
       c.modeT = 0;
-      c.goal = this.offset(this.anchor(c.side), this.throwSide * 130, -50);
-      c.k = 800; c.c = 36;
+      c.hitDone = true; // бросок мобов не бьёт героя клешнёй
+      c.goal = { x: ex + Math.sign(vx || side) * 44, y: ey + 34 };
+      c.k = 800; c.c = 34;
       c.energy = 1;
-      this.hooks.fx.burst(tip.x, tip.y, { count: 10, colors: THREAD_COLORS, speed: [40, 140], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2], drag: 4 });
-      this.hooks.shake(0.8);
+      this.hooks.fx.burst(ex, ey, { count: 14, colors: THREAD_COLORS, speed: [40, 150], spread: Math.PI * 2, life: [0.15, 0.4], size: [1, 2], drag: 4 });
+      this.hooks.fx.burst(ex, ey, { count: 6, colors: DUST, speed: [30, 90], angle: Math.PI / 2, spread: 0.8, life: [0.2, 0.4], size: [1, 2] });
+      this.hooks.shake(1.4);
     }
-    for (const c of this.claws) if (c.mode === 'throw' && c.modeT > 0.25) { c.mode = 'idle'; c.energy = 0.3; }
+    for (const c of this.claws) if (c.mode === 'throw' && c.modeT > 0.3) { c.mode = 'idle'; c.energy = 0.3; }
+    // висящая над краем клешня: пока бросков нет, держится за краем
+    if (this.throwsLeft > 0 && this.throwT > 0.2) {
+      const c = this.claws[side < 0 ? 0 : 1];
+      if (c.mode === 'idle') {
+        c.goal = { x: (side < 0 ? l.x0 - 30 : l.x1 + 30), y: l.y + 40 + Math.sin(this.time * 4) * 4 };
+        c.k = 50; c.c = 12;
+      }
+    }
     if ((this.throwsLeft <= 0 && this.throwT <= -0.6) || this.stateT > 16) this.leaveLedge(h);
   }
 
   private leaveLedge(h: HeroRect & { x: number }): void {
-    const T = 0.95;
-    const tx = clamp(h.x + (h.x > this.body.x ? -90 : 90), 120, this.level.pixelWidth - 120);
-    // прыжок вниз к герою: по дуге на пол арены
-    const dy = this.arenaY - this.body.y;
-    this.body.vx = (tx - this.body.x) / T;
-    this.body.vy = (dy - 0.5 * GRAVITY * T * T) / T;
-    this.airT = 0;
-    this.enter('ledge_down');
+    const margin = this.level.tileSize * 2 + this.cfg.box.w / 2;
+    const tx = clamp(h.x + (h.x > this.body.x ? -90 : 90), margin, this.level.pixelWidth - margin);
+    this.startFlight(tx, this.arenaY, 0.95, 'ledge_down');
   }
 
   // ---------- Рык ----------
