@@ -7,21 +7,25 @@
   "decor": [
     { "sprite_id": "deco_cooler", "label": "Куллер", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "back", "flip": true },
     { "sprite_id": "deco_ram", "label": "Планка RAM", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "back", "flip": true },
-    { "sprite_id": "deco_transistor", "label": "Транзистор", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "front", "flip": true },
-    { "sprite_id": "deco_transistor2", "label": "Транзистор (вариант)", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "front", "flip": true }
+    { "sprite_id": "deco_transistor", "label": "Транзистор", "group": "Железо", "anchor": "floor", "snap": "tile", "layer": "front", "flip": true },
+    { "sprite_id": "deco_transistor2", "label": "Транзистор (вариант)", "group": "Железо", "anchor": "floor", "snap": "tile", "layer": "front", "flip": true }
   ],
   "threads": [
     {
       "kind": "vine",
       "label": "Лиана",
       "sprite_id": "enemy_spider_thread",
-      "hint": "Физичная нить: свисает вниз от точки, качается на ветру, герой её задевает. Длина — в звеньях по 14 px, верх закреплён там, куда ткнули (под тайлом — корень спрятан).",
+      "anchor": "ceiling",
+      "snap": "tile",
+      "hint": "Физичная нить: свисает вниз от нижней грани тайла и качается на ветру, герой её задевает. Цепляется строго по сетке — к нижним пикселям тайла над курсором (Alt — свободно). Длина — в звеньях по 14 px.",
       "defaults": { "pieces": 3, "bead": true }
     },
     {
       "kind": "sky",
       "label": "Нитка с неба",
       "sprite_id": "enemy_spider_thread",
+      "anchor": "free",
+      "snap": "pixel",
       "hint": "Длинная упругая нитка, как у паучихи: верх закреплён в точке, нижний конец свободно качается. Длина — в пикселях.",
       "defaults": { "length": 160, "swing": 10, "bead": true }
     }

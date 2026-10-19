@@ -141,3 +141,37 @@ export function layoutWebs(def: LevelDef, zone: DecorZoneDef, index: number, sol
   }
   return { vines, sky };
 }
+
+/**
+ * Миграция: старые зоны автодекора (level.zones) превращаются в обычные предметы — транзисторы в decor, лианы и нитки в threads — и
+ * удаляются. Раскладка берётся ровно та, что игра строила раньше, так что вид уровня не меняется, но теперь всё можно двигать и удалять.
+ * Возвращает, сколько предметов получилось (0 — зон не было).
+ */
+export function convertZonesToItems(def: LevelDef, solid: Solid, spriteDef: (id: string) => SpriteDef | undefined): number {
+  const zones = def.zones;
+  if (!zones?.length) return 0;
+  const ts = def.tile_size;
+  const reserved = reservedCells(def, spriteDef);
+  let n = 0;
+  zones.forEach((zone, i) => {
+    if (zone.kind === 'webs') {
+      const { vines, sky } = layoutWebs(def, zone, i, solid);
+      for (const v of vines) {
+        // корень лианы — на нижней грани тайла (раньше уходил на 2 px внутрь, под тайлом это не видно)
+        (def.threads ??= []).push({ kind: 'vine', x: Math.round(v.x), y: v.y + 2, pieces: v.pieces, bead: v.bead });
+        n++;
+      }
+      for (const t of sky) {
+        (def.threads ??= []).push({ kind: 'sky', x: Math.round(t.x), y: t.topY, length: Math.round(t.bottomY - t.topY), swing: Math.round(t.swing), bead: t.bead });
+        n++;
+      }
+    } else {
+      for (const t of layoutTransistors(def, zone, i, solid, reserved)) {
+        (def.decor ??= []).push({ sprite_id: t.sprite_id, x: t.x / ts, y: t.y / ts, layer: 'front' });
+        n++;
+      }
+    }
+  });
+  delete def.zones;
+  return n;
+}

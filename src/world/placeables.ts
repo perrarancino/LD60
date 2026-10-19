@@ -33,6 +33,8 @@ export interface ThreadKind {
   kind: 'vine' | 'sky';
   label: string;
   sprite_id: string;
+  anchor?: PlaceAnchor; // лиана цепляется к нижней грани тайла над курсором, нитка с неба — куда ткнули
+  snap?: PlaceSnap;
   hint?: string;
   defaults?: { pieces?: number; length?: number; swing?: number; bead?: boolean };
 }

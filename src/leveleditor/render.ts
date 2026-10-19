@@ -1,6 +1,4 @@
 import type { EnemySpawnDef, LevelDef, Slope } from '../data/types.ts';
-import { layoutTransistors, layoutWebs, reservedCells } from '../world/autoDecor.ts';
-import type { SkySpot, TransistorSpot, VineSpot } from '../world/autoDecor.ts';
 import { cellKey, tileVisual, transformSlope, xformMap } from '../world/tileRules.ts';
 import type { Editor } from './state.ts';
 import { canonXf, roomHas, tileIdAt } from './model.ts';
@@ -94,19 +92,28 @@ function objectSprite(ed: Editor, o: NonNullable<LevelDef['objects']>[number]): 
   return k?.sprite_id ?? '';
 }
 
-/** Что под курсором: самое верхнее по порядку отрисовки. */
-export function pickEntity(ed: Editor, wx: number, wy: number): { kind: 'decor' | 'thread' | 'enemy' | 'object' | 'terminal' | 'spawn'; index: number } | null {
+type EntityKind = 'decor' | 'thread' | 'enemy' | 'object' | 'terminal';
+
+/**
+ * Что под курсором: самое верхнее по порядку отрисовки. only — искать только предметы этих видов (инструмент расстановки трогает
+ * только свою категорию); скрытые слои не выбираются.
+ */
+export function pickEntity(ed: Editor, wx: number, wy: number, only?: readonly EntityKind[]): { kind: EntityKind | 'spawn'; index: number } | null {
   const inside = (b: Box | null, pad = 0) => !!b && wx >= b.x - pad && wx <= b.x + b.w + pad && wy >= b.y - pad && wy <= b.y + b.h + pad;
   const def = ed.def;
   const ts = ed.ts;
+  const allow = (k: EntityKind) => (!only || only.includes(k));
   const sp = def.player_spawn;
-  if (wx >= sp.x * ts && wx <= (sp.x + 1) * ts && wy >= sp.y * ts && wy <= (sp.y + 1) * ts) return { kind: 'spawn', index: 0 };
-  for (let i = def.enemies.length - 1; i >= 0; i--) if (inside(entityBox(ed, 'enemy', i))) return { kind: 'enemy', index: i };
-  for (let i = (def.objects?.length ?? 0) - 1; i >= 0; i--) if (inside(entityBox(ed, 'object', i))) return { kind: 'object', index: i };
-  for (let i = (def.terminals?.length ?? 0) - 1; i >= 0; i--) if (inside(entityBox(ed, 'terminal', i))) return { kind: 'terminal', index: i };
-  for (let i = (def.threads?.length ?? 0) - 1; i >= 0; i--) if (inside(entityBox(ed, 'thread', i), 3)) return { kind: 'thread', index: i };
-  for (let i = (def.decor?.length ?? 0) - 1; i >= 0; i--) if (inside(entityBox(ed, 'decor', i))) return { kind: 'decor', index: i };
-  return null;
+  if (!only && ed.visible('spawn') && wx >= sp.x * ts && wx <= (sp.x + 1) * ts && wy >= sp.y * ts && wy <= (sp.y + 1) * ts) return { kind: 'spawn', index: 0 };
+  const scan = (kind: EntityKind, count: number, pad = 0) => {
+    for (let i = count - 1; i >= 0; i--) if (ed.visible(kind, i) && inside(entityBox(ed, kind, i), Math.max(pad, pad ? 8 / ed.view.zoom : 0))) return { kind, index: i };
+    return null;
+  };
+  return (allow('enemy') ? scan('enemy', def.enemies.length) : null)
+    ?? (allow('object') ? scan('object', def.objects?.length ?? 0) : null)
+    ?? (allow('terminal') ? scan('terminal', def.terminals?.length ?? 0) : null)
+    ?? (allow('thread') ? scan('thread', def.threads?.length ?? 0, 3) : null)
+    ?? (allow('decor') ? scan('decor', def.decor?.length ?? 0) : null);
 }
 
 // ---------- Рисование ----------
@@ -136,25 +143,16 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement,
   ctx.fillStyle = ed.show.background && bg ? bg.sky_color : '#121826';
   ctx.fillRect(0, 0, def.width * ts, def.height * ts);
 
-  const auto = autoDecor(ed);
-  if (ed.show.decor) {
-    // паутина зон лежит под тайлами (корни спрятаны), как в игре
-    for (const t of auto.sky) drawThread(ctx, ed, 'sky', t.x, t.topY, t.bottomY - t.topY, 0.8);
-    for (const v of auto.vines) drawThread(ctx, ed, 'vine', v.x, v.y, v.pieces, 0.8);
-    drawDecor(ctx, ed, 'back');
-  }
-  drawTiles(ctx, ed, x0, y0, x1, y1);
-  if (ed.show.decor) {
-    drawThreads(ctx, ed);
-    drawDecor(ctx, ed, 'front');
-    for (const t of auto.transistors) ed.atlas.draw(ctx, t.sprite_id, 0, t.x, t.y);
-  }
-  if (ed.show.entities) drawSpawnZones(ctx, ed);
-  if (ed.show.entities) drawObjects(ctx, ed);
+  if (ed.show.decorBack) drawDecor(ctx, ed, 'back');
+  if (ed.show.tiles) drawTiles(ctx, ed, x0, y0, x1, y1);
+  if (ed.show.threads) drawThreads(ctx, ed);
+  if (ed.show.decorFront) drawDecor(ctx, ed, 'front');
+  if (ed.show.enemies) drawSpawnZones(ctx, ed);
+  if (ed.show.objects) drawObjects(ctx, ed);
   if (ed.show.rooms) drawRooms(ctx, ed, x0, y0, x1, y1);
   if (ed.show.collisions) drawCollisions(ctx, ed, x0, y0, x1, y1);
-  if (ed.show.entities) drawEnemies(ctx, ed);
-  if (ed.show.entities) drawSpawn(ctx, ed);
+  if (ed.show.enemies) drawEnemies(ctx, ed);
+  if (ed.show.spawn) drawSpawn(ctx, ed);
   if (ed.show.fog) drawFogPreview(ctx, ed, x0, y0, x1, y1);
   if (ed.show.grid && zoom >= 0.35) drawGrid(ctx, ed, x0, y0, x1, y1);
 
@@ -166,37 +164,6 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement,
   drawSelection(ctx, ed);
   overlay(ctx, ed);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-}
-
-// ---------- Автодекор зон (level.zones): считается теми же функциями, что в игре ----------
-
-interface AutoDecor {
-  transistors: TransistorSpot[];
-  vines: VineSpot[];
-  sky: SkySpot[];
-}
-
-let autoCache: { def: unknown; rev: number; value: AutoDecor } | null = null;
-
-function autoDecor(ed: Editor): AutoDecor {
-  if (autoCache && autoCache.def === ed.def && autoCache.rev === ed.rev) return autoCache.value;
-  const def = ed.def;
-  const value: AutoDecor = { transistors: [], vines: [], sky: [] };
-  if (def.zones?.length) {
-    const solid = (cx: number, cy: number) => ed.isSolid(cx, cy);
-    const reserved = reservedCells(def, (id) => ed.atlas.def(id));
-    def.zones.forEach((zone, i) => {
-      if (zone.kind === 'webs') {
-        const w = layoutWebs(def, zone, i, solid);
-        value.vines.push(...w.vines);
-        value.sky.push(...w.sky);
-      } else {
-        value.transistors.push(...layoutTransistors(def, zone, i, solid, reserved));
-      }
-    });
-  }
-  autoCache = { def, rev: ed.rev, value };
-  return value;
 }
 
 /** Старые зоны появления мобов (spawn_zones): рамка и подпись — в игре мобы раскладываются по полу внутри. */

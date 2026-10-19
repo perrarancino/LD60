@@ -1,7 +1,7 @@
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { DecorZoneDef, LevelDef, ThreadPlaceDef } from '../data/types.ts';
-import { layoutWebs, mulberry32 } from './autoDecor.ts';
+import type { ThreadPlaceDef } from '../data/types.ts';
+import { mulberry32 } from './autoDecor.ts';
 import { ThreadRope } from '../entities/ThreadRope.ts';
 
 /** Нитка паучихи (enemy_spider_thread): из её звеньев собрана вся висящая паутина. */
@@ -291,17 +291,10 @@ export class Webs {
   private time = 0;
 
   constructor(
-    sprites: SpriteLibrary, private readonly def: LevelDef, private readonly ts: number,
+    sprites: SpriteLibrary, private readonly ts: number,
     private readonly isSolid: (cx: number, cy: number) => boolean
   ) {
     this.tex = sprites.texture(THREAD_SPRITE);
-  }
-
-  /** Раскладывает паутину зоны; index — номер зоны (для детерминированного генератора). */
-  public addZone(zone: DecorZoneDef, index: number): void {
-    const { vines, sky } = layoutWebs(this.def, zone, index, (cx, cy) => this.isSolid(cx, cy));
-    for (const v of vines) this.vines.push(new Vine(this.back, this.tex, v.x, v.y, v.pieces, v.tint, v.bead, this.isSolid, this.ts));
-    for (const t of sky) this.sky.push(new SkyThread(this.back, this.tex, t.x, t.topY, t.bottomY, t.swing, t.speed, t.phase, t.bead));
   }
 
   /** Нитка, поставленная вручную точно на пиксель (level.threads): лиана свисает от точки (x, y), нитка с неба — верх в точке и свободный низ. */

@@ -5,7 +5,8 @@ import { newLevel } from './model.ts';
 import { Panels } from './panels.ts';
 import { render } from './render.ts';
 import { Editor } from './state.ts';
-import type { ToolId } from './state.ts';
+import { CONTENT_LAYERS } from './state.ts';
+import type { LayerKey, ToolId } from './state.ts';
 import { isTyping, Tools } from './tools.ts';
 
 interface ToolButton {
@@ -100,7 +101,7 @@ async function start(): Promise<void> {
   const saveBtn = btn('💾 Сохранить', 'Сохранить уровень (Ctrl+S)', () => void ed.save(), 'primary');
   const zoomLabel = h('span', { class: 'zoom-label' }, '100%');
 
-  const toggle = (key: keyof Editor['show'], label: string, title: string) => {
+  const toggle = (key: LayerKey, label: string, title: string) => {
     const b = h('button', { class: 'btn toggle', title, onclick: () => { ed.show[key] = !ed.show[key]; sync(); ed.emit('view'); } }, label);
     return { el: b, key };
   };
@@ -109,11 +110,44 @@ async function start(): Promise<void> {
     toggle('rooms', 'Комнаты', 'Контуры комнат и привязка мобов'),
     toggle('fog', 'Туман', 'Предпросмотр тумана: видна только активная комната (F)'),
     toggle('collisions', 'Коллизии', 'Обвести твёрдые клетки'),
-    toggle('decor', 'Декор', 'Декор и нитки'),
-    toggle('entities', 'Объекты', 'Мобы, двери, предметы, терминалы'),
     toggle('background', 'Фон', 'Цвет фона уровня'),
     toggle('labels', 'Подписи', 'Подписи дверей и комнат')
   ];
+
+  // ---- слои: что показывать (скрытое не рисуется и не выбирается мышью), чтобы не мешало
+  const layersMenu = h('div', { class: 'layers-menu' });
+  layersMenu.style.display = 'none';
+  const layersBtn = h('button', { class: 'btn toggle', title: 'Слои: скрыть то, что мешает', onclick: (e: Event) => {
+    e.stopPropagation();
+    layersMenu.style.display = layersMenu.style.display === 'none' ? 'block' : 'none';
+    const r = layersBtn.getBoundingClientRect();
+    layersMenu.style.top = `${r.bottom + 4}px`;
+    layersMenu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 290))}px`;
+    renderLayers();
+  } }, '👁 Слои');
+  function renderLayers(): void {
+    clear(layersMenu);
+    layersMenu.append(
+      h('div', { class: 'layers-head' },
+        h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = true; ed.emit('view'); } }, 'Показать все'),
+        h('button', { class: 'btn small', onclick: () => { for (const [k] of CONTENT_LAYERS) ed.show[k] = k === 'tiles'; ed.emit('view'); } }, 'Только тайлы'))
+    );
+    for (const [key, label] of CONTENT_LAYERS) {
+      const cb = h('input', { type: 'checkbox', checked: ed.show[key] }) as HTMLInputElement;
+      cb.addEventListener('change', () => { ed.show[key] = cb.checked; ed.emit('view'); });
+      layersMenu.append(h('label', { class: 'layer-row' }, cb, h('span', {}, label),
+        h('button', { class: 'btn small', title: 'Показать только этот слой (и тайлы)', onclick: (e: Event) => {
+          e.preventDefault();
+          for (const [k] of CONTENT_LAYERS) ed.show[k] = k === key || k === 'tiles';
+          ed.emit('view');
+        } }, 'solo')));
+    }
+  }
+  document.addEventListener('click', (e) => {
+    if (!layersMenu.contains(e.target as Node)) layersMenu.style.display = 'none';
+  });
+  document.body.append(layersMenu);
+  ed.on('view', () => { if (layersMenu.style.display !== 'none') renderLayers(); });
 
   topbar.append(
     h('div', { class: 'brand' }, h('b', {}, 'LD60'), h('span', {}, 'Редактор уровней')),
@@ -129,6 +163,7 @@ async function start(): Promise<void> {
     btn('▶ Отсюда', 'Запустить с клетки под курсором (Shift+P)', () => void play(true), 'success'),
     h('span', { class: 'sep' }),
     ...toggles.map((t) => t.el),
+    layersBtn,
     h('span', { class: 'sep' }),
     btn('−', 'Уменьшить', () => ed.zoomAt(1 / 1.25, canvas.width / 2, canvas.height / 2), 'icon'),
     zoomLabel,
@@ -159,6 +194,11 @@ async function start(): Promise<void> {
     toolbar.append(el);
   }
   function chooseTool(id: ToolId): void {
+    // инструмент работает со своим слоем — если он был скрыт, показываем
+    const need: Partial<Record<ToolId, LayerKey[]>> = {
+      brush: ['tiles'], eraser: ['tiles'], rect: ['tiles'], fill: ['tiles'], decor: ['decorBack', 'decorFront'], thread: ['threads'], mob: ['enemies'], object: ['objects'], spawn: ['spawn']
+    };
+    for (const k of need[id] ?? []) ed.show[k] = true;
     // инструмент расстановки без выбранного предмета берёт первый из каталога
     if (id === 'decor' && !ed.armedDecor) ed.armedDecor = ed.project.placeables.decor[0] ?? null;
     if (id === 'thread' && !ed.armedThread) ed.armedThread = ed.project.placeables.threads[0] ?? null;

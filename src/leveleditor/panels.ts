@@ -80,7 +80,7 @@ export class Panels {
     const dataTabs: Tab[] = ['rooms', 'level'];
     const key = dataTabs.includes(this.tab)
       ? ''
-      : `${this.tab}|${ed.brushTile}|${JSON.stringify(ed.brushXf)}|${ed.armedDecor?.sprite_id}|${ed.armedThread?.kind}|${ed.armedEnemy?.sprite_id}|${ed.armedObject?.type}|${ed.tool}|${ed.placeFlipX}${ed.placeFlipY}|${ed.selection.kind}`;
+      : `${this.tab}|${ed.brushTile}|${JSON.stringify(ed.brushXf)}|${ed.armedDecor?.sprite_id}|${ed.armedThread?.kind}|${ed.armedEnemy?.sprite_id}|${ed.armedObject?.type}|${ed.tool}|${ed.placeFlipX}${ed.placeFlipY}|${JSON.stringify(ed.selection)}|${ed.def.decor?.length}|${ed.def.threads?.length}|${ed.def.enemies.length}|${ed.def.objects?.length}|${ed.def.terminals?.length}|${this.tab === 'tiles' ? 0 : ed.rev}`;
     if (key && key === this.lastKey) return;
     this.lastKey = key;
     clear(this.bodyEl);
@@ -102,6 +102,41 @@ export class Panels {
 
   private palItem(active: boolean, title: string, thumb: HTMLElement, label: string, onclick: () => void): HTMLElement {
     return h('button', { class: `pal-item${active ? ' active' : ''}`, title, onclick }, thumb, h('span', {}, label));
+  }
+
+  /** Список всего расставленного данного вида: выбрать строкой, удалить по одному или все сразу. */
+  private placedList(kind: 'decor' | 'thread' | 'enemy' | 'object'): HTMLElement {
+    const ed = this.ed;
+    const def = ed.def;
+    const rows: Array<{ kind: 'decor' | 'thread' | 'enemy' | 'object' | 'terminal'; index: number; label: string }> = [];
+    if (kind === 'decor') (def.decor ?? []).forEach((d, i) => rows.push({ kind: 'decor', index: i, label: `${ed.decorKind(d.sprite_id)?.label ?? d.sprite_id} · ${Math.round(d.x * ed.ts)}, ${Math.round(d.y * ed.ts)}` }));
+    if (kind === 'thread') (def.threads ?? []).forEach((t, i) => rows.push({ kind: 'thread', index: i, label: `${t.kind === 'vine' ? 'Лиана' : 'Нитка с неба'} · ${Math.round(t.x)}, ${Math.round(t.y)}` }));
+    if (kind === 'enemy') def.enemies.forEach((e, i) => rows.push({ kind: 'enemy', index: i, label: `${ed.enemyDef(e.enemy_id)?.display_name ?? e.enemy_id} · клетка ${e.x}, ${e.y}` }));
+    if (kind === 'object') {
+      (def.objects ?? []).forEach((o, i) => rows.push({ kind: 'object', index: i, label: `${ed.objectKind(o.type)?.label ?? o.type} (${o.id})` }));
+      (def.terminals ?? []).forEach((t, i) => rows.push({ kind: 'terminal', index: i, label: `Терминал · клетка ${t.x}, ${t.y}` }));
+    }
+    const wrap = h('div', {});
+    wrap.append(h('h4', {}, `Расставлено: ${rows.length}`));
+    if (!rows.length) {
+      wrap.append(h('p', { class: 'hint' }, 'Пока ничего. Правая кнопка на карте удаляет предмет под курсором, Ctrl+клик — выбирает.'));
+      return wrap;
+    }
+    const list = h('div', { class: 'placed-list' });
+    const sel = ed.selection;
+    for (const r of rows) {
+      const active = sel.kind === r.kind && 'index' in sel && sel.index === r.index;
+      list.append(h('div', { class: `placed-row${active ? ' active' : ''}`, onclick: () => ed.setSelection({ kind: r.kind, index: r.index }) },
+        h('span', { title: r.label }, r.label),
+        h('button', { class: 'btn small', title: 'Удалить', onclick: (e: Event) => {
+          e.stopPropagation();
+          ed.setSelection({ kind: r.kind, index: r.index });
+          ed.deleteSelection();
+        } }, '🗑')));
+    }
+    wrap.append(list, h('div', { class: 'btn-row' },
+      h('button', { class: 'btn danger', onclick: () => { if (confirm(`Удалить всё из списка (${rows.length})?`)) ed.deleteAllOf(kind); } }, '🗑 Удалить все')));
+    return wrap;
   }
 
   // ---------- Тайлы ----------
@@ -167,6 +202,7 @@ export class Panels {
       wrap.append(grid);
     }
     const k = ed.armedDecor;
+    wrap.append(this.placedList('decor'));
     wrap.append(
       h('div', { class: 'btn-row' },
         h('button', { class: `btn${ed.placeFlipX ? ' on' : ''}`, onclick: () => ed.transform('flipH') }, '⇆ Отразить'),
@@ -190,14 +226,8 @@ export class Panels {
         this.thumb(k.sprite_id, 0, 'thumb small'),
         h('span', {}, h('b', {}, k.label), h('br'), h('small', {}, k.hint ?? ''))));
     }
-    wrap.append(h('p', { class: 'hint' }, 'Кликните — нитка закрепится в этом пикселе. Или зажмите и потяните вниз: длина задаётся протяжкой. Точное положение, число звеньев и размах качания — в «Свойствах» ниже; стрелки двигают на 1 пиксель.'));
-    const zones = ed.def.zones ?? [];
-    if (zones.length) {
-      wrap.append(h('h4', {}, `Зоны автодекора (${zones.length})`), h('p', { class: 'hint' }, 'Старый способ: декор и паутина раскладываются сами по прямоугольнику. Зоны остаются в уровне; здесь их можно убрать.'));
-      zones.forEach((z, i) => wrap.append(h('div', { class: 'row-item' },
-        h('span', {}, `${z.kind === 'webs' ? 'паутина' : 'транзисторы'} ${z.x0},${z.y0} → ${z.x1},${z.y1} (${z.density ?? 0.5})`),
-        h('button', { class: 'btn small', onclick: () => ed.edit(() => { zones.splice(i, 1); }) }, '🗑'))));
-    }
+    wrap.append(h('p', { class: 'hint' }, 'Лиана цепляется строго по сетке — к нижним пикселям тайла над курсором (Alt — свободно). Нитка с неба — на любой пиксель. Зажмите и потяните вниз — длина задаётся протяжкой. ПКМ — удалить нитку под курсором, Ctrl+клик — выбрать для правки.'));
+    wrap.append(this.placedList('thread'));
     return wrap;
   }
 
@@ -231,6 +261,7 @@ export class Panels {
     wrap.append(h('p', { class: 'hint' }, a
       ? `${a.def.display_name}: HP ${a.def.stats.max_health}, урон касанием ${a.def.stats.contact_damage}. Моб замечает героя и атакует только в своей комнате (определяется по клетке; можно задать вручную в «Свойствах»).`
       : 'Выберите моба и кликните по клетке. Ползающие (пауки) сами выберут пол, стену или потолок; остальное — в «Свойствах».'));
+    wrap.append(this.placedList('enemy'));
     const outside = ed.rooms.length ? ed.def.enemies.filter((e) => !e.room && roomsAt(ed.def, e.x, e.y).length === 0) : [];
     if (outside.length) wrap.append(h('p', { class: 'warn' }, `⚠ Мобов вне комнат: ${outside.length}. Они будут нападать без ограничений — поставьте их внутрь комнаты.`));
     return wrap;
@@ -260,6 +291,7 @@ export class Panels {
       h('h4', {}, 'Старт героя'),
       h('button', { class: `pal-wide${ed.tool === 'spawn' ? ' active' : ''}`, onclick: () => ed.setTool('spawn') }, h('span', {}, h('b', {}, '🏁 Точка появления героя'), h('br'), h('small', {}, `Сейчас: клетка ${ed.def.player_spawn.x}, ${ed.def.player_spawn.y}`)))
     );
+    wrap.append(this.placedList('object'));
     const k = ed.armedObject;
     wrap.append(h('p', { class: 'hint' }, k?.hint ?? 'Дверь ведёт к другой двери — этого уровня или другого. Батарейка — квестовый предмет, подставка принимает её и ставит флаг, который открывает запертую дверь.'));
     return wrap;

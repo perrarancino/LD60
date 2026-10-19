@@ -1,5 +1,6 @@
 import type { EnemyDef, EnemySpawnDef, LevelDef, LevelObjectDef, RoomDef, ThreadPlaceDef, TileDef } from '../data/types.ts';
 import type { DecorKind, ObjectKind, PlaceAnchor, PlaceSnap, ThreadKind } from '../world/placeables.ts';
+import { convertZonesToItems } from '../world/autoDecor.ts';
 import { deleteLevel, saveLevel } from './api.ts';
 import type { ProjectData } from './api.ts';
 import { SpriteAtlas } from './assets.ts';
@@ -49,6 +50,27 @@ export interface Placement {
 
 const HISTORY_LIMIT = 100;
 
+export type LayerKey = 'grid' | 'fog' | 'rooms' | 'collisions' | 'labels' | 'background' | 'tiles' | 'decorBack' | 'decorFront' | 'threads' | 'objects' | 'enemies' | 'spawn';
+
+/** Слои, которые можно скрывать, чтобы не мешали: ключ, название, чем они являются. */
+export const CONTENT_LAYERS: Array<[LayerKey, string]> = [
+  ['tiles', 'Тайлы'],
+  ['decorBack', 'Декор за тайлами'],
+  ['decorFront', 'Декор перед тайлами'],
+  ['threads', 'Нитки и лианы'],
+  ['objects', 'Объекты, двери, терминалы'],
+  ['enemies', 'Мобы и боссы'],
+  ['spawn', 'Старт героя']
+];
+
+/** Что редактирует каждый инструмент расстановки: по этим видам работают удаление и выбор под курсором. */
+export const TOOL_KINDS: Partial<Record<ToolId, Array<'decor' | 'thread' | 'enemy' | 'object' | 'terminal'>>> = {
+  decor: ['decor'],
+  thread: ['thread'],
+  mob: ['enemy'],
+  object: ['object', 'terminal']
+};
+
 /**
  * Состояние редактора: открытый уровень (LevelDef как есть), вид, инструмент, выделение, история. Все правки уровня идут через методы
  * этого класса — каждая записывается в историю (Ctrl+Z) и помечает уровень несохранённым.
@@ -77,7 +99,10 @@ export class Editor {
   public clipboard: TileClip | null = null;
 
   // отображение
-  public show = { grid: true, fog: false, rooms: true, collisions: false, decor: true, entities: true, background: true, labels: true };
+  public show: Record<LayerKey, boolean> = {
+    grid: true, fog: false, rooms: true, collisions: false, labels: true, background: true,
+    tiles: true, decorBack: true, decorFront: true, threads: true, objects: true, enemies: true, spawn: true
+  };
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -180,6 +205,12 @@ export class Editor {
     this.redoStack = [];
     this.selection = { kind: 'none' };
     this.activeRoom = this.def.rooms?.[0]?.id ?? null;
+    // старые зоны автодекора (транзисторы, паутина) раскладывались сами — превращаем в обычные предметы, чтобы всё было ручным
+    const converted = convertZonesToItems(this.def, (cx, cy) => this.isSolid(cx, cy), (id) => this.atlas.def(id));
+    if (converted > 0) {
+      this.dirty = true;
+      this.setStatus(`Автодекор по зонам превращён в обычные предметы (${converted} шт.): теперь их можно двигать и удалять. Сохраните уровень.`);
+    }
     if (!this.brushTile) this.brushTile = this.project.tiles.tiles.find((t) => t.solid && !t.slope)?.id ?? null;
     this.emit('doc');
     this.emit('sel');
@@ -500,7 +531,7 @@ export class Editor {
   }
 
   /** Нижняя грань твёрдой поверхности над точкой (потолок). */
-  public ceilingY(wx: number, wy: number): number {
+  public ceilingY(wx: number, wy: number): number | null {
     const ts = this.ts;
     const cx = Math.floor(wx / ts);
     let cy = Math.floor(wy / ts);
@@ -509,7 +540,7 @@ export class Editor {
       return (cy + 1) * ts;
     }
     for (let k = 0; k < 60 && cy - k >= 0; k++) if (this.isSolid(cx, cy - k)) return (cy - k + 1) * ts;
-    return 0;
+    return null; // над курсором нет потолка
   }
 
   /** Куда встанет точка привязки объекта (px) с учётом его свойств. free (Alt) — без привязки, просто на пиксель. */
@@ -522,7 +553,7 @@ export class Editor {
     }
     let y = Math.round(wy);
     if (!free && p.anchor === 'floor') y = this.floorY(wx, wy);
-    else if (!free && p.anchor === 'ceiling') y = this.ceilingY(wx, wy);
+    else if (!free && p.anchor === 'ceiling') y = this.ceilingY(wx, wy) ?? y;
     return { x, y };
   }
 
@@ -603,6 +634,32 @@ export class Editor {
       this.def.player_spawn = { x: cx, y: cy };
     });
     this.setSelection({ kind: 'spawn' });
+  }
+
+  /** Слой виден (не скрыт)? Скрытое не рисуется и не выбирается мышью. */
+  public visible(kind: 'decor' | 'thread' | 'enemy' | 'object' | 'terminal' | 'spawn', index = 0): boolean {
+    switch (kind) {
+      case 'decor': return this.show[this.def.decor?.[index]?.layer === 'back' ? 'decorBack' : 'decorFront'];
+      case 'thread': return this.show.threads;
+      case 'enemy': return this.show.enemies;
+      case 'object':
+      case 'terminal': return this.show.objects;
+      case 'spawn': return this.show.spawn;
+    }
+  }
+
+  /** Удаляет всё расставленное данного вида (декор, нитки, мобы, объекты с терминалами). */
+  public deleteAllOf(kind: 'decor' | 'thread' | 'enemy' | 'object'): void {
+    this.edit(() => {
+      if (kind === 'decor') this.def.decor = [];
+      else if (kind === 'thread') this.def.threads = [];
+      else if (kind === 'enemy') this.def.enemies = [];
+      else {
+        this.def.objects = [];
+        this.def.terminals = [];
+      }
+    });
+    this.setSelection({ kind: 'none' });
   }
 
   public deleteSelection(): void {

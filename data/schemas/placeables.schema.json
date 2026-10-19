@@ -58,6 +58,8 @@
           "kind": { "type": "string", "enum": ["vine", "sky"] },
           "label": { "type": "string" },
           "sprite_id": { "type": "string" },
+          "anchor": { "$ref": "#/$defs/anchor" },
+          "snap": { "$ref": "#/$defs/snap" },
           "hint": { "type": "string" },
           "defaults": {
             "type": "object",

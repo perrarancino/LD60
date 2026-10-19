@@ -1,7 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { DecorZoneDef, LevelDef, Slope, TileSetDef } from '../data/types.ts';
-import { layoutTransistors, reservedCells, SPRITE_TRANSISTORS } from './autoDecor.ts';
+import type { LevelDef, Slope, TileSetDef } from '../data/types.ts';
 import { objectSpriteIds } from './placeables.ts';
 import { cellKey, tileVisual, transformSlope, xformMap, xformSteps } from './tileRules.ts';
 import { THREAD_SPRITE, Webs } from './Webs.ts';
@@ -29,17 +28,14 @@ export class Level {
 
   private solid: boolean[][] = [];
   private slopes: (Slope | undefined)[][] = [];
-  private readonly reserved = new Set<string>(); // «ряд:колонка» клеток, где уже стоит декор (автодекор там не ставится)
   private readonly webs: Webs;
 
-  /** Id спрайтов, нужных уровню (тайлы, декор, зоны) — для предзагрузки. */
+  /** Id спрайтов, нужных уровню (тайлы, декор, объекты) — для предзагрузки. */
   public static spriteIds(def: LevelDef, tileset: TileSetDef): string[] {
     const used = new Set(Object.values(def.legend).filter((v): v is string => v !== null));
-    const zones = def.zones ?? [];
     return [
       ...tileset.tiles.filter((t) => used.has(t.id)).flatMap((t) => (t.fill_sprite_id ? [t.sprite_id, t.fill_sprite_id] : [t.sprite_id])),
       ...(def.decor ?? []).map((d) => d.sprite_id),
-      ...(zones.some((z) => z.kind === 'transistors') ? SPRITE_TRANSISTORS : []),
       ...(def.objects ?? []).flatMap((o) => objectSpriteIds(o)),
       THREAD_SPRITE
     ];
@@ -126,17 +122,11 @@ export class Level {
     for (const d of def.decor ?? []) {
       this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer, d.flip_x, d.flip_y);
     }
-    // колонки, которые декор занимает по ширине на своём ряду: автодекор (транзисторы) в них не ставим — ничего не пересекается
-    for (const key of reservedCells(def, (id) => sprites.def(id))) this.reserved.add(key);
 
-    // Висящая паутина (нитка паучихи): лианы под тайлами и длинные нитки с неба — по зонам; лежит под тайлами (корни спрятаны)
-    this.webs = new Webs(sprites, def, this.tileSize, (cx, cy) => this.solid[cy][cx]);
+    // Нитки (лианы и длинные нитки с неба): только те, что поставлены вручную (level.threads); лежат под тайлами, корни спрятаны.
+    // Автораскладки по зонам больше нет — всё расставляется в редакторе.
+    this.webs = new Webs(sprites, this.tileSize, (cx, cy) => this.solid[cy][cx]);
     this.backLayer.addChild(this.webs.back);
-    (def.zones ?? []).forEach((zone, i) => {
-      if (zone.kind === 'webs') this.webs.addZone(zone, i);
-      else this.fillTransistors(sprites, zone, i);
-    });
-    // Нитки, поставленные вручную на конкретные пиксели
     for (const t of def.threads ?? []) this.webs.addThread(t);
   }
 
@@ -146,15 +136,6 @@ export class Level {
     sprite.position.set(Math.round(tx * this.tileSize), Math.round(ty * this.tileSize));
     if (flipX || flipY) sprite.scale.set(flipX ? -1 : 1, flipY ? -1 : 1); // отражение вокруг точки привязки
     layer.addChild(sprite);
-  }
-
-  /** Зона транзисторов: раскладку считает autoDecor (так же рисует редактор). */
-  private fillTransistors(sprites: SpriteLibrary, zone: DecorZoneDef, index: number): void {
-    for (const t of layoutTransistors(this.def, zone, index, (cx, cy) => this.solid[cy][cx], this.reserved)) {
-      const sprite = sprites.createSprite(t.sprite_id);
-      sprite.position.set(t.x, t.y);
-      this.frontLayer.addChild(sprite);
-    }
   }
 
   /** Анимация декора; camLeft..camRight — видимый диапазон по x (мир), actors — кто задевает лианы. */

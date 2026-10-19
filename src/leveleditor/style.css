@@ -143,3 +143,19 @@ small { color: var(--muted); }
 .dialog { background: var(--panel); color: var(--text); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 18px; width: 360px; }
 .dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .dialog .field input, .dialog .field select { max-width: 190px; }
+
+/* ---- слои ---- */
+.layers-menu {
+  position: fixed; z-index: 50; width: 270px; padding: 8px;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.layers-head { display: flex; gap: 6px; margin-bottom: 6px; }
+.layer-row { display: flex; align-items: center; gap: 8px; padding: 3px 2px; cursor: pointer; }
+.layer-row span { flex: 1; }
+.layer-row input { width: 16px; height: 16px; }
+/* ---- список расставленного ---- */
+.placed-list { display: flex; flex-direction: column; gap: 2px; max-height: 190px; overflow-y: auto; margin: 4px 0 8px; }
+.placed-row { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.placed-row:hover { background: var(--panel-2); }
+.placed-row.active { border-color: var(--gold); background: #2a2310; }
+.placed-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

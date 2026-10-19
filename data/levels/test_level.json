@@ -43,13 +43,6 @@
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 10,
-      "y": 14,
-      "surface": "floor"
-    },
-    {
-      "enemy_id": "spider",
-      "sprite_id": "enemy_spider",
       "x": 20,
       "y": 10,
       "surface": "floor"
@@ -85,11 +78,64 @@
       "anchor_y": -2
     },
     {
-      "enemy_id": "worm_boss",
-      "sprite_id": "boss_worm_head",
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 16,
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 17,
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 18,
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
       "x": 20,
-      "y": 3,
-      "length": 10
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 19,
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 15,
+      "y": 7
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 14,
+      "y": 7
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 6,
+      "y": 11
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 9,
+      "y": 11
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 11,
+      "y": 11
     }
   ],
   "decor": [
@@ -110,56 +156,162 @@
       "x": 10,
       "y": 12,
       "layer": "back"
-    }
-  ],
-  "zones": [
-    {
-      "kind": "webs",
-      "x0": 17,
-      "y0": 3,
-      "x1": 28,
-      "y1": 15,
-      "density": 0.75
     },
     {
-      "kind": "webs",
-      "x0": 3,
-      "y0": 8,
-      "x1": 12,
-      "y1": 13,
-      "density": 0.35
+      "sprite_id": "deco_transistor",
+      "x": 6.5,
+      "y": 12,
+      "layer": "front"
     },
     {
-      "kind": "webs",
-      "x0": 12,
-      "y0": 3,
-      "x1": 18,
-      "y1": 11,
-      "density": 0.6
+      "sprite_id": "deco_transistor2",
+      "x": 8.5,
+      "y": 12,
+      "layer": "front"
     },
     {
-      "kind": "transistors",
-      "x0": 3,
-      "y0": 10,
-      "x1": 12,
-      "y1": 15,
-      "density": 0.9
+      "sprite_id": "deco_transistor2",
+      "x": 11.5,
+      "y": 12,
+      "layer": "front"
     },
     {
-      "kind": "transistors",
-      "x0": 17,
-      "y0": 9,
-      "x1": 22,
-      "y1": 15,
-      "density": 0.75
+      "sprite_id": "deco_transistor",
+      "x": 4.5,
+      "y": 15,
+      "layer": "front"
     },
     {
-      "kind": "transistors",
-      "x0": 23,
-      "y0": 3,
-      "x1": 29,
-      "y1": 15,
-      "density": 0.8
+      "sprite_id": "deco_transistor",
+      "x": 5.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 6.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 7.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 8.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 9.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 10.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 11.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 12.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 19.5,
+      "y": 11,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 21.5,
+      "y": 11,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 22.5,
+      "y": 11,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 18.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 20.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 21.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 22.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 26.5,
+      "y": 3,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 23.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 24.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 25.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 27.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 28.5,
+      "y": 15,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 29.5,
+      "y": 15,
+      "layer": "front"
     }
   ],
   "grade": {
@@ -170,11 +322,11 @@
     "gamma": 1.08,
     "tint": [
       0.82,
-      1.0,
+      1,
       0.9
     ],
     "shadows": [
-      0.0,
+      0,
       0.035,
       0.02
     ],
@@ -184,16 +336,223 @@
       0.03
     ],
     "shadows_end": [
-      0.0,
+      0,
       0.03,
       0.04
     ],
     "highlights_end": [
       0.04,
       0.05,
-      0.0
+      0
     ]
   },
   "debug_key": 1,
-  "start_armor": 1
+  "start_armor": 1,
+  "threads": [
+    {
+      "kind": "vine",
+      "x": 616,
+      "y": 384,
+      "pieces": 3,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 623,
+      "y": 384,
+      "pieces": 6,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 631,
+      "y": 384,
+      "pieces": 3,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 647,
+      "y": 384,
+      "pieces": 3,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 657,
+      "y": 384,
+      "pieces": 5,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 664,
+      "y": 384,
+      "pieces": 6,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 682,
+      "y": 384,
+      "pieces": 3,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 692,
+      "y": 384,
+      "pieces": 2,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 712,
+      "y": 384,
+      "pieces": 5,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 720,
+      "y": 384,
+      "pieces": 4,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 727,
+      "y": 384,
+      "pieces": 3,
+      "bead": false
+    },
+    {
+      "kind": "sky",
+      "x": 652,
+      "y": -64,
+      "length": 408,
+      "swing": 14,
+      "bead": true
+    },
+    {
+      "kind": "sky",
+      "x": 714,
+      "y": -64,
+      "length": 367,
+      "swing": 9,
+      "bead": true
+    },
+    {
+      "kind": "sky",
+      "x": 793,
+      "y": -64,
+      "length": 459,
+      "swing": 12,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 136,
+      "y": 416,
+      "pieces": 2,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 145,
+      "y": 416,
+      "pieces": 1,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 152,
+      "y": 416,
+      "pieces": 2,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 203,
+      "y": 416,
+      "pieces": 3,
+      "bead": true
+    },
+    {
+      "kind": "vine",
+      "x": 214,
+      "y": 416,
+      "pieces": 2,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 296,
+      "y": 416,
+      "pieces": 3,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 304,
+      "y": 416,
+      "pieces": 2,
+      "bead": false
+    },
+    {
+      "kind": "vine",
+      "x": 312,
+      "y": 416,
+      "pieces": 1,
+      "bead": false
+    },
+    {
+      "kind": "sky",
+      "x": 101,
+      "y": -64,
+      "length": 440,
+      "swing": 13,
+      "bead": true
+    },
+    {
+      "kind": "sky",
+      "x": 295,
+      "y": -64,
+      "length": 440,
+      "swing": 11,
+      "bead": false
+    },
+    {
+      "kind": "sky",
+      "x": 407,
+      "y": -64,
+      "length": 398,
+      "swing": 7,
+      "bead": true
+    },
+    {
+      "kind": "sky",
+      "x": 402,
+      "y": -64,
+      "length": 256,
+      "swing": 11,
+      "bead": false
+    },
+    {
+      "kind": "sky",
+      "x": 474,
+      "y": -64,
+      "length": 175,
+      "swing": 10,
+      "bead": false
+    },
+    {
+      "kind": "sky",
+      "x": 566,
+      "y": -64,
+      "length": 231,
+      "swing": 13,
+      "bead": false
+    }
+  ]
 }

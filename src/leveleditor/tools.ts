@@ -1,3 +1,4 @@
+import { TOOL_KINDS } from './state.ts';
 import type { Editor, Placement, ToolId } from './state.ts';
 import { drawThread, enemySpot, entityBox, pickEntity, selectionBox } from './render.ts';
 import { inBounds } from './model.ts';
@@ -8,7 +9,7 @@ type Drag =
   | { kind: 'rect'; erase: boolean; x0: number; y0: number }
   | { kind: 'selrect'; x0: number; y0: number }
   | { kind: 'move'; grabX: number; grabY: number; moved: boolean }
-  | { kind: 'thread'; x: number; y: number }
+  | { kind: 'thread'; x: number; y: number; rawY: number }
   | { kind: 'room'; erase: boolean; lastX: number; lastY: number }
   | { kind: 'roomrect'; erase: boolean; x0: number; y0: number };
 
@@ -96,7 +97,7 @@ export class Tools {
 
     if (erase && !TILE_TOOLS.includes(tool) && tool !== 'room') {
       // правая кнопка в инструментах расстановки — удалить то, что под курсором
-      const hit = pickEntity(ed, p.wx, p.wy);
+      const hit = pickEntity(ed, p.wx, p.wy, TOOL_KINDS[tool]);
       if (hit && hit.kind !== 'spawn') {
         ed.setSelection({ kind: hit.kind, index: hit.index });
         ed.deleteSelection();
@@ -105,6 +106,13 @@ export class Tools {
       return;
     }
     if (e.button !== 0 && !erase) return;
+
+    // Ctrl+клик в инструменте расстановки — выбрать уже стоящий предмет своей категории (двигать, править, Delete) вместо новой установки
+    if (e.ctrlKey && !erase && TOOL_KINDS[tool]) {
+      this.downSelect(p, TOOL_KINDS[tool]);
+      this.redraw();
+      return;
+    }
 
     switch (tool) {
       case 'brush':
@@ -151,7 +159,11 @@ export class Tools {
         }
         break;
       case 'thread':
-        if (ed.armedThread) this.drag = { kind: 'thread', x: Math.round(p.wx), y: Math.round(p.wy) };
+        if (ed.armedThread) {
+          // лиана цепляется по сетке к нижней грани тайла, нитка с неба — на пиксель (Alt — без привязки)
+          const at = ed.snapPoint(threadPlacement(ed.armedThread), p.wx, p.wy, e.altKey);
+          this.drag = { kind: 'thread', x: at.x, y: at.y, rawY: Math.round(p.wy) };
+        }
         break;
       case 'mob':
         if (ed.armedEnemy) ed.placeEnemy(p.cx, p.cy);
@@ -166,9 +178,9 @@ export class Tools {
     this.redraw();
   }
 
-  private downSelect(p: { wx: number; wy: number; cx: number; cy: number }): void {
+  private downSelect(p: { wx: number; wy: number; cx: number; cy: number }, only?: Parameters<typeof pickEntity>[3]): void {
     const ed = this.ed;
-    const hit = pickEntity(ed, p.wx, p.wy);
+    const hit = pickEntity(ed, p.wx, p.wy, only);
     if (hit) {
       ed.setSelection(hit.kind === 'spawn' ? { kind: 'spawn' } : { kind: hit.kind, index: hit.index });
       const b = selectionBox(ed);
@@ -305,8 +317,16 @@ export class Tools {
       case 'thread': {
         const t = ed.def.threads?.[s.index];
         if (t) {
-          t.x = Math.round(wx);
-          t.y = Math.round(wy - (entityBox(ed, 'thread', s.index)?.h ?? 0) / 2 + 0);
+          const kind = ed.threadKind(t.kind);
+          if (kind?.anchor === 'ceiling') {
+            // лиана переезжает по сетке: к нижней грани тайла над курсором
+            const at = ed.snapPoint(threadPlacement(kind), p.wx, p.wy, free);
+            t.x = at.x;
+            t.y = at.y;
+          } else {
+            t.x = Math.round(wx);
+            t.y = Math.round(wy - (entityBox(ed, 'thread', s.index)?.h ?? 0) / 2);
+          }
         }
         break;
       }
@@ -368,7 +388,7 @@ export class Tools {
       case 'thread': {
         const kind = ed.armedThread;
         if (!kind) break;
-        const dy = Math.max(0, Math.round(p.wy) - d.y);
+        const dy = Math.max(0, Math.round(p.wy) - d.rawY);
         const dragged = dy > 6;
         const size = dragged ? (kind.kind === 'vine' ? Math.max(1, Math.round(dy / 14)) : Math.max(16, dy)) : undefined;
         ed.beginEdit();
@@ -510,11 +530,12 @@ export class Tools {
         if (ed.armedThread) {
           const k = ed.armedThread;
           const t = d?.kind === 'thread' ? d : null;
-          const x = t ? t.x : Math.round(h.wx);
-          const y = t ? t.y : Math.round(h.wy);
+          const snapped = ed.snapPoint(threadPlacement(k), h.wx, h.wy, this.altHeld);
+          const x = t ? t.x : snapped.x;
+          const y = t ? t.y : snapped.y;
           let size = k.kind === 'vine' ? k.defaults?.pieces ?? 3 : k.defaults?.length ?? 160;
           if (t) {
-            const dy = Math.max(0, Math.round(h.wy) - t.y);
+            const dy = Math.max(0, Math.round(h.wy) - t.rawY);
             if (dy > 6) size = k.kind === 'vine' ? Math.max(1, Math.round(dy / 14)) : Math.max(16, dy);
           }
           ctx.globalAlpha = 0.75;
@@ -550,6 +571,11 @@ export class Tools {
     ctx.lineTo(at.x, at.y + 6 / z);
     ctx.stroke();
   }
+}
+
+/** Привязка нитки из каталога: лиана — к потолку по сетке, нитка с неба — на пиксель. */
+export function threadPlacement(k: { anchor?: Placement['anchor']; snap?: Placement['snap'] }): Placement {
+  return { anchor: k.anchor ?? 'free', snap: k.snap ?? 'pixel' };
 }
 
 export function placementOf(k: { anchor: Placement['anchor']; snap: Placement['snap'] }): Placement {
