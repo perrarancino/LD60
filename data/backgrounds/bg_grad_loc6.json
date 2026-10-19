@@ -1,0 +1,22 @@
+{
+  "$schema": "../schemas/background.schema.json",
+  "id": "bg_grad_loc6",
+  "description": "Градиент финальной локации: фиолетовый.",
+  "sky_color": "#0a0427",
+  "scale": 2,
+  "layers": [],
+  "gradient": [
+    {
+      "at": 0,
+      "color": "#0a0427"
+    },
+    {
+      "at": 0.55,
+      "color": "#350857"
+    },
+    {
+      "at": 1,
+      "color": "#7c1fb0"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
   "display_name": "Прототип карты",
   "debug_key": 1,
   "start_armor": 1,
-  "background_id": "bg_textalite",
+  "background_id": "bg_grad_loc1",
   "tile_size": 32,
   "width": 286,
   "height": 76,
@@ -444,7 +444,8 @@
       "width": 30,
       "height": 15,
       "beveled": false,
-      "location": 1
+      "location": 1,
+      "background_id": "bg_grad_loc1"
     },
     {
       "id": "room_1792350689091_266",
@@ -454,7 +455,8 @@
       "width": 25,
       "height": 12,
       "beveled": false,
-      "location": 1
+      "location": 1,
+      "background_id": "bg_grad_loc1"
     },
     {
       "id": "room_1792351055354_265",
@@ -464,7 +466,8 @@
       "width": 22,
       "height": 14,
       "beveled": false,
-      "location": 1
+      "location": 1,
+      "background_id": "bg_grad_loc1"
     },
     {
       "id": "room_1792351171247_462",
@@ -474,7 +477,8 @@
       "width": 10,
       "height": 8,
       "beveled": false,
-      "location": 1
+      "location": 1,
+      "background_id": "bg_grad_loc1"
     },
     {
       "id": "room_1792351256509_106",
@@ -484,7 +488,8 @@
       "width": 35,
       "height": 20,
       "beveled": false,
-      "location": 1
+      "location": 1,
+      "background_id": "bg_grad_loc1"
     },
     {
       "id": "room_7",
@@ -493,7 +498,8 @@
       "y": 24,
       "width": 20,
       "height": 12,
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     },
     {
       "id": "room_8",
@@ -502,7 +508,8 @@
       "y": 9,
       "width": 18,
       "height": 12,
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     },
     {
       "id": "room_9",
@@ -511,7 +518,8 @@
       "y": 39,
       "width": 19,
       "height": 15,
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     },
     {
       "id": "room_11",
@@ -520,7 +528,8 @@
       "y": 16,
       "width": 26,
       "height": 24,
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     },
     {
       "id": "room_12",
@@ -529,7 +538,8 @@
       "y": 22,
       "width": 19,
       "height": 14,
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     },
     {
       "id": "room_13",
@@ -554,7 +564,8 @@
         "#########################",
         "#########################"
       ],
-      "location": 2
+      "location": 2,
+      "background_id": "bg_grad_loc2"
     }
   ],
   "transitions": [],

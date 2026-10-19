@@ -20,6 +20,7 @@ import { CrabBoss, CRAB_ORB_DAMAGE } from './entities/CrabBoss.ts';
 import type { CrabBossHooks } from './entities/CrabBoss.ts';
 import { CrabOrb } from './entities/CrabOrb.ts';
 import { ShaderBackground } from './world/ShaderBackground.ts';
+import { GradientBackground } from './world/GradientBackground.ts';
 import { BossBar } from './ui/BossBar.ts';
 import { Critter } from './entities/Critter.ts';
 import { Player } from './entities/Player.ts';
@@ -27,7 +28,7 @@ import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { LevelObjects } from './world/Objects.ts';
 import { RoomMap } from './world/Rooms.ts';
-import { SightFog } from './world/SightFog.ts';
+import { RoomFog } from './world/RoomFog.ts';
 import { Minimap } from './ui/Minimap.ts';
 import { Quest } from './systems/Quest.ts';
 import type { Leash } from './world/Rooms.ts';
@@ -192,7 +193,7 @@ class GameApp {
   private cipherCluesView!: CipherCluesView;
   private passwordTerminal: PasswordTerminalEntity | null = null;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
-  private fog: SightFog | null = null; // туман по линии видимости (уровень с полем fog)
+  private fog: RoomFog | null = null; // туман войны по комнатам (уровень с полем fog и комнатами)
   private readonly minimap = new Minimap(); // миникарта слева сверху
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
@@ -215,7 +216,7 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
-  private readonly backgrounds: Array<{ id: string; bg: ParallaxBackground | ShaderBackground; alpha: number }> = []; // все фоны уровня: свой у комнаты — включается при входе героя
+  private readonly backgrounds: Array<{ id: string; bg: ParallaxBackground | ShaderBackground | GradientBackground; alpha: number }> = []; // все фоны уровня: свой у комнаты — включается при входе героя
   private activeBg = '';
   private bgBottom = 0; // низ, на котором «стоит» фон: у уровня из комнат — низ комнаты героя (иначе на высокой карте фон остался бы внизу карты, вне кадра)
   private scale = 1;
@@ -485,7 +486,7 @@ class GameApp {
     // Фон уровня и фоны комнат (room.background_id): у каждого свой объект, показывается тот, что у комнаты героя (плавная смена)
     const bgDefs = this.levelBackgrounds(levelDef);
     for (const def of bgDefs) {
-      const bg = def.shader ? new ShaderBackground(def) : new ParallaxBackground(def, this.sprites);
+      const bg = def.gradient ? new GradientBackground(def) : def.shader ? new ShaderBackground(def) : new ParallaxBackground(def, this.sprites);
       const isDefault = def.id === levelDef.background_id;
       this.backgrounds.push({ id: def.id, bg, alpha: isDefault ? 1 : 0 });
       bg.container.visible = isDefault;
@@ -716,11 +717,11 @@ class GameApp {
     this.sceneLayer.removeChild(this.worldLayer);
     this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
-    if (!DEBUG_MODE && levelDef.fog) {
-      this.fog = new SightFog(this.level); // туман: герой видит только то, что перед ним в прямой видимости (закрывает и свет жуков)
+    if (!DEBUG_MODE && levelDef.fog && this.rooms.any) {
+      this.fog = new RoomFog(this.level, this.rooms); // туман: вне комнаты героя всё чёрное, смена плавная (закрывает и свет жуков)
       this.app.stage.addChild(this.fog.container);
     }
-    this.minimap.container.visible = !!levelDef.fog || (DEBUG_MODE && this.level.widthTiles > 60);
+    this.minimap.container.visible = (!!levelDef.fog && this.rooms.any) || (DEBUG_MODE && this.level.widthTiles > 60);
     this.app.stage.addChild(this.minimap.container);
     this.app.stage.addChild(this.flashLayer); // вспышка молнии на весь экран
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
@@ -1678,7 +1679,7 @@ class GameApp {
     this.lighting?.update();
     if (this.fog) {
       this.fog.container.position.copyFrom(this.worldLayer.position);
-      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, { x: b.x, y: b.y - 28 }, this.player.facingDir);
+      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, { x: b.x, y: b.y - 20 });
     }
     if (this.minimap.container.visible) {
       this.minimap.update(dt, this.level, this.fog ? this.fog.explored : null, this.fog?.exploredChanged ?? false, { x: b.x, y: b.y - 20 });

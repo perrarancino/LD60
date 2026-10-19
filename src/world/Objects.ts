@@ -9,6 +9,8 @@ import type { ObjectKind } from './placeables.ts';
 const PICK_REACH = 24; // px: на таком расстоянии по горизонтали предмет подбирается
 const HERO_HEIGHT = 58; // px: рост героя — предмет выше головы не берётся
 const LOCKED_TINT = 0xa9b4c4;
+const DOOR_OPEN_R = 52; // px по горизонтали: ближе — дверь открывается сама
+const DOOR_CLOSE_R = 110; // дальше — закрывается
 
 export interface ObjectEvents {
   /** Дверь ведёт на другой уровень. */
@@ -173,10 +175,15 @@ export class LevelObjects {
       }
 
       if (kind.behavior === 'door') {
-        if (this.level.id === 'world_prototype') {
-          const arenaLocked = WorldProgression.get().isDoorArenaLocked(def.id);
-          p.isOpen = !arenaLocked && this.doorOpen(def);
-        }
+        // Дверь открывается, когда герой подходит (если ей можно: прогрессия карты, предмет/флаг, бой в комнате), и закрывается, когда он отходит
+        // или ей снова нельзя (начался бой). Гистерезис: открывается ближе DOOR_OPEN_R, закрывается дальше DOOR_CLOSE_R.
+        const dx = Math.abs(hero.x - def.x);
+        const dyHero = def.y - hero.y; // ноги героя выше низа двери — по высоте двери
+        const near = !frozen && dx <= DOOR_OPEN_R && dyHero >= -16 && dyHero <= 90;
+        const away = dx > DOOR_CLOSE_R || dyHero < -40 || dyHero > 140;
+        const allowed = this.doorOpen(def);
+        if (!allowed || away) p.isOpen = false;
+        else if (near) p.isOpen = true;
 
         // Плавное открытие/закрытие шторки двери вверх
         const targetProgress = p.isOpen ? 1 : 0;

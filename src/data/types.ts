@@ -474,4 +474,5 @@ export interface BackgroundDef {
   ground_offset?: number; // на сколько px от низа уровня приподняты слои (нижний край фона над землёй)
   layers: BackgroundLayerDef[]; // снизу вверх (у фона-шейдера пусто)
   shader?: BackgroundShaderDef; // вместо слоёв: фон рисует шейдер
+  gradient?: Array<{ at: number; color: string }>; // вместо слоёв: вертикальный градиент по остановкам (at 0..1 сверху вниз, color #rrggbb), без параллакса
 }

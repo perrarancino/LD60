@@ -1,0 +1,22 @@
+{
+  "$schema": "../schemas/background.schema.json",
+  "id": "bg_grad_loc2",
+  "description": "Градиент локации 2: от почти чёрного синего к бирюзе у низа.",
+  "sky_color": "#010a20",
+  "scale": 2,
+  "layers": [],
+  "gradient": [
+    {
+      "at": 0,
+      "color": "#010a20"
+    },
+    {
+      "at": 0.6,
+      "color": "#052a55"
+    },
+    {
+      "at": 1,
+      "color": "#0e6f90"
+    }
+  ]
+}
