@@ -322,18 +322,6 @@ class GameApp {
         e.preventDefault();
         window.location.href = './editor.html';
       }
-      // Отладка: клавиши 1–5 переключают уровень (у уровня в JSON задан debug_key): 1 — полная карта (world_prototype) с мобами, туманом и закрытыми дверьми, 2 — локация 2, 3 — босс-червь, 4 — босс-птица, 5 — краб
-      if ((!ROGUE || DEBUG_MODE) && /^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) { // в рогалике цифры — прокачка (окно перед боссом); отладочные уровни открываются клавишами только с ?debug=1
-        const next = LEVELS.find((l) => l.debug_key === Number(e.key));
-        if (next && (next.id !== activeLevelDef.id || DEBUG_MODE)) {
-          const url = new URL(window.location.href);
-          url.searchParams.set('level', next.id);
-          url.searchParams.delete('debug'); // клавиша открывает уровень как обычно: туман, закрытые двери
-          url.searchParams.delete('door');
-          url.searchParams.delete('spawn');
-          window.location.href = url.toString();
-        }
-      }
     });
 
     activeLevelDef = await loadLiveLevel(activeLevelDef);
