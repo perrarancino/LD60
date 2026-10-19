@@ -1,0 +1,129 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "id": "krab_boss_rig",
+  "description": "Финальный босс-краб из krab.aseprite (нарисован на холсте 400x300, в игре вдвое меньше: tools/downscale_pixelart.py -> слои 200x150). Блок crab_boss: слои снизу вверх (ноги качаются вокруг бёдер, foot_y — низ стопы на холсте), торс с кругами попадания, клешни на неоновых нитках (шарнир claw.pivot — «запястье», нитка крепится к плечу), шары, размер коробки столкновений. Клешни целиком отдельные спрайты (вторая — зеркало первой).",
+  "canvas": {
+    "width": 200,
+    "height": 150
+  },
+  "anchor": {
+    "x": 102,
+    "y": 146
+  },
+  "crab_boss": {
+    "feet": {
+      "x": 102,
+      "y": 146
+    },
+    "box": {
+      "w": 108,
+      "h": 104
+    },
+    "height": 125,
+    "layers": [
+      {
+        "name": "Leg_RB",
+        "sprite_id": "boss_krab_leg_rb",
+        "role": "leg_rb",
+        "pivot": {
+          "x": 156,
+          "y": 94
+        },
+        "foot_y": 145
+      },
+      {
+        "name": "Leg_LB",
+        "sprite_id": "boss_krab_leg_lb",
+        "role": "leg_lb",
+        "pivot": {
+          "x": 52,
+          "y": 92
+        },
+        "foot_y": 149
+      },
+      {
+        "name": "Torso",
+        "sprite_id": "boss_krab_torso",
+        "role": "torso"
+      },
+      {
+        "name": "Leg_LF",
+        "sprite_id": "boss_krab_leg_lf",
+        "role": "leg_lf",
+        "pivot": {
+          "x": 67,
+          "y": 90
+        },
+        "foot_y": 144
+      },
+      {
+        "name": "Leg_RF",
+        "sprite_id": "boss_krab_leg_rf",
+        "role": "leg_rf",
+        "pivot": {
+          "x": 146,
+          "y": 92
+        },
+        "foot_y": 141
+      }
+    ],
+    "body_hit": [
+      {
+        "x": 102,
+        "y": 62,
+        "r": 34
+      },
+      {
+        "x": 78,
+        "y": 64,
+        "r": 27
+      },
+      {
+        "x": 127,
+        "y": 64,
+        "r": 27
+      },
+      {
+        "x": 102,
+        "y": 86,
+        "r": 24
+      }
+    ],
+    "claw": {
+      "sprite_id": "boss_krab_claw",
+      "pivot": {
+        "x": 21,
+        "y": 48
+      },
+      "length": 46,
+      "hit": [
+        {
+          "x": 24,
+          "y": 30,
+          "r": 20
+        },
+        {
+          "x": 24,
+          "y": 14,
+          "r": 13
+        }
+      ]
+    },
+    "shoulders": {
+      "left": {
+        "x": 54,
+        "y": 66
+      },
+      "right": {
+        "x": 150,
+        "y": 66
+      }
+    },
+    "orb": {
+      "sprite_id": "boss_krab_orb",
+      "radius": 12
+    },
+    "thread_length": 215
+  },
+  "parts": []
+}

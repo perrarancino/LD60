@@ -32,6 +32,14 @@ export class Body {
     this.offsetY = hb.offset_y - anchorY;
   }
 
+  /** Прямоугольный хитбокс без спрайта: ширина и высота, низ по центру — в (x, y) (у боссов). */
+  public setBox(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
+    this.offsetX = -width / 2;
+    this.offsetY = -height;
+  }
+
   // Границы хитбокса в мировых координатах
   public get left(): number { return this.x + this.offsetX; }
   public get right(): number { return this.x + this.offsetX + this.width; }

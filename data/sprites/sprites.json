@@ -2092,6 +2092,110 @@
         "y": 0.5
       },
       "animations": {}
+    },
+    {
+      "id": "boss_krab",
+      "category": "bosses",
+      "image": "bosses/krab.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.51,
+        "y": 0.973
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_torso",
+      "category": "bosses",
+      "image": "bosses/krab_layers/torso.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_leg_lb",
+      "category": "bosses",
+      "image": "bosses/krab_layers/leg_lb.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_leg_lf",
+      "category": "bosses",
+      "image": "bosses/krab_layers/leg_lf.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_leg_rf",
+      "category": "bosses",
+      "image": "bosses/krab_layers/leg_rf.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_leg_rb",
+      "category": "bosses",
+      "image": "bosses/krab_layers/leg_rb.png",
+      "frame_width": 200,
+      "frame_height": 150,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_claw",
+      "category": "bosses",
+      "image": "bosses/krab_claw.png",
+      "frame_width": 49,
+      "frame_height": 53,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "boss_krab_orb",
+      "category": "bosses",
+      "image": "bosses/krab_orb.png",
+      "frame_width": 27,
+      "frame_height": 25,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
     }
   ]
 }

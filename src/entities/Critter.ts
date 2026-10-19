@@ -27,7 +27,8 @@ const TUCK_OPEN_SPEED = 200; // px/с: на такой скорости паде
 const WHIP_MARGIN = 12; // px: хлестать начинает, подойдя ближе reach на столько
 const WHIP_HIT_R = 11; // px: на таком расстоянии от хвоста герой считается задетым
 const WHIP_GIVE_UP = 5; // с: гонится за героем так долго и не дотянулся — отстаёт на время
-const KEEP_AWAY = 64; // px: пока хвост «отдыхает», крыса не липнет к герою ближе этого
+const KEEP_AWAY_NEAR = 64; // px: если герой подошёл ближе этого во время перезарядки хвоста, крыса отступает
+const KEEP_AWAY_FAR = 92; // px: отступает до этого безопасного расстояния, затем останавливается и ждёт
 
 interface Vec {
   x: number;
@@ -90,6 +91,9 @@ export class Critter implements Hittable {
   private lash = 0; // 0..1: ход хлёста
   private whipCd = rand(1.2, 3.2); // пауза до следующего хлёста, с
   private chaseT = 0;
+  private tossT = 0; // с: минимум в полёте после броска (у точки броска «земля» ещё не приземление)
+  private tossing = false; // брошен боссом: летит по дуге и не управляет собой, пока не приземлится
+  private backingOff = false; // отступает на безопасную дистанцию при перезарядке хвоста
   private whipHitDone = false;
   /** Хлёст задел героя: (x, y, сторона отбрасывания). Возвращает true, если герой сбит (иначе — не засчитан, например уже лежит). */
   public onWhipHit: ((x: number, y: number, dirX: number) => boolean) | null = null;
@@ -326,33 +330,100 @@ export class Critter implements Hittable {
     if (this.cfg.kind === 'walker' || this.cfg.kind === 'hopper') this.body.setHitbox(this.spriteDef, this.mirrored());
   }
 
+  /** Брошенный (боссом): появляется в точке и летит по дуге; пока не приземлился, идёт по своей скорости, а не по повадке. Только ходячие и прыгающие. */
+  public toss(x: number, y: number, vx: number, vy: number): void {
+    this.body.x = x;
+    this.body.y = y;
+    this.body.vx = vx;
+    this.body.vy = vy;
+    this.pos = { x, y };
+    this.tossT = 0.25;
+    this.tossing = true;
+    this.setFacing(vx >= 0 ? 1 : -1);
+    this.applyTransform(0);
+  }
+
+  /** Полёт брошенного: гравитация и движение, пока не приземлится; true — ещё летит (повадка выключена). */
+  private flyingToss(dt: number): boolean {
+    if (!this.tossing) return false;
+    const b = this.body;
+    this.tossT -= dt;
+    this.gravity(dt);
+    this.air = true;
+    if (b.grounded && this.tossT <= 0) {
+      this.tossing = false;
+      return false;
+    }
+    return true;
+  }
+
   private updateWalker(dt: number): void {
+    if (this.flyingToss(dt)) return;
     const b = this.body;
     const hero = this.heroNear(this.cfg.sight ?? 180);
     const whip = this.cfg.tail?.whip;
     if (whip) this.stepWhip(dt, hero, whip);
-    // с хвостом-хлыстом: гонится за героем только когда готов хлестать, в паузе держится на расстоянии; хлещет стоя на месте
-    const chasing = !!hero && (!whip || (this.whipCd <= 0 && this.wState === 'none'));
-    const keepAway = !!hero && !!whip && !chasing && this.wState === 'none' && Math.abs(hero.x - b.x) < KEEP_AWAY;
-    let want = this.dir;
+
+    let want: 1 | -1 = this.dir;
     let speed = this.speed;
-    if (chasing) {
-      if (Math.abs(hero.x - b.x) > 8) want = hero.x > b.x ? 1 : -1;
-      speed *= CHASE_BOOST;
-    } else if (keepAway) {
-      want = hero.x > b.x ? -1 : 1;
-    }
-    const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
-    if (blocked) {
-      if (chasing || keepAway) speed = 0; // у края или стены не падает и не лезет в стену — ждёт
-      else {
+
+    if (this.wState !== 'none') {
+      // Замах и хлёст: зверёк замер на месте, удар наносится в сторону героя
+      speed = 0;
+      this.backingOff = false;
+    } else if (hero && whip && this.whipCd > 0) {
+      // Хвост на перезарядке (после попытки удара): держим дистанцию с гистерезисом, без бесконечных разворотов
+      const dist = Math.abs(hero.x - b.x);
+      if (dist < KEEP_AWAY_NEAR) {
+        this.backingOff = true;
+      } else if (dist >= KEEP_AWAY_FAR) {
+        this.backingOff = false;
+      }
+
+      if (this.backingOff) {
+        want = (hero.x > b.x ? -1 : 1) as 1 | -1;
+        const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
+        if (blocked) {
+          // Упёрлись в стену или край платформы сзади: не можем отступать дальше, замираем лицом к герою
+          speed = 0;
+          this.backingOff = false;
+          if (dist > 8) this.setFacing((hero.x > b.x ? 1 : -1) as 1 | -1);
+        } else {
+          speed = this.speed;
+          this.setFacing(want);
+          this.dir = want;
+        }
+      } else {
+        // На безопасной дистанции: останавливаемся и смотрим на героя, ожидая перезарядки
+        speed = 0;
+        if (dist > 8) this.setFacing((hero.x > b.x ? 1 : -1) as 1 | -1);
+      }
+    } else if (hero && (!whip || this.whipCd <= 0)) {
+      // Готов атаковать: сближение с героем на повышенной скорости
+      this.backingOff = false;
+      const dist = Math.abs(hero.x - b.x);
+      if (dist > 8) want = (hero.x > b.x ? 1 : -1) as 1 | -1;
+      speed = this.speed * CHASE_BOOST;
+      const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
+      if (blocked) {
+        speed = 0;
+      }
+      if (speed > 0) {
+        this.setFacing(want);
+        this.dir = want;
+      }
+    } else {
+      // Обычное патрулирование: ходит туда-сюда, разворачивается у препятствий
+      this.backingOff = false;
+      want = this.dir;
+      speed = this.speed;
+      const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
+      if (blocked) {
         this.dir = want = (-want) as 1 | -1;
       }
-    } else if (!chasing && !keepAway) {
-      this.dir = want;
+      if (speed > 0) this.setFacing(want);
     }
-    if (this.wState !== 'none') speed = 0; // замах и хлёст — на месте, лицом к герою
-    if (speed > 0) this.setFacing(want);
+
     b.vx += (want * speed - b.vx) * (1 - Math.exp(-14 * dt));
     this.gravity(dt);
     this.move += ((Math.abs(b.vx) / Math.max(1, this.speed) > 0.1 ? 1 : 0) - this.move) * (1 - Math.exp(-MOVE_RATE * dt));
@@ -361,6 +432,7 @@ export class Critter implements Hittable {
   }
 
   private updateHopper(dt: number): void {
+    if (this.flyingToss(dt)) return;
     const b = this.body;
     this.hopTimer -= dt;
     if (b.grounded) {

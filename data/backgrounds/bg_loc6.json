@@ -1,0 +1,20 @@
+{
+  "$schema": "../schemas/background.schema.json",
+  "id": "bg_loc6",
+  "description": "Фон финальной локации: шейдер «закрученная краска» (как фон Balatro) в фиолетовых тонах палитры краба (рампа virus): основной, акцент, тёмный. Слоёв-картинок нет. Параметры: speed, spin, contrast, pixel.",
+  "sky_color": "#110320",
+  "scale": 2,
+  "layers": [],
+  "shader": {
+    "type": "swirl",
+    "colors": [
+      "#620792",
+      "#d00df8",
+      "#110320"
+    ],
+    "speed": 1.0,
+    "spin": 1.0,
+    "contrast": 3.5,
+    "pixel": 3
+  }
+}
