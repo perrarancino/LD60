@@ -6,7 +6,7 @@ import { pal } from '../core/Palette.ts';
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const ROLE_SLOT: Record<RigPartDef['role'], Slot> = { head: 'head', torso: 'torso', arm: 'arms', leg: 'legs' };
-const FADE_IN = 1.4; // с: экран проявляется из темноты
+const FADE_IN = 0.5; // с: экран проявляется из темноты
 const DONE_DELAY = 1.3; // с: после выбора — вспышка и пауза, потом дальше
 const NAME = 'uvKits';
 

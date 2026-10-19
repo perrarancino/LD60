@@ -1,5 +1,7 @@
 import { Container, Filter, GlProgram, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Level } from '../world/Level.ts';
+import { RAMPS } from '../core/Palette.ts';
+import type { Ramp } from '../core/Palette.ts';
 
 const VERTEX = `
 in vec2 aPosition;
@@ -38,6 +40,9 @@ uniform float uTime;
 uniform float uSeed;
 uniform float uPower;
 uniform vec2 uDir;
+uniform vec3 uDark;
+uniform vec3 uMid;
+uniform vec3 uLight;
 
 float hash(float n) {
   return fract(sin(n * 127.1 + uSeed * 311.7) * 43758.5453);
@@ -64,13 +69,14 @@ void main(void) {
   field += (core * core) / (dot(p, p) + 1.0);
 
   float edge = step(0.95, field);
-  vec3 dark = vec3(0.30, 0.02, 0.06);
-  vec3 mid = vec3(0.66, 0.04, 0.10);
-  vec3 light = vec3(0.98, 0.24, 0.24);
-  vec3 col = mix(dark, mid, step(1.3, field));
-  col = mix(col, light, step(2.6, field) * 0.85);
-  float alpha = edge * (1.0 - smoothstep(0.55, 0.95, t));
-  finalColor = vec4(col * alpha, alpha);
+  // свечение: кровь цвета врага горит — яркая середина и блик (больше единицы), мягкий ореол вокруг сгустков
+  vec3 col = mix(uDark, uMid * 1.25, step(1.3, field));
+  col = mix(col, uLight * 1.45, step(2.6, field) * 0.9);
+  float halo = smoothstep(0.3, 0.95, field) * 0.55;
+  float life = 1.0 - smoothstep(0.55, 0.95, t);
+  float a = max(edge, halo) * life;
+  vec3 rgb = edge > 0.5 ? col : uLight;
+  finalColor = vec4(rgb * a, a);
 }
 `;
 
@@ -79,14 +85,16 @@ const SPLASH_TIME = 0.8; // с
 const POOL = 12; // сколько всплесков одновременно
 const GRAVITY = 560; // px/с²: капли
 const CHUNK = 256; // px: кусок слоя пятен (обновляется по отдельности — дёшево)
-const STAIN_COLORS = ['#3b0614', '#5e0a1c', '#830628', '#a5122a', '#c00027'];
-const DROP_COLORS = [0x830628, 0xa5122a, 0xc00027, 0xe0192f];
+const hex6 = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const rgb = (c: number): Float32Array => new Float32Array([((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255]);
 
 interface Splash {
   sprite: Sprite;
   filter: Filter;
   age: number;
   active: boolean;
+  ramp: Ramp;
+  power: number;
 }
 
 interface Drop {
@@ -97,6 +105,7 @@ interface Drop {
   life: number;
   size: number;
   color: number;
+  ramp: Ramp;
 }
 
 interface Chunk {
@@ -104,6 +113,9 @@ interface Chunk {
   ctx: CanvasRenderingContext2D;
   texture: Texture;
   sprite: Sprite;
+  glowCtx: CanvasRenderingContext2D; // ореол пятен: рисуется аддитивно — пятна светятся в темноте
+  glowTexture: Texture;
+  glowSprite: Sprite;
   dirty: boolean;
 }
 
@@ -122,6 +134,7 @@ export class BloodFx {
   private readonly drops: Drop[] = [];
   private readonly dropGfx = new Graphics();
   private readonly chunks = new Map<number, Chunk>();
+  private time = 0;
   private readonly program = GlProgram.from({ vertex: VERTEX, fragment: FRAGMENT, name: 'blood-splash' });
 
   constructor(private readonly level: Level) {
@@ -138,18 +151,21 @@ export class BloodFx {
             uTime: { value: 0, type: 'f32' },
             uSeed: { value: 0, type: 'f32' },
             uPower: { value: 1, type: 'f32' },
-            uDir: { value: new Float32Array([0, 0]), type: 'vec2<f32>' }
+            uDir: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
+            uDark: { value: rgb(RAMPS.ember[2]), type: 'vec3<f32>' },
+            uMid: { value: rgb(RAMPS.ember[4]), type: 'vec3<f32>' },
+            uLight: { value: rgb(RAMPS.ember[6]), type: 'vec3<f32>' }
           }
         }
       });
       sprite.filters = [filter];
       this.container.addChild(sprite);
-      this.splashes.push({ sprite, filter, age: 0, active: false });
+      this.splashes.push({ sprite, filter, age: 0, active: false, ramp: 'ember', power: 1 });
     }
   }
 
   /** Взрыв крови в точке (мир): power — размер (0.4 мелкий … 1.6 крупный), dirX/dirY — куда бил удар (капли чуть летят туда). */
-  public burst(x: number, y: number, power = 1, dirX = 0, dirY = 0): void {
+  public burst(x: number, y: number, power = 1, dirX = 0, dirY = 0, ramp: Ramp = 'ember'): void {
     const sp = this.splashes.find((s) => !s.active) ?? this.splashes.reduce((a, b) => (a.age > b.age ? a : b));
     sp.active = true;
     sp.age = 0;
@@ -160,6 +176,11 @@ export class BloodFx {
     u.uPower = Math.max(0.3, Math.min(1.8, power));
     u.uDir = new Float32Array([dirX, dirY]);
     u.uTime = 0;
+    u.uDark = rgb(RAMPS[ramp][2]);
+    u.uMid = rgb(RAMPS[ramp][4]);
+    u.uLight = rgb(RAMPS[ramp][6]);
+    sp.ramp = ramp;
+    sp.power = power;
 
     const n = Math.min(34, Math.round(8 + 14 * power));
     for (let i = 0; i < n; i++) {
@@ -171,12 +192,13 @@ export class BloodFx {
         vy: Math.sin(a) * v - 50 + dirY * 40,
         life: 1.6,
         size: Math.random() < 0.3 ? 2 : 1,
-        color: DROP_COLORS[Math.floor(Math.random() * DROP_COLORS.length)]
+        color: RAMPS[ramp][4 + Math.floor(Math.random() * 3)],
+        ramp
       });
     }
     // лужа под телом: если пол близко — сразу пятно на нём
     const floor = this.floorBelow(x, y, 26);
-    if (floor !== null) this.stamp(x, floor, 0, -1, 4 + Math.round(power * 5));
+    if (floor !== null) this.stamp(x, floor, 0, -1, 4 + Math.round(power * 5), ramp);
   }
 
   /** Расстояние до пола под точкой: y пола (верхняя грань тайла) или null. */
@@ -205,7 +227,23 @@ export class BloodFx {
       if (!c.dirty) continue;
       c.dirty = false;
       c.texture.source.update();
+      c.glowTexture.source.update();
     }
+    this.time += dt;
+    const pulse = 0.78 + 0.22 * Math.sin(this.time * 2.2); // ореол пятен лениво пульсирует
+    for (const c of this.chunks.values()) c.glowSprite.alpha = pulse;
+  }
+
+  /** Свет от свежей крови: короткие вспышки цвета крови вокруг всплесков (для освещения игры). */
+  public lights(): { x: number; y: number; r: number; i: number; c: [number, number, number] }[] {
+    const out: { x: number; y: number; r: number; i: number; c: [number, number, number] }[] = [];
+    for (const s of this.splashes) {
+      if (!s.active) continue;
+      const k = 1 - s.age / SPLASH_TIME;
+      const col = RAMPS[s.ramp][6];
+      out.push({ x: s.sprite.x + SPLASH_SIZE / 2, y: s.sprite.y + SPLASH_SIZE / 2, r: 60 + 50 * s.power, i: 0.9 * k * k, c: [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255] });
+    }
+    return out;
   }
 
   private updateDrops(dt: number): void {
@@ -226,13 +264,13 @@ export class BloodFx {
       let landed = false;
       for (let k = 0; k < steps; k++) {
         if (this.level.isSolid(Math.floor((d.x + sx) / ts), Math.floor(d.y / ts))) {
-          this.stamp(d.x, d.y, -Math.sign(sx) || 1, 0, 1 + Math.floor(Math.random() * 3)); // стена
+          this.stamp(d.x, d.y, -Math.sign(sx) || 1, 0, 1 + Math.floor(Math.random() * 3), d.ramp); // стена
           landed = true;
           break;
         }
         d.x += sx;
         if (this.level.isSolid(Math.floor(d.x / ts), Math.floor((d.y + sy) / ts))) {
-          this.stamp(d.x, d.y, 0, -Math.sign(sy) || -1, 1 + Math.floor(Math.random() * 4)); // пол или потолок
+          this.stamp(d.x, d.y, 0, -Math.sign(sy) || -1, 1 + Math.floor(Math.random() * 4), d.ramp); // пол или потолок
           landed = true;
           break;
         }
@@ -247,7 +285,7 @@ export class BloodFx {
   }
 
   /** Пятно на поверхности: (x, y) — свободная точка у самой поверхности, (nx, ny) — нормаль от неё, len — половина длины пятна. */
-  private stamp(x: number, y: number, nx: number, ny: number, len: number): void {
+  private stamp(x: number, y: number, nx: number, ny: number, len: number, ramp: Ramp): void {
     const tx = -ny;
     const ty = nx;
     const thick = Math.max(1, Math.round(len * 0.4));
@@ -264,12 +302,13 @@ export class BloodFx {
       const h = Math.max(1, Math.round(thick * (1 - Math.abs(i) / (len + 1)) + (Math.random() - 0.3)));
       for (let k = -1; k < h; k++) {
         // k = -1 — пиксель внутри поверхности (кровь «въедается» в край тайла)
-        this.px(Math.floor(sx + tx * i + nx * k), Math.floor(sy + ty * i + ny * k), STAIN_COLORS[Math.floor(Math.random() * STAIN_COLORS.length)]);
+        this.px(Math.floor(sx + tx * i + nx * k), Math.floor(sy + ty * i + ny * k), RAMPS[ramp][2 + Math.floor(Math.random() * 4)]);
       }
     }
   }
 
-  private px(x: number, y: number, color: string): void {
+  private px(x: number, y: number, rgbColor: number): void {
+    const color = hex6(rgbColor);
     if (x < 0 || y < 0 || x >= this.level.pixelWidth || y >= this.level.pixelHeight) return;
     const cx = Math.floor(x / CHUNK);
     const cy = Math.floor(y / CHUNK);
@@ -284,11 +323,25 @@ export class BloodFx {
       const sprite = new Sprite(texture);
       sprite.position.set(cx * CHUNK, cy * CHUNK);
       this.stains.addChild(sprite);
-      c = { canvas, ctx: canvas.getContext('2d')!, texture, sprite, dirty: false };
+      const glowCanvas = document.createElement('canvas');
+      glowCanvas.width = CHUNK;
+      glowCanvas.height = CHUNK;
+      const glowTexture = Texture.from(glowCanvas);
+      glowTexture.source.scaleMode = 'nearest';
+      const glowSprite = new Sprite(glowTexture);
+      glowSprite.position.set(cx * CHUNK, cy * CHUNK);
+      glowSprite.blendMode = 'add';
+      this.stains.addChild(glowSprite);
+      c = { canvas, ctx: canvas.getContext('2d')!, texture, sprite, glowCtx: glowCanvas.getContext('2d')!, glowTexture, glowSprite, dirty: false };
       this.chunks.set(key, c);
     }
     c.ctx.fillStyle = color;
     c.ctx.fillRect(x - cx * CHUNK, y - cy * CHUNK, 1, 1);
+    c.glowCtx.globalAlpha = 0.16;
+    c.glowCtx.fillStyle = color;
+    c.glowCtx.fillRect(x - cx * CHUNK - 1, y - cy * CHUNK - 1, 3, 3); // ореол в клетку вокруг пикселя
+    c.glowCtx.globalAlpha = 0.5;
+    c.glowCtx.fillRect(x - cx * CHUNK, y - cy * CHUNK, 1, 1);
     c.dirty = true;
   }
 }

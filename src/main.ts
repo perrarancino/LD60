@@ -52,6 +52,7 @@ import { Run } from './systems/Run.ts';
 import { prepareRogueLevel } from './roguelike/RogueLevels.ts';
 import { CubeTransition } from './ui/CubeTransition.ts';
 import { UpgradeUI } from './ui/UpgradeUI.ts';
+import { ScreenWipe } from './ui/ScreenWipe.ts';
 import runData from '../data/roguelike/run.json';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
@@ -59,6 +60,7 @@ import { Debris } from './effects/Debris.ts';
 import { BLUE, LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import { EnemyBolts } from './effects/EnemyBolts.ts';
 import { BloodFx } from './effects/BloodFx.ts';
+import type { Ramp } from './core/Palette.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
 import { SoundManager } from './audio/SoundManager.ts';
@@ -173,8 +175,7 @@ interface Mob {
 }
 
 // Вертикальная камера: плавно следует за героем (экспоненциальное сглаживание)
-const END_WAIT = 1.4; // с: пауза после зачистки, прежде чем экран начнёт гаснуть
-const END_FADE = 2.4; // с: экран медленно гаснет
+const END_WAIT = 0.8; // с: пауза после зачистки, прежде чем по экрану пойдёт пиксельная волна
 const CAMERA_REST_Y = 0.64; // доля высоты экрана, на которой камера старается держать ноги героя
 const CAMERA_FOLLOW_GROUNDED = 5; // 1/с: скорость сближения, когда герой стоит на земле
 const CAMERA_FOLLOW_AIR = 3; // 1/с: в воздухе камера следует чуть мягче
@@ -244,8 +245,9 @@ class GameApp {
   private waveDelay = 0;
   private waveNo = 1; // номер текущей волны
   private waveTotal = 1;
-  private rogueEndT = 0; // с с момента зачистки: пауза, потом экран медленно гаснет
-  private readonly fader = document.createElement('div'); // чёрная заслонка: экран медленно гаснет после зачистки
+  private rogueEndT = 0; // с с момента зачистки: пауза, потом пиксельная волна закрывает экран
+  private wiping = false;
+  private readonly wipe = new ScreenWipe();
   private hpMult = 1; // множитель здоровья врагов биома
   private readonly gone = new WeakSet<Hittable>(); // уже погибшие и убранные с экрана: по ним не бьём и не уничтожаем повторно
   private debris = new Debris();
@@ -297,8 +299,6 @@ class GameApp {
       const run = Run.get();
       Armor.get().useRun(run.fresh); // отдельное хранилище забега: шестерёнки, уровни, здоровье
       run.fresh = false;
-      this.fader.style.cssText = 'position: fixed; inset: 0; z-index: 2400; background: #05070b; opacity: 0; pointer-events: none;';
-      document.body.appendChild(this.fader);
       this.cubes = new CubeTransition(run.nodes);
       this.cubes.cover(run.node); // экран закрыт, пока комната грузится
     }
@@ -858,9 +858,12 @@ class GameApp {
     if (this.rogueCleared) {
       // комната зачищена: небольшая пауза, потом экран медленно гаснет и переливается в выбор улучшения (или в экран кубиков)
       this.rogueEndT += dt;
-      const k = Math.max(0, Math.min(1, (this.rogueEndT - END_WAIT) / END_FADE));
-      this.fader.style.opacity = String(k);
-      if (k >= 1) this.completeRoom();
+      if (!this.wiping && this.rogueEndT >= END_WAIT) {
+        this.wiping = true;
+        const rect = this.app.canvas.getBoundingClientRect();
+        const k = (rect.width / this.app.canvas.width) * this.scale;
+        this.wipe.start(rect.left + (b.x + this.worldLayer.x) * k, rect.top + (b.y - 30 + this.worldLayer.y) * k, () => this.completeRoom());
+      }
       return;
     }
     if (this.waveMobs.some((m) => !this.gone.has(m))) {
@@ -1087,6 +1090,18 @@ class GameApp {
     view.destroy({ children: true });
   }
 
+  /** Цвет крови по существу: пауки и черви — зелёные, мобы второй локации — синие (крыса — бирюзовая), босс-червь и краб — фиолетовые и розовые. */
+  private bloodRamp(target: Hittable): Ramp {
+    if (target instanceof CrabBoss) return 'plasma';
+    if (target instanceof WormBoss) return 'virus';
+    if (target instanceof BirdBoss || target instanceof BossBird) return 'cobalt';
+    if (target instanceof Spider || target instanceof SpiderMother || target instanceof Worm) return 'pcb';
+    const id = (target as unknown as { def?: { id?: string } }).def?.id;
+    if (id === 'electro_rat') return 'electric';
+    if (target instanceof Critter) return 'cobalt';
+    return 'void';
+  }
+
   /** Кровь на гибель: каждая часть тела (круг попадания) взрывается всплеском; капли оставляют пятна на тайлах. */
   private bloodFor(target: Hittable, x: number, y: number, scale = 1): void {
     let circles: { x: number; y: number; r: number }[] = [];
@@ -1095,10 +1110,11 @@ class GameApp {
     } catch { /* части уже убраны */ }
     if (circles.length === 0) circles = [{ x, y: y - 8, r: 9 }];
     const dir = Math.sign(x - this.player.body.x) * 0.7;
+    const ramp = this.bloodRamp(target);
     const step = Math.max(1, Math.ceil(circles.length / 8)); // у длинных существ — не больше восьми всплесков
     for (let i = 0; i < circles.length; i += step) {
       const c = circles[i];
-      this.blood.burst(c.x, c.y, Math.max(0.45, Math.min(1.7, (c.r / 11) * scale)), dir, -0.3);
+      this.blood.burst(c.x, c.y, Math.max(0.45, Math.min(1.7, (c.r / 11) * scale)), dir, -0.3, ramp);
     }
   }
 
@@ -1855,7 +1871,7 @@ class GameApp {
       extra.push({ x: b.x, y: b.y - 18, r: 80, i: 0.35, c: [0.35, 0.75, 1.0] });
       for (const boss of this.crabBosses) extra.push(...boss.lights());
       for (const boss of this.bosses) extra.push(...boss.lights());
-      extra.push(...this.enemyBolts.lights);
+      extra.push(...this.enemyBolts.lights, ...this.blood.lights()); // и вспышки светящейся крови
       this.lighting.extraLights = extra;
     }
     this.lighting?.update();
