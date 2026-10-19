@@ -30,6 +30,9 @@ export interface RoomCombatState {
 export class WorldProgression {
   private static instance: WorldProgression;
 
+  /** Отладка (уровень открыт клавишей 1–5): все двери открыты, арены не запирают. */
+  public debugOpenAll = false;
+
   /** Активные боевые комнаты по их id */
   private roomStates = new Map<string, RoomCombatState>();
 
@@ -52,8 +55,7 @@ export class WorldProgression {
     ['door_18', ['room_9', 'room_13']],
     ['door_15', ['room_13', 'room_12']],
     ['door_19', ['room_12']],
-    ['door_20', ['room_11']],
-    ['door_21', ['room_11', 'room_crab']]
+    ['door_20', ['room_11']]
   ]);
 
   public static get(): WorldProgression {
@@ -117,13 +119,6 @@ export class WorldProgression {
     EventBus.get().emit('room:cleared', { roomId, name });
     console.log(`[WorldProgression] Комната "${name}" (${roomId}) зачищена!`);
 
-    // Финальный босс-краб повержен — игра пройдена
-    if (roomId === 'room_crab') {
-      this.quest.setFlag('game_won');
-      EventBus.get().emit('game:won', {});
-      console.log('[WorldProgression] Краб-Ядро повержен — игра пройдена!');
-    }
-
     // Если это босс орел — ставим флаг финального босса
     if (roomId === 'room_11' || name.toLowerCase().includes('орел')) {
       this.quest.setFlag('final_boss_room_unlocked');
@@ -144,6 +139,7 @@ export class WorldProgression {
 
   /** Проверяет, заблокирована ли дверь из-за активного боя в комнате */
   public isDoorArenaLocked(doorId: string): boolean {
+    if (this.debugOpenAll) return false;
     const rooms = this.doorToRooms.get(doorId);
     if (!rooms) return false;
     for (const r of rooms) {
@@ -156,6 +152,7 @@ export class WorldProgression {
    * Проверяет, может ли дверь быть открыта по правилам прогрессии карты.
    */
   public canOpenDoor(doorId: string): boolean {
+    if (this.debugOpenAll) return true;
     // 1. Если в комнате этой двери прямо сейчас идет бой — закрыта
     if (this.isDoorArenaLocked(doorId)) return false;
 
@@ -218,10 +215,6 @@ export class WorldProgression {
         const wiresDone = this.quest.flag('puzzle_wire_solved') || this.quest.flag('wires_solved');
         return fightDone && wiresDone;
       }
-
-      // Дверь 21 (к арене финального краба): после победы над боссом-орлом
-      case 'door_21':
-        return this.quest.flag('final_boss_room_unlocked');
 
       // Двери 19 и 20: после победы в комнате Драка (голубая, room_12)
       case 'door_19':
