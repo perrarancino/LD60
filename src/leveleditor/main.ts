@@ -42,6 +42,7 @@ async function start(): Promise<void> {
   }
 
   const ed = new Editor(project);
+  ed.atlas.preloadAll();
   clear(app);
 
   // ---- каркас

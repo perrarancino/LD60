@@ -25,8 +25,8 @@ using System.Windows.Forms;
 static class EditorLauncher
 {
     const string PingScript =
-        "<script>(function(){var p=function(){fetch('/__ping').catch(function(){})};p();setInterval(p,2000);" +
-        "addEventListener('pagehide',function(){navigator.sendBeacon('/__bye')})})();</script>";
+        "<script>(function(){var id=Math.random().toString(36).slice(2);var p=function(){fetch('/__ping?id='+id).catch(function(){})};p();setInterval(p,2000);" +
+        "addEventListener('pagehide',function(){navigator.sendBeacon('/__bye?id='+id)})})();</script>";
 
     static readonly Dictionary<string, string> Mime = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -42,8 +42,12 @@ static class EditorLauncher
     static string projectRoot = null;   // папка с data\ и assets\
     static string distDir = null;       // режим исходников: <проект>\dist (null — вшитая копия)
     static readonly object BuildLock = new object();
-    static long lastPing = 0;
-    static long byeAt = 0;
+    // Открытые страницы (id -> время последнего пинга). Сервер живёт, пока открыта хоть одна: вкладка в фоне пингует редко,
+    // поэтому закрытие одной вкладки (например, игры) не должно останавливать сервер, пока открыта другая.
+    static readonly Dictionary<string, long> Pages = new Dictionary<string, long>();
+    static bool everPinged = false;
+    static long lastBye = 0;
+    const long PageTimeout = 20 * 60 * 1000; // страница без пинга столько — считается закрытой
     static readonly Stopwatch Clock = Stopwatch.StartNew();
 
     [STAThread]
@@ -70,11 +74,16 @@ static class EditorLauncher
             {
                 Thread.Sleep(500);
                 long now = Clock.ElapsedMilliseconds;
-                long ping = Interlocked.Read(ref lastPing);
-                long bye = Interlocked.Read(ref byeAt);
-                if (ping == 0 && now > 240000) break;
-                if (ping != 0 && now - ping > 150000) break;
-                if (bye != 0 && ping < bye && now - bye > 4000) break;
+                bool empty;
+                lock (Pages)
+                {
+                    var dead = new List<string>();
+                    foreach (var kv in Pages) if (now - kv.Value > PageTimeout) dead.Add(kv.Key);
+                    foreach (string id in dead) Pages.Remove(id);
+                    empty = Pages.Count == 0;
+                }
+                if (!everPinged && now > 240000) break;                  // браузер так и не открыл страницу
+                if (everPinged && empty && now - lastBye > 5000) break;  // все страницы закрыты
             }
             listener.Stop();
             return 0;
@@ -385,8 +394,17 @@ static class EditorLauncher
         try
         {
             string path = Uri.UnescapeDataString(ctx.Request.Url.AbsolutePath);
-            if (path == "/__ping") { Interlocked.Exchange(ref lastPing, Clock.ElapsedMilliseconds); Reply(ctx, 204, null, null); return; }
-            if (path == "/__bye") { Interlocked.Exchange(ref byeAt, Clock.ElapsedMilliseconds); Reply(ctx, 204, null, null); return; }
+            if (path == "/__ping" || path == "/__bye")
+            {
+                string id = ctx.Request.QueryString["id"] ?? "";
+                lock (Pages)
+                {
+                    if (path == "/__ping") { Pages[id] = Clock.ElapsedMilliseconds; everPinged = true; }
+                    else { Pages.Remove(id); lastBye = Clock.ElapsedMilliseconds; }
+                }
+                Reply(ctx, 204, null, null);
+                return;
+            }
             if (path.StartsWith("/api/ld60/")) { HandleApi(ctx, path); return; }
             if (path.StartsWith("/ld60-assets/"))
             {

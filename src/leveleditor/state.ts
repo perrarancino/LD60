@@ -200,11 +200,25 @@ export class Editor {
       this.filename = res.filename;
       this.def = out;
       this.dirty = false;
+      if (this.activeRoom && !this.room(this.activeRoom)) this.activeRoom = this.rooms[0]?.id ?? null;
       this.setStatus(`Сохранено: data/levels/${res.filename}`);
       this.emit('doc');
       return true;
     } catch (e) {
       this.setStatus(`Не удалось сохранить: ${(e as Error).message}`, true);
+      // сервер редактора не ответил (закрыт exe?): не теряем работу — предлагаем скачать файл уровня
+      if (confirm(`Не удалось сохранить на диск (${(e as Error).message}).
+Возможно, закрыт LD60Editor.exe — запустите его снова.
+
+Скачать уровень файлом, чтобы не потерять правки?`)) {
+        const url = URL.createObjectURL(new Blob([`${JSON.stringify(out, null, 2)}
+`], { type: 'application/json' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = this.filename || `${out.id}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
       return false;
     }
   }

@@ -6,6 +6,7 @@ export class SpriteAtlas {
   private readonly defs = new Map<string, SpriteDef>();
   private readonly images = new Map<string, HTMLImageElement | 'loading' | 'error'>();
   private readonly thumbs = new Map<string, string>();
+  private readonly attempts = new Map<string, number>();
   /** Вызывается, когда дозагрузилась очередная картинка (перерисовать холст). */
   public onLoad: () => void = () => {};
 
@@ -31,10 +32,21 @@ export class SpriteAtlas {
         this.images.set(def.image, img);
         this.onLoad();
       };
-      img.onerror = () => this.images.set(def.image, 'error');
+      img.onerror = () => {
+        // сервер мог не ответить (занят, перезапуск): пробуем ещё несколько раз, а не оставляем спрайт пустым навсегда
+        const n = (this.attempts.get(def.image) ?? 0) + 1;
+        this.attempts.set(def.image, n);
+        if (n < 6) setTimeout(() => { this.images.delete(def.image); this.onLoad(); }, 800 * n);
+        else this.images.set(def.image, 'error');
+      };
       img.src = `/ld60-assets/${def.image}`;
     }
     return null;
+  }
+
+  /** Загружает картинки всех спрайтов заранее: палитры и холст не ждут первого показа. */
+  public preloadAll(): void {
+    for (const def of this.defs.values()) this.image(def);
   }
 
   /** Размер кадра спрайта (пиксели арта). */
