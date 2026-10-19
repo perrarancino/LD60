@@ -96,7 +96,11 @@ export class Editor {
     this.listeners.get(channel)!.add(fn);
   }
 
+  /** Растёт при каждой правке уровня: по нему кэшируется то, что дорого считать (раскладка автодекора). */
+  public rev = 0;
+
   public emit(channel: Channel): void {
+    if (channel === 'doc') this.rev++;
     for (const fn of this.listeners.get(channel) ?? []) fn();
   }
 

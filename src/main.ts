@@ -148,6 +148,8 @@ class GameApp {
   private fog: Fog | null = null;
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
+  private lastErrorAt = 0;
+  private readonly gone = new WeakSet<Hittable>(); // уже погибшие и убранные с экрана: по ним не бьём и не уничтожаем повторно
   private debris = new Debris();
   private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
   private beam!: LightningBeam; // луч молнии из руки
@@ -236,7 +238,14 @@ class GameApp {
     this.app.ticker.add((ticker) => {
       const dt = ticker.deltaTime / 60; // Перевод тиков в секунды
       fps.tick(ticker.deltaMS);
-      this.update(dt);
+      try {
+        this.update(dt);
+      } catch (e) {
+        // сбой в одном кадре не должен останавливать игру целиком: пишем в консоль (раз в секунду, чтобы не заливать её) и идём дальше
+        const now = performance.now();
+        if (now - this.lastErrorAt > 1000) console.error('[Game] ошибка в кадре:', e);
+        this.lastErrorAt = now;
+      }
     });
   }
 
@@ -673,7 +682,7 @@ class GameApp {
     const ax = strike.x1 + (strike.x2 - strike.x1) * FORE_ARM_START;
     const ay = strike.y1 + (strike.y2 - strike.y1) * FORE_ARM_START;
     for (const target of [...this.hittables()]) { // копия: попадание может выбить часть или убить цель — списки меняются на ходу
-      if (this.punchHits.has(target)) continue;
+      if (this.gone.has(target) || this.punchHits.has(target)) continue; // цель могла погибнуть от цепной молнии раньше, чем до неё дошла очередь
       const contact = this.strikeContact(strike, ax, ay, target);
       if (!contact) continue;
       this.punchHits.add(target);
@@ -703,6 +712,7 @@ class GameApp {
 
   /** Урон от удара: случайный в диапазоне, иногда критический; цифра урона и тряска; при нуле — смерть. */
   private damage(target: Hittable, x: number, y: number, dirX: number, part?: number, customDmg?: number): void {
+    if (this.gone.has(target)) return;
     const mob = this.mobs.get(target);
     const byParts = isPartDamageable(target);
     if (!mob && !byParts) return;
@@ -724,6 +734,8 @@ class GameApp {
 
   /** Погибло существо из частей: вычёркиваем из списков игры и убираем с экрана (эффекты смерти — позже). */
   private removeWhole(target: Hittable): void {
+    if (this.gone.has(target)) return; // уже убран (например, добит цепной молнией): повторное уничтожение роняло игровой цикл
+    this.gone.add(target);
     const drop = <T>(list: T[], item: unknown) => {
       const i = list.indexOf(item as T);
       if (i >= 0) list.splice(i, 1);
@@ -739,6 +751,8 @@ class GameApp {
 
   /** Смерть врага: он выходит из игры и исчезает (эффекты смерти — позже). */
   private kill(target: Hittable, mob: Mob): void {
+    if (this.gone.has(target)) return;
+    this.gone.add(target);
     let enemyType = 'enemy';
     if (target instanceof Spider) enemyType = 'spider';
     else if (target instanceof SpiderMother) enemyType = 'mother';

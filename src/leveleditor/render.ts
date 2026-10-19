@@ -1,4 +1,6 @@
 import type { EnemySpawnDef, LevelDef, Slope } from '../data/types.ts';
+import { layoutTransistors, layoutWebs, reservedCells } from '../world/autoDecor.ts';
+import type { SkySpot, TransistorSpot, VineSpot } from '../world/autoDecor.ts';
 import { cellKey, tileVisual, transformSlope, xformMap } from '../world/tileRules.ts';
 import type { Editor } from './state.ts';
 import { canonXf, roomHas, tileIdAt } from './model.ts';
@@ -134,12 +136,20 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement,
   ctx.fillStyle = ed.show.background && bg ? bg.sky_color : '#121826';
   ctx.fillRect(0, 0, def.width * ts, def.height * ts);
 
-  if (ed.show.decor) drawDecor(ctx, ed, 'back');
+  const auto = autoDecor(ed);
+  if (ed.show.decor) {
+    // паутина зон лежит под тайлами (корни спрятаны), как в игре
+    for (const t of auto.sky) drawThread(ctx, ed, 'sky', t.x, t.topY, t.bottomY - t.topY, 0.8);
+    for (const v of auto.vines) drawThread(ctx, ed, 'vine', v.x, v.y, v.pieces, 0.8);
+    drawDecor(ctx, ed, 'back');
+  }
   drawTiles(ctx, ed, x0, y0, x1, y1);
   if (ed.show.decor) {
     drawThreads(ctx, ed);
     drawDecor(ctx, ed, 'front');
+    for (const t of auto.transistors) ed.atlas.draw(ctx, t.sprite_id, 0, t.x, t.y);
   }
+  if (ed.show.entities) drawSpawnZones(ctx, ed);
   if (ed.show.entities) drawObjects(ctx, ed);
   if (ed.show.rooms) drawRooms(ctx, ed, x0, y0, x1, y1);
   if (ed.show.collisions) drawCollisions(ctx, ed, x0, y0, x1, y1);
@@ -156,6 +166,56 @@ export function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement,
   drawSelection(ctx, ed);
   overlay(ctx, ed);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// ---------- Автодекор зон (level.zones): считается теми же функциями, что в игре ----------
+
+interface AutoDecor {
+  transistors: TransistorSpot[];
+  vines: VineSpot[];
+  sky: SkySpot[];
+}
+
+let autoCache: { def: unknown; rev: number; value: AutoDecor } | null = null;
+
+function autoDecor(ed: Editor): AutoDecor {
+  if (autoCache && autoCache.def === ed.def && autoCache.rev === ed.rev) return autoCache.value;
+  const def = ed.def;
+  const value: AutoDecor = { transistors: [], vines: [], sky: [] };
+  if (def.zones?.length) {
+    const solid = (cx: number, cy: number) => ed.isSolid(cx, cy);
+    const reserved = reservedCells(def, (id) => ed.atlas.def(id));
+    def.zones.forEach((zone, i) => {
+      if (zone.kind === 'webs') {
+        const w = layoutWebs(def, zone, i, solid);
+        value.vines.push(...w.vines);
+        value.sky.push(...w.sky);
+      } else {
+        value.transistors.push(...layoutTransistors(def, zone, i, solid, reserved));
+      }
+    });
+  }
+  autoCache = { def, rev: ed.rev, value };
+  return value;
+}
+
+/** Старые зоны появления мобов (spawn_zones): рамка и подпись — в игре мобы раскладываются по полу внутри. */
+function drawSpawnZones(ctx: CanvasRenderingContext2D, ed: Editor): void {
+  const ts = ed.ts;
+  for (const z of ed.def.spawn_zones ?? []) {
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.8)';
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.08)';
+    ctx.lineWidth = 2 / ed.view.zoom;
+    ctx.setLineDash([6, 4]);
+    ctx.fillRect(z.x * ts, z.y * ts, z.width * ts, z.height * ts);
+    ctx.strokeRect(z.x * ts, z.y * ts, z.width * ts, z.height * ts);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f87171';
+    ctx.font = '10px monospace';
+    ctx.fillText(`${z.name ?? z.id}: ${z.enemy_id} ×${z.count}`, z.x * ts + 4, z.y * ts + 12);
+    const sprite = z.sprite_id ?? ed.enemyDef(z.enemy_id)?.sprite_variants[0];
+    if (sprite) ed.atlas.draw(ctx, sprite, 0, z.x * ts + ts / 2, (z.y + z.height) * ts, { alpha: 0.5 });
+  }
 }
 
 function drawTiles(ctx: CanvasRenderingContext2D, ed: Editor, x0: number, y0: number, x1: number, y1: number): void {

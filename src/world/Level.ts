@@ -1,24 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { DecorZoneDef, LevelDef, Slope, TileSetDef } from '../data/types.ts';
+import { layoutTransistors, reservedCells, SPRITE_TRANSISTORS } from './autoDecor.ts';
 import { objectSpriteIds } from './placeables.ts';
 import { cellKey, tileVisual, transformSlope, xformMap, xformSteps } from './tileRules.ts';
 import { THREAD_SPRITE, Webs } from './Webs.ts';
 import type { Actor } from './Webs.ts';
-
-const SPRITE_TRANSISTORS = ['deco_transistor', 'deco_transistor2'];
-
-/** Детерминированный генератор: раскладка автодекора одинакова при каждом запуске. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /**
  * Уровень-сетка из тайлов (data/levels/*.json): строит спрайты тайлов и отвечает на вопросы о твёрдости клеток.
@@ -138,15 +125,12 @@ export class Level {
     // Декор, заданный вручную: точка привязки спрайта (origin из реестра) — в (x, y) тайлов
     for (const d of def.decor ?? []) {
       this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer, d.flip_x, d.flip_y);
-      // колонки, которые декор занимает по ширине на своём ряду: автодекор (транзисторы) в них не ставим — ничего не пересекается
-      const def = sprites.def(d.sprite_id);
-      const left = Math.floor((d.x * this.tileSize - def.frame_width * def.origin.x) / this.tileSize);
-      const right = Math.floor((d.x * this.tileSize + def.frame_width * (1 - def.origin.x) - 1) / this.tileSize);
-      for (let cx = left; cx <= right; cx++) this.reserved.add(`${Math.round(d.y)}:${cx}`);
     }
+    // колонки, которые декор занимает по ширине на своём ряду: автодекор (транзисторы) в них не ставим — ничего не пересекается
+    for (const key of reservedCells(def, (id) => sprites.def(id))) this.reserved.add(key);
 
     // Висящая паутина (нитка паучихи): лианы под тайлами и длинные нитки с неба — по зонам; лежит под тайлами (корни спрятаны)
-    this.webs = new Webs(sprites, this.tileSize, def.width, def.height, (cx, cy) => this.solid[cy][cx]);
+    this.webs = new Webs(sprites, def, this.tileSize, (cx, cy) => this.solid[cy][cx]);
     this.backLayer.addChild(this.webs.back);
     (def.zones ?? []).forEach((zone, i) => {
       if (zone.kind === 'webs') this.webs.addZone(zone, i);
@@ -164,20 +148,12 @@ export class Level {
     layer.addChild(sprite);
   }
 
-  /** Зона транзисторов: на верхних гранях твёрдых клеток, случайно, но детерминированно (по density). */
+  /** Зона транзисторов: раскладку считает autoDecor (так же рисует редактор). */
   private fillTransistors(sprites: SpriteLibrary, zone: DecorZoneDef, index: number): void {
-    const rand = mulberry32(index * 9973 + 101);
-    const density = zone.density ?? 0.5;
-    const spawn = this.def.player_spawn;
-    for (let cy = Math.max(0, zone.y0); cy <= Math.min(this.heightTiles - 1, zone.y1); cy++) {
-      for (let cx = Math.max(0, zone.x0); cx <= Math.min(this.widthTiles - 1, zone.x1); cx++) {
-        const roll = rand();
-        const pick = rand();
-        if (!this.solid[cy][cx] || (cy > 0 && this.solid[cy - 1][cx]) || roll >= density) continue;
-        if (this.reserved.has(`${cy}:${cx}`)) continue; // здесь уже стоит другой декор
-        if (Math.abs(cx - spawn.x) <= 1 && cy === spawn.y + 1) continue; // не на месте появления героя
-        this.placeDecor(sprites, SPRITE_TRANSISTORS[pick < 0.5 ? 0 : 1], cx + 0.5, cy, this.frontLayer);
-      }
+    for (const t of layoutTransistors(this.def, zone, index, (cx, cy) => this.solid[cy][cx], this.reserved)) {
+      const sprite = sprites.createSprite(t.sprite_id);
+      sprite.position.set(t.x, t.y);
+      this.frontLayer.addChild(sprite);
     }
   }
 

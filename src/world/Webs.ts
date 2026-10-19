@@ -1,6 +1,7 @@
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { DecorZoneDef, ThreadPlaceDef } from '../data/types.ts';
+import type { DecorZoneDef, LevelDef, ThreadPlaceDef } from '../data/types.ts';
+import { layoutWebs, mulberry32 } from './autoDecor.ts';
 import { ThreadRope } from '../entities/ThreadRope.ts';
 
 /** Нитка паучихи (enemy_spider_thread): из её звеньев собрана вся висящая паутина. */
@@ -9,7 +10,6 @@ const THREAD_CENTER_X = 5; // центр нитки по x в звене (как
 
 // Лианы под тайлами: цепочка узлов через VINE_NODE px, по два узла на звено нитки (звено рисуется в натуральную длину — не сжимается)
 const VINE_NODE = 7;
-const VINE_PIECE = VINE_NODE * 2; // px: шаг звеньев вдоль лианы (высота звена 16 минус нахлёст 2)
 const VINE_GRAVITY = 300; // px/с²: нитка лёгкая — тяжесть мала, поэтому она послушно колышется и изгибается
 const VINE_DAMPING = 1.4; // 1/с: затухание скорости (малое — после толчка лиана качается ещё несколько раз, как маятник)
 const VINE_WIND = 95; // px/с²: порывы ветра (к концу лианы растут быстрее, чем линейно, — нить изгибается дугой)
@@ -26,24 +26,10 @@ const CALM_DAMPING = 4; // 1/с: добавка затухания сразу п
 const SIDE_STUCK = 0.12; // с: узел не может уйти на свою сторону (цепочка натянута) — перетекает на другую сторону героя
 const VIEW_MARGIN = 40; // px: за краем обзора декор не обновляется
 const VINE_TINTS = [0xffffff, 0xe3f1ff, 0xcfe6ff];
-const SKY_CLEARANCE = 8; // px: нитка с неба обрывается чуть выше первой платформы под ней, а не проходит сквозь неё
 
 // Длинные нитки с неба — как у паучихи: ThreadRope (упругая струна), верх закреплён над уровнем, низ свободно покачивается
-const SKY_ANCHOR_ROW = -2; // ряд тайлов, где закреплён верх (как у паучихи по умолчанию)
 const SKY_SWING = [6, 14]; // px: размах качания нижнего конца (от, до)
 const SKY_SPEED = [0.35, 0.7]; // рад/с
-
-/** Детерминированный генератор: раскладка паутины одинакова при каждом запуске. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** Тот, кто задевает лианы: хитбокс (мир) и скорость. */
 export interface Actor {
@@ -305,53 +291,17 @@ export class Webs {
   private time = 0;
 
   constructor(
-    sprites: SpriteLibrary, private readonly ts: number, private readonly width: number, private readonly height: number,
+    sprites: SpriteLibrary, private readonly def: LevelDef, private readonly ts: number,
     private readonly isSolid: (cx: number, cy: number) => boolean
   ) {
     this.tex = sprites.texture(THREAD_SPRITE);
   }
 
-  private solid(cx: number, cy: number): boolean {
-    return cx >= 0 && cx < this.width && cy >= 0 && cy < this.height && this.isSolid(cx, cy);
-  }
-
   /** Раскладывает паутину зоны; index — номер зоны (для детерминированного генератора). */
   public addZone(zone: DecorZoneDef, index: number): void {
-    const rand = mulberry32(index * 7919 + 4421);
-    const density = zone.density ?? 0.5;
-    const ts = this.ts;
-    const x0 = Math.max(0, zone.x0);
-    const x1 = Math.min(this.width - 1, zone.x1);
-    const y0 = Math.max(0, zone.y0);
-    const y1 = Math.min(this.height - 1, zone.y1);
-
-    // лианы под тайлами
-    for (let cy = y0; cy <= y1; cy++) {
-      for (let cx = x0; cx <= x1; cx++) {
-        if (this.solid(cx, cy) && !this.solid(cx, cy + 1) && cy + 1 < this.height && rand() < Math.min(1, density * 1.3)) this.addVines(cx, cy, rand);
-      }
-    }
-
-    // длинные нитки с неба: по одной примерно на каждые 2–3 колонки зоны (по density), с неравномерными промежутками
-    const topY = SKY_ANCHOR_ROW * ts;
-    for (let cx = x0; cx <= x1; cx++) {
-      if (rand() >= density * 0.55) continue;
-      const x = cx * ts + 4 + rand() * (ts - 8);
-      // конец — на случайной высоте в пределах зоны: нитка свисает и обрывается свободно (тайлы перекрывают её, она за ними)
-      const swing = SKY_SWING[0] + rand() * (SKY_SWING[1] - SKY_SWING[0]);
-      let bottomY = (y0 + rand() * (y1 - y0 + 1)) * ts;
-      // нитка обрывается над первой твёрдой клеткой под ней (с учётом размаха качания), а не проходит сквозь платформу
-      const cl = Math.floor((x - swing - 4) / ts);
-      const cr = Math.floor((x + swing + 4) / ts);
-      for (let cy = 0; cy < this.height; cy++) {
-        let hit = false;
-        for (let c = cl; c <= cr; c++) if (this.solid(c, cy)) hit = true;
-        if (hit) { bottomY = Math.min(bottomY, cy * ts - SKY_CLEARANCE); break; }
-      }
-      if (bottomY - topY < 4 * ts) continue;
-      const speed = SKY_SPEED[0] + rand() * (SKY_SPEED[1] - SKY_SPEED[0]);
-      this.sky.push(new SkyThread(this.back, this.tex, x, topY, bottomY, swing, speed, rand() * Math.PI * 2, rand() < 0.5));
-    }
+    const { vines, sky } = layoutWebs(this.def, zone, index, (cx, cy) => this.isSolid(cx, cy));
+    for (const v of vines) this.vines.push(new Vine(this.back, this.tex, v.x, v.y, v.pieces, v.tint, v.bead, this.isSolid, this.ts));
+    for (const t of sky) this.sky.push(new SkyThread(this.back, this.tex, t.x, t.topY, t.bottomY, t.swing, t.speed, t.phase, t.bead));
   }
 
   /** Нитка, поставленная вручную точно на пиксель (level.threads): лиана свисает от точки (x, y), нитка с неба — верх в точке и свободный низ. */
@@ -366,22 +316,6 @@ export class Webs {
     const swing = t.swing ?? SKY_SWING[0] + rand() * (SKY_SWING[1] - SKY_SWING[0]);
     const speed = SKY_SPEED[0] + rand() * (SKY_SPEED[1] - SKY_SPEED[0]);
     this.sky.push(new SkyThread(this.back, this.tex, t.x, t.y, t.y + Math.max(16, t.length ?? 160), swing, speed, rand() * Math.PI * 2, t.bead ?? true));
-  }
-
-  /** Пучок лиан под нижней гранью тайла: 2–3 нити разной длины (кратной звену), длина — до следующего тайла. */
-  private addVines(cx: number, cy: number, rand: () => number): void {
-    const ts = this.ts;
-    let room = 0;
-    for (let y = cy + 1; y < this.height && !this.solid(cx, y); y++) room += ts;
-    const maxPieces = Math.min(6, Math.floor((room - 6) / VINE_PIECE));
-    if (maxPieces < 1) return;
-    const count = 2 + (rand() < 0.5 ? 1 : 0);
-    for (let i = 0; i < count; i++) {
-      const x = cx * ts + 4 + ((i + 0.3 + rand() * 0.4) * (ts - 8)) / count;
-      const pieces = 1 + Math.floor(rand() * maxPieces);
-      const tint = VINE_TINTS[Math.floor(rand() * VINE_TINTS.length)];
-      this.vines.push(new Vine(this.back, this.tex, x, (cy + 1) * ts - 2, pieces, tint, rand() < 0.45, this.isSolid, ts));
-    }
   }
 
   /** camLeft..camRight — видимый диапазон по x (мир). */
