@@ -22,6 +22,8 @@ export interface ObjectEvents {
   denied(x: number, y: number): void;
   /** Предмет подобран / вставлен в подставку. */
   collected(x: number, y: number, item: string): void;
+  /** Рогалик: комната зачищена — двери с requires_clear открываются. */
+  cleared?(): boolean;
 }
 
 import { WorldProgression } from '../systems/WorldProgression.ts';
@@ -82,6 +84,7 @@ export class LevelObjects {
     if (this.level.id === 'world_prototype') {
       if (!WorldProgression.get().canOpenDoor(def.id)) return false;
     }
+    if (prop(def, 'requires_clear') && !(this.events.cleared?.() ?? false)) return false;
     const item = prop(def, 'requires_item');
     const flag = prop(def, 'requires_flag');
     return (!item || this.quest.has(item)) && (!flag || this.quest.flag(flag));
@@ -223,6 +226,12 @@ export class LevelObjects {
       if (!p.isOpen) {
         p.isOpen = true;
         this.events.collected(def.x, def.y - 30, 'door');
+        return;
+      }
+
+      // Выход рогалика: следующая комната забега
+      if (prop(def, 'rogue_exit')) {
+        this.events.travel('__rogue_next__', '');
         return;
       }
 

@@ -48,6 +48,11 @@ import { Terminal } from './entities/Terminal.ts';
 import { CipherCluesView } from './entities/CipherCluesView.ts';
 import { PasswordTerminalEntity } from './entities/PasswordTerminalEntity.ts';
 import { WorldProgression } from './systems/WorldProgression.ts';
+import { Run } from './systems/Run.ts';
+import { buildRogueLevel } from './roguelike/RoomBuilder.ts';
+import { CubeTransition } from './ui/CubeTransition.ts';
+import { UpgradeUI } from './ui/UpgradeUI.ts';
+import runData from '../data/roguelike/run.json';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
@@ -73,9 +78,25 @@ const urlParams = new URLSearchParams(window.location.search);
 const requestedLevel = urlParams.get('level');
 /** Уровень открыт отладочной клавишей (1–5): без тумана войны, все двери открыты — карту видно и проходить можно целиком. */
 const DEBUG_MODE = urlParams.get('debug') === '1';
-let activeLevelDef: LevelDef = (requestedLevel
-  ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
-  : undefined) ?? (LEVELS.find(l => l.id === 'world_prototype') || LEVELS[0]); // без ?level= игра сразу открывает полную карту (первая локация)
+/** Рогалик — основной режим игры; старые уровни и карта открываются по ?level=... (и клавишам 1–5). */
+const ROGUE = !requestedLevel;
+if (ROGUE) {
+  // отладка: ?run=new — новый забег, ?node=N — сразу к узлу N (0..11; 3, 7, 11 — боссы); параметры снимаются с адреса, чтобы не срабатывать при каждой перезагрузке
+  const run = Run.get();
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('run') === 'new') run.restart();
+  if (url.searchParams.has('node')) run.jump(Number(url.searchParams.get('node')) || 0);
+  if (url.searchParams.has('run') || url.searchParams.has('node')) {
+    url.searchParams.delete('run');
+    url.searchParams.delete('node');
+    window.history.replaceState(null, '', url.toString());
+  }
+}
+let activeLevelDef: LevelDef = ROGUE
+  ? buildRogueLevel(Run.get().current, Run.get().seed, LEVELS)
+  : ((requestedLevel
+    ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
+    : undefined) ?? (LEVELS.find(l => l.id === 'world_prototype') || LEVELS[0]));
 
 /**
  * Свежая версия уровня с диска: редактор открывает игру с ?live=1, и сервер (vite или exe-редактор) отдаёт уровень, только что сохранённый
@@ -198,6 +219,14 @@ class GameApp {
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private lastErrorAt = 0;
+  private readonly upgradeUI = new UpgradeUI(); // прокачка перед боссом
+  private cubes: CubeTransition | null = null; // экран перехода на кубиках (рогалик)
+  private waveMobs: Hittable[] = []; // враги текущей волны рогалика: все погибли — следующая волна
+  private rogueWaves: EnemySpawnDef[][] = []; // ещё не вышедшие волны
+  private rogueCleared = false; // комната зачищена: выходная дверь открыта
+  private rogueLeaving = false; // уходим из комнаты (экран кубиков, окно прокачки)
+  private waveDelay = 0;
+  private hpMult = 1; // множитель здоровья врагов биома
   private readonly gone = new WeakSet<Hittable>(); // уже погибшие и убранные с экрана: по ним не бьём и не уничтожаем повторно
   private debris = new Debris();
   private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
@@ -244,6 +273,13 @@ class GameApp {
     this.terminalUI = new TerminalUI();
     this.cipherPuzzle = PuzzleSystem.get().cipherTerminalPuzzle;
     SoundManager.get().init();
+    if (ROGUE) {
+      const run = Run.get();
+      Armor.get().useRun(run.fresh); // отдельное хранилище забега: шестерёнки, уровни, здоровье
+      run.fresh = false;
+      this.cubes = new CubeTransition(run.nodes);
+      this.cubes.cover(run.node); // экран закрыт, пока комната грузится
+    }
 
     window.addEventListener('keydown', (e) => {
       this.passwordTerminal?.handleKeyInput(e);
@@ -287,7 +323,7 @@ class GameApp {
         window.location.href = './editor.html';
       }
       // Отладка: клавиши 1–5 переключают уровень (у уровня в JSON задан debug_key): 1 — полная карта (world_prototype) с мобами, туманом и закрытыми дверьми, 2 — локация 2, 3 — босс-червь, 4 — босс-птица, 5 — краб
-      if (/^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if ((!ROGUE || DEBUG_MODE) && /^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) { // в рогалике цифры — прокачка (окно перед боссом); отладочные уровни открываются клавишами только с ?debug=1
         const next = LEVELS.find((l) => l.debug_key === Number(e.key));
         if (next && (next.id !== activeLevelDef.id || DEBUG_MODE)) {
           const url = new URL(window.location.href);
@@ -305,6 +341,7 @@ class GameApp {
     console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
     await loadDamageFont();
     await this.setupScene();
+    this.cubes?.reveal();
 
     // Запуск основного игрового цикла (Pixi ticker)
     const fps = new FpsCounter(this.app.ticker); // счётчик FPS в углу (F3 — скрыть, F4 — лимит кадров)
@@ -472,11 +509,11 @@ class GameApp {
       ...MODELS.map((m) => m.sprite_id),
       ...modelRigs.flatMap((r) => r.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])])),
       ...Level.spriteIds(levelDef, tileset),
-      ...levelDef.enemies.map((e) => e.sprite_id),
+      ...[...levelDef.enemies, ...(levelDef.rogue?.waves.flat() ?? [])].map((e) => e.sprite_id),
       // спрайты врагов из зон спавна
       ...(levelDef.spawn_zones ?? []).map((z) => z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '').filter(Boolean),
       // части тела врагов, собранных из слоёв (паук, червь, паучиха), и тех, кого они порождают
-      ...levelDef.enemies.flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id)),
+      ...[...levelDef.enemies, ...(levelDef.rogue?.waves.flat() ?? [])].flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id)),
       ...(levelDef.spawn_zones ?? []).flatMap((z) => {
         const sId = z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '';
         return sId ? this.enemySpriteIds(enemyDefs, z.enemy_id, sId) : [];
@@ -512,7 +549,7 @@ class GameApp {
     WorldProgression.get().debugOpenAll = DEBUG_MODE;
 
     // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
-    this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
+    if (!ROGUE) this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
     this.cipherCluesView = new CipherCluesView(this.cipherPuzzle);
     this.worldLayer.addChild(this.cipherCluesView.container);
 
@@ -541,90 +578,11 @@ class GameApp {
       }
     }
 
+    this.hpMult = levelDef.rogue?.hp_mult ?? 1;
+    this.rogueWaves = levelDef.rogue ? [...levelDef.rogue.waves] : [];
     for (const spawn of allEnemies) {
-      const def = enemyDefs.get(spawn.enemy_id);
-      if (!def) throw new Error(`Уровень ссылается на неизвестного врага "${spawn.enemy_id}"`);
-      if (def.behavior_type === 'crawler') {
-        // Ползающий враг (паук): процедурное тело по поверхностям тайлов
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const spider = new Spider(def, spawn, this.level, rig, this.sprites);
-        spider.leash = this.bindRoom(spider, spawn);
-        this.spiders.push(spider);
-        this.worldLayer.addChild(spider.container);
-        this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
-        continue;
-      }
-      if (def.behavior_type === 'spawner') {
-        // Паучиха-матка: сидит на фоне (под тайлами), шатает лапками и выплёвывает паучков
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const motherRoom = this.homeLeash(spawn);
-        const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
-          (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
-        mother.leash = this.bindRoom(mother, spawn);
-        mother.target = () => ({ x: this.player.body.x, y: this.player.body.y - 20 });
-        this.mothers.push(mother);
-        this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
-        this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
-        this.contactDmg.set(mother, def.stats.contact_damage);
-        continue;
-      }
-      if (def.behavior_type === 'flying_worm') {
-        // Босс-червь: летает сквозь тайлы за героем, рисуется под тайлами (часть тела в блоках скрыта маской)
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const boss = new WormBoss(def, spawn, this.level, rig, this.sprites, this.wormBossHooks(def));
-        boss.leash = this.bindRoom(boss, spawn);
-        this.bosses.push(boss);
-        this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
-        this.contactDmg.set(boss, def.stats.contact_damage);
-        continue;
-      }
-      if (def.behavior_type === 'critter') {
-        // Мелкие мобы второй локации: ходят, скачут, летают, следят за героем
-        this.createCritter(def, spawn, false);
-        continue;
-      }
-      if (def.behavior_type === 'flying_bird') {
-        // Босс-птица второй локации: пролёты, стая птичек, посадка с призывом; рисуется поверх героя
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const boss = new BirdBoss(def, spawn, this.level, rig, this.sprites, this.birdBossHooks(def, rig));
-        boss.leash = this.bindRoom(boss, spawn);
-        this.birdBosses.push(boss);
-        this.worldLayer.addChild(boss.container);
-        continue;
-      }
-      if (def.behavior_type === 'crab_boss') {
-        // Финальный босс-краб: ходит, прыгает, клешни на неоновых нитях, шары, метание мобов; рисуется поверх героя
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const boss = new CrabBoss(def, spawn, this.level, rig, this.sprites, this.crabBossHooks(rig));
-        boss.leash = this.bindRoom(boss, spawn);
-        this.crabBosses.push(boss);
-        this.worldLayer.addChild(boss.container);
-        continue;
-      }
-      if (def.behavior_type === 'burrower') {
-        // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
-        const rig = RIGS.find((r) => r.id === def.rig_id);
-        if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
-        worm.leash = this.bindRoom(worm, spawn);
-        worm.hero = () => this.heroBox();
-        worm.onBite = (x, y, dirX, dmg) => this.strikeHero(x, y, dirX, dmg, false);
-        this.worms.push(worm);
-        this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
-        this.contactDmg.set(worm, def.stats.contact_damage);
-        continue;
-      }
-      const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
-      enemy.leash = this.bindRoom(enemy, spawn);
-      this.enemies.push(enemy);
-      this.worldLayer.addChild(enemy.sprite);
-      this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
-      this.contactDmg.set(enemy, def.stats.contact_damage);
+      const mob = this.spawnEnemy(spawn);
+      if (mob && levelDef.rogue) this.waveMobs.push(mob);
     }
 
     // Уровень может выдать героя уже в броне (поле start_armor)
@@ -641,6 +599,7 @@ class GameApp {
     this.objects = new LevelObjects(levelDef, this.sprites, {
       travel: (levelId, doorId) => this.travelTo(levelId, doorId),
       teleport: (x, y) => this.teleportHero(x, y),
+      cleared: () => this.rogueCleared,
       denied: (x, y) => this.fx.burst(x, y, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] }),
       collected: (x, y) => this.fx.burst(x, y, { count: 14, colors: LIGHTNING_SPARKS, speed: [40, 130], spread: Math.PI * 2, life: [0.2, 0.45], size: [1, 2] })
     });
@@ -780,6 +739,166 @@ class GameApp {
     }
   }
 
+  /** Создаёт врага по спавну и возвращает его (null — не создан). Сюда же приходят волны рогалика во время боя. */
+  private spawnEnemy(spawn: EnemySpawnDef): Hittable | null {
+    const enemyDefs = this.enemyDefs;
+    const def = enemyDefs.get(spawn.enemy_id);
+    if (!def) throw new Error(`Уровень ссылается на неизвестного врага "${spawn.enemy_id}"`);
+    if (def.behavior_type === 'crawler') {
+      // Ползающий враг (паук): процедурное тело по поверхностям тайлов
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const spider = new Spider(def, spawn, this.level, rig, this.sprites);
+      spider.leash = this.bindRoom(spider, spawn);
+      this.spiders.push(spider);
+      this.worldLayer.addChild(spider.container);
+      this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
+      return spider;
+    }
+    if (def.behavior_type === 'spawner') {
+      // Паучиха-матка: сидит на фоне (под тайлами), шатает лапками и выплёвывает паучков
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const motherRoom = this.homeLeash(spawn);
+      const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
+        (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
+      mother.leash = this.bindRoom(mother, spawn);
+      mother.target = () => ({ x: this.player.body.x, y: this.player.body.y - 20 });
+      this.mothers.push(mother);
+      this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
+      this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
+      this.contactDmg.set(mother, def.stats.contact_damage);
+      return mother;
+    }
+    if (def.behavior_type === 'flying_worm') {
+      // Босс-червь: летает сквозь тайлы за героем, рисуется под тайлами (часть тела в блоках скрыта маской)
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const boss = new WormBoss(def, spawn, this.level, rig, this.sprites, this.wormBossHooks(def));
+      boss.leash = this.bindRoom(boss, spawn);
+      this.bosses.push(boss);
+      this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
+      this.contactDmg.set(boss, def.stats.contact_damage);
+      return boss;
+    }
+    if (def.behavior_type === 'critter') {
+      // Мелкие мобы второй локации: ходят, скачут, летают, следят за героем
+      return this.createCritter(def, spawn, false);
+    }
+    if (def.behavior_type === 'flying_bird') {
+      // Босс-птица второй локации: пролёты, стая птичек, посадка с призывом; рисуется поверх героя
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const boss = new BirdBoss(def, spawn, this.level, rig, this.sprites, this.birdBossHooks(def, rig));
+      boss.leash = this.bindRoom(boss, spawn);
+      this.birdBosses.push(boss);
+      this.worldLayer.addChild(boss.container);
+      return boss;
+    }
+    if (def.behavior_type === 'crab_boss') {
+      // Финальный босс-краб: ходит, прыгает, клешни на неоновых нитях, шары, метание мобов; рисуется поверх героя
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const boss = new CrabBoss(def, spawn, this.level, rig, this.sprites, this.crabBossHooks(rig));
+      boss.leash = this.bindRoom(boss, spawn);
+      this.crabBosses.push(boss);
+      this.worldLayer.addChild(boss.container);
+      return boss;
+    }
+    if (def.behavior_type === 'burrower') {
+      // Червь-землерой: рисуется под тайлами, чтобы часть тела внутри блоков была скрыта
+      const rig = RIGS.find((r) => r.id === def.rig_id);
+      if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+      const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
+      worm.leash = this.bindRoom(worm, spawn);
+      worm.hero = () => this.heroBox();
+      worm.onBite = (x, y, dirX, dmg) => this.strikeHero(x, y, dirX, dmg, false);
+      this.worms.push(worm);
+      this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
+      this.contactDmg.set(worm, def.stats.contact_damage);
+      return worm;
+    }
+    const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
+    enemy.leash = this.bindRoom(enemy, spawn);
+    this.enemies.push(enemy);
+    this.worldLayer.addChild(enemy.sprite);
+    this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
+    this.contactDmg.set(enemy, def.stats.contact_damage);
+    return enemy;
+  }
+
+  // ---------- Рогалик: волны, зачистка, переходы
+
+  /** Волны и зачистка комнаты: все враги волны погибли — выходит следующая; последняя — комната зачищена, награда и открытая дверь. */
+  private updateRogue(dt: number): void {
+    const meta = activeLevelDef.rogue;
+    if (!meta || this.rogueLeaving || this.deathTimer > 0) return;
+    const b = this.player.body;
+    if (this.rogueCleared) {
+      // дверь выхода открыта: герой вошёл в неё — дальше
+      const out = activeLevelDef.objects?.find((o) => o.id === 'door_out');
+      if (out && Math.abs(b.x - out.x) <= 30 && b.y <= out.y + 6 && b.y >= out.y - 72) this.completeRoom();
+      return;
+    }
+    if (this.waveMobs.some((m) => !this.gone.has(m))) {
+      this.waveDelay = 0;
+      return;
+    }
+    if (this.rogueWaves.length) {
+      this.waveDelay += dt;
+      if (this.waveDelay < 0.9) return;
+      this.waveDelay = 0;
+      this.waveMobs = [];
+      const ts = this.level.tileSize;
+      for (const spawn of this.rogueWaves.shift()!) {
+        const mob = this.spawnEnemy(spawn);
+        if (mob) this.waveMobs.push(mob);
+        const px = (spawn.x + 0.5) * ts;
+        const py = (spawn.y + 0.5) * ts;
+        this.fx.burst(px, py, { count: 12, colors: [pal('void', 5), pal('void', 6), pal('electric', 6)], speed: [30, 110], spread: Math.PI * 2, life: [0.2, 0.5], size: [1, 2] });
+      }
+      this.shake = Math.max(this.shake, 1.2);
+      return;
+    }
+    // зачищено
+    this.rogueCleared = true;
+    SoundManager.get().playKill();
+    this.flashColor = pal('gold', 7);
+    this.flashAlpha = 0.18;
+    const n = meta.clear_gears;
+    for (let i = 0; i < n; i++) this.loot.spawnItem(b.x + (Math.random() * 40 - 20), b.y - 50 - Math.random() * 20, true);
+    this.fx.burst(b.x, b.y - 30, { count: 30, colors: [pal('gold', 5), pal('gold', 6), pal('gold', 7)], speed: [60, 200], spread: Math.PI * 2, life: [0.3, 0.7], size: [1, 3] });
+  }
+
+  /** Уход из зачищённой комнаты: перед боссом — окно прокачки, затем экран кубиков и следующая комната (после финального босса — победа и новый забег). */
+  private completeRoom(): void {
+    if (this.rogueLeaving || !ROGUE) return;
+    this.rogueLeaving = true;
+    const run = Run.get();
+    const next = run.next;
+    const here = run.node;
+    const armor = Armor.get();
+    this.loot.collectAll(); // не подобранные шестерёнки не теряются
+    const go = () => {
+      if (!next) {
+        this.cubes?.leave(here, 'victory', () => this.newRun());
+        return;
+      }
+      armor.heal(next.kind === 'boss' ? 1 : runData.rewards.heal_between_rooms);
+      run.advance();
+      this.cubes?.leave(here, 'next', () => window.location.reload());
+    };
+    if (next?.kind === 'boss') this.upgradeUI.open(go);
+    else go();
+  }
+
+  /** Забег окончен (победа или гибель): всё с нуля. */
+  private newRun(): void {
+    Run.get().restart();
+    Armor.get().useRun(true);
+    window.location.reload();
+  }
+
   /** Комната-«дом» моба по его клетке спавна (или явному spawn.room); null — уровень без комнат / моб вне комнат. */
   private homeLeash(spawn: EnemySpawnDef): Leash | null {
     if (!this.rooms.any) return null;
@@ -800,6 +919,10 @@ class GameApp {
 
   /** Дверь ведёт на другой уровень: страница перезагружается с адресом уровня и двери, у которой герой появится. */
   private travelTo(levelId: string, doorId: string): void {
+    if (levelId === '__rogue_next__') {
+      this.completeRoom();
+      return;
+    }
     Quest.get().carryOver(); // предметы и флаги переходят вместе с героем
     const url = new URL(window.location.href);
     url.searchParams.set('level', levelId);
@@ -864,7 +987,8 @@ class GameApp {
 
   /** Регистрирует врага: здоровье, что рисуется и как вычеркнуть его из списков игры. */
   private track(target: Hittable, maxHp: number, view: Container, remove: () => void): void {
-    this.mobs.set(target, { hp: maxHp, max: maxHp, view, remove });
+    const hp = Math.round(maxHp * this.hpMult); // рогалик: враги глубоких биомов крепче
+    this.mobs.set(target, { hp, max: hp, view, remove });
   }
 
   private trackSpider(spider: Spider, maxHp: number, contact = 0, sight = SPIDER_SIGHT): void {
@@ -1002,6 +1126,14 @@ class GameApp {
 
   /** Возрождение после гибели: у начала уровня, с полным здоровьем; часть металлолома потеряна. */
   private respawnPlayer(): void {
+    if (ROGUE) {
+      // рогалик: герой погиб — забег окончен, всё заново (кубики показывают, докуда дошли)
+      if (!this.rogueLeaving) {
+        this.rogueLeaving = true;
+        this.cubes?.leave(Run.get().node, 'death', () => this.newRun());
+      }
+      return;
+    }
     const armor = Armor.get();
     armor.loseScrapOnDeath();
     armor.revive();
@@ -1479,7 +1611,7 @@ class GameApp {
 
     const armor = Armor.get();
     getSharedOutlineFilter().update(dt, this.scale);
-    const terminalOpen = this.terminalUI.isOpen;
+    const terminalOpen = this.terminalUI.isOpen || this.upgradeUI.isOpen;
     const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
     armor.invulnerable = terminalOpen || this.deathTimer > 0;
     armor.update(dt);
@@ -1618,6 +1750,7 @@ class GameApp {
     for (const boss of this.crabBosses) boss.update(dt);
     this.updateOrbs(dt);
     for (const mob of this.critters) mob.update(dt);
+    this.updateRogue(dt);
     this.resolveStrike();
     this.checkContactDamage(dt);
     this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });

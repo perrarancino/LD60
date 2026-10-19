@@ -165,7 +165,18 @@ export interface GradeDef {
   highlights_end?: [number, number, number];
 }
 
+/** Рогалик: что игра знает о собранной комнате забега (создаётся RoomBuilder, в JSON уровней не хранится). */
+export interface RogueMeta {
+  node: number; // номер узла забега (0..11)
+  boss: boolean;
+  name: string;
+  waves: EnemySpawnDef[][]; // волны, которые ещё не вышли (первая волна — в level.enemies)
+  clear_gears: number; // награда за зачистку, шестерёнок
+  hp_mult: number; // множитель здоровья врагов биома
+}
+
 export interface LevelDef {
+  rogue?: RogueMeta;
   $schema?: string;
   id: string;
   display_name?: string;

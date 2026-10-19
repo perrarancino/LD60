@@ -49,7 +49,7 @@ export class LootSystem {
     for (let i = 0; i < n; i++) this.spawnItem(x + (Math.random() * 12 - 6), y - 8 + (Math.random() * 8 - 4));
   }
 
-  public spawnItem(x: number, y: number): void {
+  public spawnItem(x: number, y: number, magnetized = false): void {
     const sprite = this.sprites.createSprite('mat_scrap');
     sprite.position.set(x, y);
     this.container.addChild(sprite);
@@ -65,7 +65,7 @@ export class LootSystem {
       vy: Math.sin(angle) * speed,
       bounceCount: 0,
       lifetime: 0,
-      magnetized: false
+      magnetized
     });
   }
 
@@ -180,6 +180,23 @@ export class LootSystem {
     }
 
     return { hovered, interacted };
+  }
+
+  /** Все лежащие шестерёнки летят к герою (награда за комнату не теряется). */
+  public magnetizeAll(): void {
+    for (const it of this.items) it.magnetized = true;
+  }
+
+  /** Сколько шестерёнок ещё лежит на полу. */
+  public get count(): number {
+    return this.items.length;
+  }
+
+  /** Мгновенно забрать всё, что лежит (при уходе из комнаты). */
+  public collectAll(): void {
+    const n = this.items.length;
+    if (n > 0) Armor.get().addScrap(n);
+    this.clear();
   }
 
   public clear(): void {
