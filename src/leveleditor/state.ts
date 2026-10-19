@@ -228,6 +228,8 @@ export class Editor {
   public async save(): Promise<boolean> {
     const out = clone(this.def);
     finalizeLevel(out);
+    if (!this.filename) this.filename = `${out.id}.json`;
+    else if (!this.filename.endsWith('.json')) this.filename += '.json';
     try {
       const res = await saveLevel(this.filename, out);
       const entry = this.project.levels.find((l) => l.filename === this.filename);
@@ -240,21 +242,34 @@ export class Editor {
       this.emit('doc');
       return true;
     } catch (e) {
-      this.setStatus(`Не удалось сохранить: ${(e as Error).message}`, true);
-      // сервер редактора не ответил (закрыт exe?): не теряем работу — предлагаем скачать файл уровня
-      if (confirm(`Не удалось сохранить на диск (${(e as Error).message}).
-Возможно, закрыт LD60Editor.exe — запустите его снова.
+      // Повторная попытка сохранения (на случай кратковременной пересборки/занятости сервера)
+      try {
+        await new Promise((r) => setTimeout(r, 600));
+        const res = await saveLevel(this.filename, out);
+        const entry = this.project.levels.find((l) => l.filename === this.filename);
+        if (entry) entry.data = clone(out);
+        this.filename = res.filename;
+        this.def = out;
+        this.dirty = false;
+        if (this.activeRoom && !this.room(this.activeRoom)) this.activeRoom = this.rooms[0]?.id ?? null;
+        this.setStatus(`Сохранено: data/levels/${res.filename}`);
+        this.emit('doc');
+        return true;
+      } catch (errRetry) {
+        this.setStatus(`Не удалось сохранить в проект: ${(errRetry as Error).message}`, true);
+        if (confirm(`Не удалось сохранить в папку проекта (${(errRetry as Error).message}).
+Возможно, закрыт сервер редактора — запустите его снова.
 
 Скачать уровень файлом, чтобы не потерять правки?`)) {
-        const url = URL.createObjectURL(new Blob([`${JSON.stringify(out, null, 2)}
-`], { type: 'application/json' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.filename || `${out.id}.json`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+          const url = URL.createObjectURL(new Blob([`${JSON.stringify(out, null, 2)}\n`], { type: 'application/json' }));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = this.filename || `${out.id}.json`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+        return false;
       }
-      return false;
     }
   }
 

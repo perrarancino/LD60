@@ -160,7 +160,9 @@ function editorApiPlugin(): Plugin {
                 fs.mkdirSync(levelsDir, { recursive: true });
               }
 
-              const targetFilename = path.basename(String(filename || `${level.id}.json`));
+              const rawName = String(filename || `${level.id}.json`);
+              const baseName = path.basename(rawName);
+              const targetFilename = baseName.endsWith('.json') ? baseName : `${baseName}.json`;
               const filePath = path.join(levelsDir, targetFilename);
 
               if (!level.$schema) {

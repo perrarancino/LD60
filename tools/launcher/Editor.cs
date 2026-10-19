@@ -1,4 +1,4 @@
-﻿// LD60Editor: один exe — редактор уровней в браузере по умолчанию.
+// LD60Editor: один exe — редактор уровней в браузере по умолчанию.
 //
 // Что делает: поднимает локальный сервер, отдаёт страницу редактора (и игру, чтобы кнопка «Играть» запускала уровень сразу) и API проекта:
 //   GET  /api/ld60/config        — тайлы, спрайты, мобы, каталог объектов, фоны и все уровни из <проект>\data
@@ -26,7 +26,8 @@ static class EditorLauncher
 {
     const string PingScript =
         "<script>(function(){var id=Math.random().toString(36).slice(2);var p=function(){fetch('/__ping?id='+id).catch(function(){})};p();setInterval(p,2000);" +
-        "addEventListener('pagehide',function(){navigator.sendBeacon('/__bye?id='+id)})})();</script>";
+        "addEventListener('pagehide',function(){navigator.sendBeacon('/__bye?id='+id)});" +
+        "addEventListener('pageshow',p);addEventListener('visibilitychange',function(){if(!document.hidden)p()});})();</script>";
 
     static readonly Dictionary<string, string> Mime = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -83,8 +84,8 @@ static class EditorLauncher
                     foreach (string id in dead) Pages.Remove(id);
                     empty = Pages.Count == 0;
                 }
-                if (!everPinged && now > 240000) break;                  // браузер так и не открыл страницу
-                if (everPinged && empty && now - lastBye > 5000) break;  // все страницы закрыты
+                if (!everPinged && now > 240000) break;                   // браузер так и не открыл страницу
+                if (everPinged && empty && now - lastBye > 60000) break;  // все страницы закрыты: ждём 60 секунд (на случай F5, перехода в игру или переключения вкладок)
             }
             listener.Stop();
             return 0;
@@ -344,10 +345,15 @@ static class EditorLauncher
                 var body = json.DeserializeObject(ReadBody(ctx.Request)) as Dictionary<string, object>;
                 string text = body != null && body.ContainsKey("text") ? body["text"] as string : null;
                 string filename = body != null && body.ContainsKey("filename") ? body["filename"] as string : null;
+                if (text == null && body != null && body.ContainsKey("level"))
+                {
+                    text = json.Serialize(body["level"]);
+                }
                 if (text == null) throw new InvalidOperationException("Нет text");
                 var level = json.DeserializeObject(text) as Dictionary<string, object>; // проверка, что это JSON с id
                 if (level == null || !level.ContainsKey("id")) throw new InvalidOperationException("В уровне нет id");
                 if (string.IsNullOrEmpty(filename)) filename = level["id"] + ".json";
+                else if (!filename.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) filename += ".json";
                 string target = SafeLevelFile(filename);
                 File.WriteAllText(target, text, new UTF8Encoding(false));
                 Reply(ctx, 200, "application/json", Encoding.UTF8.GetBytes("{\"ok\":true,\"filename\":" + Q(Path.GetFileName(target)) + "}"));

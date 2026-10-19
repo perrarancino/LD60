@@ -20,17 +20,17 @@ interface ToolButton {
 
 const TOOLS: ToolButton[] = [
   { id: 'select', key: 'V', icon: '⬚', label: 'Выбор', tab: null, hint: 'Клик — выбрать · перетащить — двигать · рамка — блок тайлов · Delete — удалить · стрелки — сдвиг' },
-  { id: 'brush', key: 'B', icon: '✏', label: 'Кисть', tab: 'tiles', hint: 'ЛКМ — рисовать · ПКМ — стереть · Shift — линия · X / Y / R — отразить, повернуть' },
+  { id: 'brush', key: 'B', icon: '✏', label: 'Кисть', tab: 'tiles', hint: 'ЛКМ — рисовать · СКМ — стереть · Shift — линия · X / Y / R — отразить, повернуть' },
   { id: 'eraser', key: 'E', icon: '⌫', label: 'Ластик', tab: 'tiles', hint: 'ЛКМ — стереть тайл' },
-  { id: 'rect', key: 'U', icon: '▭', label: 'Прямоугольник', tab: 'tiles', hint: 'Протяжка — залить прямоугольник · Shift — только рамка · ПКМ — стереть' },
+  { id: 'rect', key: 'U', icon: '▭', label: 'Прямоугольник', tab: 'tiles', hint: 'Протяжка — залить прямоугольник · Shift — только рамка · СКМ — стереть' },
   { id: 'fill', key: 'G', icon: '◧', label: 'Заливка', tab: 'tiles', hint: 'Клик — залить связную область' },
   { id: 'pick', key: 'I', icon: '⌖', label: 'Пипетка', tab: 'tiles', hint: 'Клик — взять тайл с карты' },
-  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor', hint: 'Клик — поставить · Alt — без привязки · ПКМ — удалить · Ctrl+клик — выбрать · X / Y — отразить' },
-  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки', tab: 'decor', hint: 'Клик — закрепить (лиана — по сетке) · протяжка вниз — длина · Alt — свободно · ПКМ — удалить' },
-  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы', tab: 'mobs', hint: 'Клик — поставить в клетку · ПКМ — удалить · Ctrl+клик — выбрать' },
-  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты', tab: 'objects', hint: 'Клик — поставить · ПКМ — удалить · Ctrl+клик — выбрать' },
+  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor', hint: 'Клик — поставить · Alt — без привязки · СКМ — удалить · Ctrl+клик — выбрать · X / Y — отразить' },
+  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки', tab: 'decor', hint: 'Клик — закрепить (лиана — по сетке) · протяжка вниз — длина · Alt — свободно · СКМ — удалить' },
+  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы', tab: 'mobs', hint: 'Клик — поставить в клетку · СКМ — удалить · Ctrl+клик — выбрать' },
+  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты', tab: 'objects', hint: 'Клик — поставить · СКМ — удалить · Ctrl+клик — выбрать' },
   { id: 'spawn', key: 'S', icon: '⚑', label: 'Старт героя', tab: 'objects', hint: 'Клик — поставить точку появления героя' },
-  { id: 'room', key: 'K', icon: '▦', label: 'Комнаты', tab: 'rooms', hint: 'ЛКМ — закрасить комнату · ПКМ — стереть · режимы — во вкладке «Комнаты»' }
+  { id: 'room', key: 'K', icon: '▦', label: 'Комнаты', tab: 'rooms', hint: 'ЛКМ — закрасить комнату · СКМ — стереть · режимы — во вкладке «Комнаты»' }
 ];
 
 async function start(): Promise<void> {
@@ -275,6 +275,7 @@ async function start(): Promise<void> {
           if (bg) def.background_id = bg;
           dlg.close();
           ed.createLevel(def);
+          void ed.save();
         } }, 'Создать'),
         h('button', { class: 'btn', onclick: () => dlg.close() }, 'Отмена'))
     );
@@ -333,7 +334,7 @@ async function start(): Promise<void> {
   fillLevels();
   chooseTool('brush');
   sync();
-  ed.setStatus(`Открыт ${first.filename}. Колесо — масштаб, пробел или средняя кнопка — двигать карту.`);
+  ed.setStatus(`Открыт ${first.filename}. Колесо — масштаб, ПКМ или пробел — двигать карту, СКМ — стереть.`);
   (window as unknown as { __editor: Editor }).__editor = ed;
 }
 

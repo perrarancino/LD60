@@ -43,7 +43,7 @@ export class Tools {
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space') {
         this.space = false;
-        this.canvas.style.cursor = '';
+        this.canvas.style.cursor = this.ed.tool === 'select' ? 'default' : 'crosshair';
       }
     });
   }
@@ -87,16 +87,16 @@ export class Tools {
     this.canvas.setPointerCapture(e.pointerId);
     this.setHover(p, true);
 
-    if (e.button === 1 || (e.button === 0 && this.space)) {
+    if (e.button === 2 || (e.button === 0 && this.space)) {
       this.drag = { kind: 'pan', sx: p.sx, sy: p.sy, panX: ed.view.panX, panY: ed.view.panY };
       this.canvas.style.cursor = 'grabbing';
       return;
     }
-    const erase = e.button === 2;
+    const erase = e.button === 1;
     const tool = ed.tool;
 
     if (erase && !TILE_TOOLS.includes(tool) && tool !== 'room') {
-      // правая кнопка в инструментах расстановки — удалить то, что под курсором
+      // средняя кнопка в инструментах расстановки — удалить то, что под курсором
       const hit = pickEntity(ed, p.wx, p.wy, TOOL_KINDS[tool]);
       if (hit && hit.kind !== 'spawn') {
         ed.setSelection({ kind: hit.kind, index: hit.index });
@@ -342,7 +342,7 @@ export class Tools {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
-    this.canvas.style.cursor = this.space ? 'grab' : '';
+    this.canvas.style.cursor = this.space ? 'grab' : (ed.tool === 'select' ? 'default' : 'crosshair');
     const p = this.point(e);
     switch (d.kind) {
       case 'paint':

@@ -275,7 +275,7 @@ export class Panels {
     wrap.append(list, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { ed.addRoom(); ed.setTool('room'); } }, '+ Комната')));
 
     const modes: Array<[RoomMode, string, string]> = [
-      ['brush', '✏', 'Кисть (ПКМ — стереть)'],
+      ['brush', '✏', 'Кисть (СКМ — стереть)'],
       ['erase', '⌫', 'Ластик'],
       ['rect', '▭', 'Область'],
       ['flood', '◧', 'Залить помещение: клик внутри — всё свободное место и стены вокруг']
