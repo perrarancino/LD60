@@ -1,8 +1,8 @@
 """
-Генератор арта второй локации — «внутренности блока питания компьютера»: тайл (tilemap_loc2.png, один блок 32x32) и
+Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2.png, 6 кадров 32x32 — плиты с разной текстурой, верхнего края нет) и
 параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с золотым акцентом (рампа gold: медная обмотка, провода, светодиоды) и бирюзой (рампа electric) в свечении.
 Плотность пикселя — как у арта первой локации: кадр тайла 32x32 и слой фона 512x128, без шума и дизеринга, детали от 2 пикселей.
-Тайл — один бесшовный узор «аргайл»: ромбы синих тонов с золотой решёткой и золотым ромбиком в центре (без предметов и ламп); период 16 пикселей.
+Тайлы — металлические плиты с золотыми болтами по углам и золотой окантовкой; поверхность каждой плиты — своя текстура (шесть вариантов): рифлёный металл, пятнистая патина, царапины и вмятины, рифлёная «противоскользящая» сталь, ржавые подтёки от болтов, трещины.
 Фон — колонны и балка корпуса, огромные вентиляторы в корпусах, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы,
 пучки проводов, бирюзовое свечение и туман у горизонта.
 Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
@@ -101,38 +101,194 @@ class Canvas:
 TS = 32
 
 
-def block():
-    """Бесшовный узор «аргайл» с периодом 16 (в тайле 2x2 повтора): в центре ромба — золотой ромбик, вокруг — тёмное кольцо и синяя заливка;
-    между ромбами — золотая диагональная решётка; в промежутках (у углов клетки) — тёмные ромбы со светлой серединой."""
+def vnoise(w, h, cell, rng):
+    """Гладкий value-шум 0..1 размером w x h (ячейки по cell пикселей, плавная интерполяция)."""
+    gw, gh = w // cell + 3, h // cell + 3
+    grid = np.array([[rng.random() for _ in range(gw)] for _ in range(gh)])
+    out = np.zeros((h, w))
+    for y in range(h):
+        for x in range(w):
+            fx, fy = x / cell, y / cell
+            x0, y0 = int(fx), int(fy)
+            tx, ty = fx - x0, fy - y0
+            tx, ty = tx * tx * (3 - 2 * tx), ty * ty * (3 - 2 * ty)
+            a = grid[y0][x0] * (1 - tx) + grid[y0][x0 + 1] * tx
+            b = grid[y0 + 1][x0] * (1 - tx) + grid[y0 + 1][x0 + 1] * tx
+            out[y, x] = a * (1 - ty) + b * ty
+    return out
+
+
+def quant(v, steps):
+    """Значение 0..1 -> цвет по порогам (steps: список (порог, цвет), по возрастанию)."""
+    col = steps[0][1]
+    for th, c in steps:
+        if v >= th:
+            col = c
+    return col
+
+
+def bolt(cv, x, y):
+    """Золотой болт 4x4: тело, блик сверху-слева, тень снизу-справа, шлиц."""
+    for dy in range(4):
+        for dx in range(4):
+            if (dx in (0, 3)) and (dy in (0, 3)):
+                continue
+            cv.put(x + dx, y + dy, C('gold', 5))
+    cv.put(x + 1, y, C('gold', 7))
+    cv.put(x, y + 1, C('gold', 7))
+    cv.put(x + 1, y + 1, C('gold', 6))
+    cv.put(x + 3, y + 2, C('gold', 3))
+    cv.put(x + 2, y + 3, C('gold', 3))
+    cv.put(x + 1, y + 3, C('gold', 3))
+    cv.put(x + 2, y + 2, C('gold', 1))  # шлиц
+
+
+FACE = (3, 3, 29, 29)  # поверхность плиты внутри окантовки (x0, y0, x1, y1), не включая x1/y1
+
+
+def face_pixels():
+    x0, y0, x1, y1 = FACE
+    return [(x, y) for y in range(y0, y1) for x in range(x0, x1)]
+
+
+def tex_brushed(cv, rng):
+    for x, y in face_pixels():
+        cv.put(x, y, C('cobalt', 1))
+    for _ in range(46):  # штрихи шлифовки
+        y = rng.randint(3, 28)
+        x0 = rng.randint(3, 24)
+        n = rng.randint(5, 16)
+        col = C('cobalt', 2) if rng.random() < 0.7 else C('cobalt', 0)
+        for x in range(x0, min(29, x0 + n)):
+            cv.put(x, y, col)
+    for _ in range(7):  # светлые блики по штрихам
+        y = rng.randint(4, 27)
+        x0 = rng.randint(4, 20)
+        for x in range(x0, x0 + rng.randint(4, 9)):
+            cv.put(x, y, C('cobalt', 3))
+
+
+def tex_patina(cv, rng):
+    n = vnoise(32, 32, 8, rng) * 0.7 + vnoise(32, 32, 4, rng) * 0.3
+    g = vnoise(32, 32, 6, rng)
+    steps = [(0.0, C('cobalt', 0)), (0.36, C('cobalt', 1)), (0.58, C('cobalt', 2)), (0.74, C('cobalt', 3))]
+    for x, y in face_pixels():
+        col = quant(n[y, x], steps)
+        if g[y, x] > 0.76:
+            col = C('gold', 2) if g[y, x] < 0.84 else C('gold', 3)  # золотистая патина пятнами
+        cv.put(x, y, col)
+
+
+def tex_scratch(cv, rng):
+    for x, y in face_pixels():
+        cv.put(x, y, C('cobalt', 1))
+    for _ in range(9):  # царапины: светлая линия с тёмным подбоем
+        x0, y0 = rng.randint(4, 26), rng.randint(4, 26)
+        ang = rng.uniform(-0.7, 0.7) + (math.pi / 2 if rng.random() < 0.3 else 0)
+        ln = rng.randint(7, 14)
+        for t in range(ln):
+            xx, yy = x0 + math.cos(ang) * t, y0 + math.sin(ang) * t
+            if 3 <= xx < 29 and 3 <= yy < 29:
+                cv.put(xx, yy + 1, C('cobalt', 0))
+                cv.put(xx, yy, C('cobalt', 3))
+    for _ in range(3):  # вмятины
+        cx, cy, r = rng.randint(7, 24), rng.randint(7, 24), rng.choice((2, 3))
+        for yy in range(cy - r, cy + r + 1):
+            for xx in range(cx - r, cx + r + 1):
+                d = math.hypot(xx - cx, yy - cy)
+                if d <= r:
+                    cv.put(xx, yy, C('cobalt', 0) if (xx - cx) + (yy - cy) <= 0 else C('cobalt', 2))
+
+
+def tex_tread(cv, rng):
+    for x, y in face_pixels():
+        cv.put(x, y, C('cobalt', 1))
+    for j, y0 in enumerate(range(5, 27, 6)):  # рифлёная сталь: косые чёрточки, чередуются в шахматном порядке
+        for i, x0 in enumerate(range(5, 27, 6)):
+            if i in (0, 3) and j in (0, 3):
+                continue  # у болтов — без рифления
+            slash = (i + j) % 2 == 0
+            for t in range(3):
+                xx = x0 + 1 + t
+                yy = y0 + 1 + (2 - t if slash else t)
+                cv.put(xx, yy, C('cobalt', 4))
+                cv.put(xx, yy + 1, C('cobalt', 0))
+
+
+def tex_rust(cv, rng):
+    n = vnoise(32, 32, 10, rng)
+    steps = [(0.0, C('cobalt', 1)), (0.5, C('cobalt', 2))]
+    for x, y in face_pixels():
+        cv.put(x, y, quant(n[y, x], steps))
+    for bx in (3, 25):  # подтёки от верхних болтов: вертикальные золотистые полосы с разрывами
+        for k in range(2):
+            x = bx + 1 + k * 2
+            ln = rng.randint(10, 22)
+            y = 7
+            while y < 7 + ln and y < 29:
+                seg = rng.randint(2, 5)
+                for yy in range(y, min(29, y + seg)):
+                    cv.put(x, yy, C('gold', 3) if k == 0 else C('gold', 2))
+                y += seg + rng.randint(0, 2)
+    g = vnoise(32, 32, 5, rng)
+    for x, y in face_pixels():
+        if g[y, x] > 0.78:
+            cv.put(x, y, C('gold', 2))
+
+
+def tex_cracks(cv, rng):
+    n = vnoise(32, 32, 9, rng)
+    steps = [(0.0, C('cobalt', 1)), (0.55, C('cobalt', 2))]
+    for x, y in face_pixels():
+        cv.put(x, y, quant(n[y, x], steps))
+    for _ in range(2):  # трещины: ломаная, тёмная с золотым просветом
+        x, y = rng.randint(6, 25), 3
+        pts = []
+        while y < 29:
+            pts.append((x, y))
+            y += 1
+            x += rng.choice((-1, 0, 0, 1))
+            x = max(4, min(27, x))
+        for x, y in pts:
+            cv.put(x, y, C('cobalt', 0))
+            cv.put(x + 1, y, C('gold', 3))
+        for k in range(len(pts) // 2, len(pts) // 2 + 6):  # ответвление
+            x, y = pts[min(k, len(pts) - 1)]
+            cv.put(x + (k - len(pts) // 2), y, C('cobalt', 0))
+
+
+TEXTURES = [tex_brushed, tex_patina, tex_scratch, tex_tread, tex_rust, tex_cracks]
+
+
+def plate_tile(v):
+    """Плита: тёмный шов по краю, светлая фаска сверху-слева, текстурная поверхность, золотая окантовка и болты по углам."""
+    import random
+    rng = random.Random(7000 + v * 131)
     cv = Canvas(TS, TS)
     for y in range(TS):
         for x in range(TS):
-            dx = abs((x % 16) + 0.5 - 8)
-            dy = abs((y % 16) + 0.5 - 8)
-            d = int(round(dx + dy))  # манхэттенское расстояние до центра ромба: 1..15
-            if d == 8:
-                # решётка: светлая грань сверху-слева, тёмная снизу-справа — объём
-                col = C('gold', 4) if (x % 16) + (y % 16) < 15 else C('gold', 2)
-            elif d < 8:
-                if d <= 1:
-                    col = C('gold', 5)
-                elif d == 2:
-                    col = C('gold', 3)
-                elif d <= 4:
-                    col = C('cobalt', 0)
-                elif d == 5:
-                    col = C('cobalt', 3)
-                else:
-                    col = C('cobalt', 2)
-            else:
-                c = 16 - d  # расстояние до ближайшего угла клетки: 1..7
-                col = C('cobalt', 0) if c <= 2 else C('cobalt', 1)
-            cv.put(x, y, col)
+            cv.put(x, y, C('cobalt', 0))  # шов
+    for i in range(1, TS - 1):  # фаска: светлая сверху-слева, тёмная снизу-справа
+        cv.put(i, 1, C('cobalt', 4))
+        cv.put(1, i, C('cobalt', 3))
+        cv.put(i, TS - 2, C('cobalt', 1))
+        cv.put(TS - 2, i, C('cobalt', 1))
+    cv.put(1, 1, C('cobalt', 5))
+    TEXTURES[v](cv, rng)
+    for k in range(7, 25):  # золотая окантовка поверхности между болтами (внутри фаски)
+        for pos in (2, TS - 3):
+            cv.put(k, pos, C('gold', 4))
+            cv.put(pos, k, C('gold', 4))
+    for bx, by in ((3, 3), (TS - 7, 3), (3, TS - 7), (TS - 7, TS - 7)):
+        bolt(cv, bx, by)
     return cv
 
 
 def make_tiles():
-    return block().image()
+    sheet = Image.new('RGBA', (TS * len(TEXTURES), TS), (0, 0, 0, 0))
+    for v in range(len(TEXTURES)):
+        sheet.paste(plate_tile(v).image(), (v * TS, 0))
+    return sheet
 
 
 # ------------------------------------------------------------------------------------------------------------------------------- Фон
