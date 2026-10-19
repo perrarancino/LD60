@@ -57,6 +57,7 @@ export interface RoomDef {
   mask?: string[];
   color?: string;
   beveled?: boolean;
+  location?: number; // номер локации (1, 2, 3...)
 }
 
 /** Туман войны: вне комнаты, где стоит герой, мир чёрный. current — виден только текущая комната, explored — и уже посещённые. */

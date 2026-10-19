@@ -33,6 +33,10 @@ import { ProjectileSystem } from './entities/ProjectileSystem.ts';
 import { Hud } from './ui/Hud.ts';
 import { TerminalUI } from './ui/TerminalUI.ts';
 import { Terminal } from './entities/Terminal.ts';
+import { CipherCluesView } from './entities/CipherCluesView.ts';
+import { CipherTerminalUI } from './ui/CipherTerminalUI.ts';
+import { PuzzleSystem } from './systems/PuzzleSystem.ts';
+import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
 import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import type { InputState } from './core/InputManager.ts';
@@ -145,6 +149,9 @@ class GameApp {
   private hud!: Hud;
   private terminalUI!: TerminalUI;
   private terminals: Terminal[] = [];
+  private cipherPuzzle!: CipherTerminalPuzzle;
+  private cipherCluesView!: CipherCluesView;
+  private cipherTerminalUI!: CipherTerminalUI;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
   private fog: Fog | null = null;
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
@@ -178,6 +185,8 @@ class GameApp {
     this.gameContainer = document.getElementById('game-container')!;
     this.hud = new Hud();
     this.terminalUI = new TerminalUI();
+    this.cipherPuzzle = PuzzleSystem.get().cipherTerminalPuzzle;
+    this.cipherTerminalUI = new CipherTerminalUI(this.cipherPuzzle);
 
     // Смена брони: прежняя надетая часть отваливается физическим обломком (падает, подпрыгивает, потом исчезает), герой перекрашивается
     EventBus.get().on('armor:changed', (e: { slot: 'head' | 'torso' | 'arms' | 'legs'; from: number; to: number }) => {
@@ -424,6 +433,11 @@ class GameApp {
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
 
+    // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
+    this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
+    this.cipherCluesView = new CipherCluesView(this.cipherPuzzle);
+    this.worldLayer.addChild(this.cipherCluesView.container);
+
     // Собираем всех врагов: фиксированные спавны + сгенерированные строго на полу из зон спавна
     const allEnemies = [...levelDef.enemies];
     if (levelDef.spawn_zones) {
@@ -599,7 +613,7 @@ class GameApp {
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container,
-      this.debris.container, this.beam.container, this.boltFx.container, ...this.terminals.map((t) => t.container)
+      this.debris.container, this.beam.container, this.boltFx.container, this.cipherCluesView.container, ...this.terminals.map((t) => t.container)
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     if (levelDef.light) {
@@ -988,8 +1002,9 @@ class GameApp {
 
     const armor = Armor.get();
     const terminalOpen = this.terminalUI.isOpen;
-    const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
-    armor.invulnerable = terminalOpen || this.deathTimer > 0;
+    const cipherOpen = this.cipherTerminalUI.isOpen;
+    const frozen = terminalOpen || cipherOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
+    armor.invulnerable = terminalOpen || cipherOpen || this.deathTimer > 0;
     armor.update(dt);
 
     // 1. Игрок: ввод + физика на тайлах
@@ -1010,7 +1025,7 @@ class GameApp {
     if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
 
-    // Терминал: рядом — подсказка, E открывает и закрывает окно
+    // Терминал брони: рядом — подсказка, E открывает и закрывает окно
     const pb = this.player.body;
     let nearTerm: Terminal | null = null;
     for (const t of this.terminals) {
@@ -1018,9 +1033,30 @@ class GameApp {
       t.update(dt, near || (terminalOpen && t.reaches(pb.x, pb.y)));
       if (near) nearTerm = t;
     }
+
+    // Настенный шифр: анимация цифр и проверка обнаружения роботом
+    this.cipherCluesView.update(dt);
+    const discoveredClue = this.cipherPuzzle.checkClueDiscovery(pb.x, pb.y);
+    if (discoveredClue) {
+      this.cipherCluesView.onClueDiscovered(discoveredClue);
+      this.fx.burst(discoveredClue.x, discoveredClue.y, {
+        count: 14,
+        colors: [0x5bf5a3, 0xfbc53d, 0xffffff],
+        speed: [40, 130],
+        spread: Math.PI * 2,
+        life: [0.2, 0.45],
+        size: [1, 2]
+      });
+    }
+
+    // Терминал ввода шифра (комната Пароль): E открывает и закрывает окно
+    const nearCipherTerm = !frozen && this.cipherPuzzle.isNearTerminal(pb.x, pb.y);
+
     if (input.interactPressed) {
       if (terminalOpen) this.terminalUI.close();
+      else if (cipherOpen) this.cipherTerminalUI.close();
       else if (nearTerm && this.deathTimer <= 0) this.terminalUI.open(nearTerm.style);
+      else if (nearCipherTerm && this.deathTimer <= 0) this.cipherTerminalUI.open();
     }
     if (this.deathTimer > 0) {
       this.deathTimer -= dt;
@@ -1032,7 +1068,7 @@ class GameApp {
     // Комнаты: в какой стоит герой (от этого зависят мобы и туман); объекты уровня: двери, предметы, подставки
     const hb = this.player.body;
     if (this.rooms.any) this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
-    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && this.deathTimer <= 0, frozen);
+    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && !cipherOpen && this.deathTimer <= 0, frozen);
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);

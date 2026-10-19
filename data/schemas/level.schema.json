@@ -179,7 +179,8 @@
           "height": { "type": "integer" },
           "mask": { "type": "array", "items": { "type": "string", "pattern": "^[#.]*$" }, "description": "height рядов по width символов: # — клетка комнаты, . — нет. Без mask комната — весь прямоугольник" },
           "color": { "type": "string" },
-          "beveled": { "type": "boolean" }
+          "beveled": { "type": "boolean" },
+          "location": { "type": "integer", "minimum": 1, "description": "Номер локации (1, 2, 3...), к которой привязана комната" }
         }
       }
     },

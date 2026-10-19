@@ -407,12 +407,13 @@ function drawRoomLabel(ctx: CanvasRenderingContext2D, room: RoomDef, ts: number,
     for (let cx = room.x; cx < room.x + room.width; cx++) if (roomHas(room, cx, cy)) { lx = cx; ly = cy; break; }
   }
   if (lx < 0) return;
+  const labelText = room.location ? `[Лока ${room.location}] ${room.name}` : room.name;
   ctx.font = 'bold 11px sans-serif';
-  const w = ctx.measureText(room.name).width + 8;
-  ctx.fillStyle = 'rgba(11, 15, 23, 0.8)';
+  const w = ctx.measureText(labelText).width + 8;
+  ctx.fillStyle = 'rgba(11, 15, 23, 0.85)';
   ctx.fillRect(lx * ts + 3, ly * ts + 3, w, 16);
   ctx.fillStyle = color;
-  ctx.fillText(room.name, lx * ts + 7, ly * ts + 15);
+  ctx.fillText(labelText, lx * ts + 7, ly * ts + 15);
 }
 
 function hexAlpha(hex: string, a: number): string {

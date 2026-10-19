@@ -226,7 +226,7 @@ async function start(): Promise<void> {
     const fresh = !!s.text && performance.now() - lastAt < 5000;
     const hint = TOOLS.find((t) => t.id === ed.tool)?.hint ?? '';
     const hv = ed.hover;
-    const rooms = hv.inside ? ed.roomsAtCell(hv.cx, hv.cy).map((r) => r.name).join(', ') : '';
+    const rooms = hv.inside ? ed.roomsAtCell(hv.cx, hv.cy).map((r) => r.location ? `${r.name} [Лока ${r.location}]` : r.name).join(', ') : '';
     clear(statusbar);
     statusbar.append(
       h('span', { class: fresh && s.error ? 'err' : '' }, fresh ? s.text : hint),

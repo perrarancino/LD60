@@ -1,5 +1,28 @@
 import { EventBus } from '../core/EventBus.ts';
 import type { IPuzzle } from './PuzzleSystem.ts';
+import type { LevelDef, RoomDef } from '../data/types.ts';
+
+/**
+ * Преобразование порядкового номера (1, 2, 3...) в римскую цифру (I, II, III, IV, V...)
+ */
+export function toRoman(num: number): string {
+  const map: Array<[number, string]> = [
+    [10, 'X'],
+    [9, 'IX'],
+    [5, 'V'],
+    [4, 'IV'],
+    [1, 'I'],
+  ];
+  let res = '';
+  let n = Math.max(1, Math.round(num));
+  for (const [v, r] of map) {
+    while (n >= v) {
+      res += r;
+      n -= v;
+    }
+  }
+  return res || 'I';
+}
 
 /**
  * Описание нарисованной на стене/плате цифры шифра на уровне
@@ -8,12 +31,16 @@ export interface CipherClue {
   id: string;
   /** Порядковый номер цифры в шифре (0-indexed: 0 = 1-я цифра, 1 = 2-я цифра и т.д.) */
   orderIndex: number;
+  /** Римская цифра позиции (I, II, III, IV...) */
+  roman: string;
   /** Значение цифры (0..9) */
   digit: number;
   /** Мировые координаты на карте */
   x: number;
   y: number;
-  /** Текстовая подсказка/описание для журнала робота (например: "Римская цифра I на трансформаторе: 7") */
+  /** Название комнаты, в которой находится подсказка */
+  roomName?: string;
+  /** Текстовая подсказка/описание для журнала робота (например: "[I] в комнате Хаб: 7") */
   label: string;
   /** Обнаружил ли робот эту цифру */
   isDiscovered: boolean;
@@ -169,6 +196,202 @@ export class CipherTerminalPuzzle implements IPuzzle {
   }
 
   /**
+   * Получить список всех подсказок шифра на карте
+   */
+  public getClues(): CipherClue[] {
+    return Array.from(this.clues.values());
+  }
+
+  /**
+   * Получить подсказку по её ID
+   */
+  public getClue(id: string): CipherClue | undefined {
+    return this.clues.get(id);
+  }
+
+  /**
+   * Сгенерировать и расставить цифры шифра (0..9) по комнатам 1-й локации.
+   *
+   * Правила распределения:
+   * 1. Для карты world_prototype (map prototype) и любой другой карты со множеством комнат,
+   *    цифры спавнятся ТОЛЬКО в комнатах, привязанных к 1-й локации (location === 1).
+   * 2. Поддерживаются уровни LOC1A, LOC1B, LOC1C, LOC1D, LOC1E и test_level — в них цифры
+   *    спавнятся в их комнатах (от 0 до 9 с римскими номерами I, II, III, IV...).
+   * 3. Комнаты боссов и ввода пароля исключаются из настенных подсказок.
+   * 4. Позиции подбираются на стенах/воздухе с твердой опорой снизу, распределяясь по комнатам.
+   */
+  public spawnCluesForLevel(
+    levelDef: LevelDef,
+    level: {
+      isSolid: (cx: number, cy: number) => boolean;
+      tileSize: number;
+      widthTiles: number;
+      heightTiles: number;
+    },
+    roomMap?: { defs: readonly RoomDef[] }
+  ): CipherClue[] {
+    const ts = level.tileSize;
+    const allRooms: readonly RoomDef[] = roomMap?.defs ?? levelDef.rooms ?? [];
+
+    // 1. Поиск комнат 1-й локации
+    let targetRooms: readonly RoomDef[] = allRooms.filter((r) => r.location === 1);
+
+    // Если явный признак location не проставлен (например, старые карты):
+    if (targetRooms.length === 0) {
+      if (levelDef.id === 'world_prototype') {
+        // На world_prototype секция 1-й локации находится в правой части карты (x >= 120)
+        targetRooms = allRooms.filter((r) => r.x >= 120);
+      } else if (levelDef.id.startsWith('LOC1') || levelDef.id === 'test_level' || levelDef.start_armor === 1) {
+        // Уровни LOC1A-E и test_level целиком относятся к 1-й локации
+        targetRooms = [...allRooms];
+      } else if (allRooms.length <= 4) {
+        // Если комнат мало, используем все доступные
+        targetRooms = [...allRooms];
+      }
+    }
+
+    // 2. Исключаем комнаты боссов и терминала пароля
+    const filteredRooms = targetRooms.filter((r) => {
+      const name = (r.name || '').toLowerCase();
+      return !name.includes('босс') && !name.includes('пароль');
+    });
+
+    const activeRooms: readonly RoomDef[] = filteredRooms.length > 0 ? filteredRooms : (targetRooms.length > 0 ? targetRooms : allRooms);
+
+    // Если вообще нет комнат (пустой уровень): создаем виртуальную область уровня
+    const roomsToUse: readonly RoomDef[] = activeRooms.length > 0
+      ? activeRooms
+      : [{
+          id: 'room_virtual_loc1',
+          name: 'Локация 1',
+          x: 1,
+          y: 1,
+          width: Math.max(2, level.widthTiles - 2),
+          height: Math.max(2, level.heightTiles - 2),
+          location: 1
+        }];
+
+    // 3. Генерация цифр 0..9 для шифра
+    const length = this.codeLength;
+    const digits: number[] = [];
+    for (let i = 0; i < length; i++) {
+      digits.push(Math.floor(Math.random() * 10)); // 0..9
+    }
+    this.secretCode = digits.join('');
+    this.clues.clear();
+
+    const filled = (ch: string | undefined) => ch === '#' || ch === '1';
+    const chosenPositions: Array<{ x: number; y: number }> = [];
+
+    // 4. Расстановка цифр по комнатам 1-й локации
+    for (let i = 0; i < length; i++) {
+      const room = roomsToUse.length >= length
+        ? roomsToUse[i]
+        : roomsToUse[i % roomsToUse.length];
+
+      const rX0 = Math.max(0, room.x);
+      const rX1 = Math.min(level.widthTiles - 1, room.x + room.width - 1);
+      const rY0 = Math.max(0, room.y);
+      const rY1 = Math.min(level.heightTiles - 1, room.y + room.height - 1);
+
+      // Ищем подходящие воздушные клетки в комнате
+      const spots: Array<{ cx: number; cy: number; score: number }> = [];
+
+      for (let cy = rY0; cy <= rY1; cy++) {
+        for (let cx = rX0; cx <= rX1; cx++) {
+          if (room.mask && !filled(room.mask[cy - room.y]?.[cx - room.x])) continue;
+          if (level.isSolid(cx, cy)) continue;
+          if (cy > 0 && level.isSolid(cx, cy - 1)) continue;
+
+          // Проверяем наличие пола под ногами или стены рядом
+          const hasFloor1 = cy + 1 < level.heightTiles && level.isSolid(cx, cy + 1);
+          const hasFloor2 = cy + 2 < level.heightTiles && level.isSolid(cx, cy + 2);
+          const hasWallL = cx > 0 && level.isSolid(cx - 1, cy);
+          const hasWallR = cx + 1 < level.widthTiles && level.isSolid(cx + 1, cy);
+
+          let score = 0;
+          if (hasFloor1 || hasFloor2) score += 10;
+          if (hasWallL || hasWallR) score += 5;
+
+          // Расстояние до уже выбранных точек
+          const px = cx * ts + ts / 2;
+          const py = cy * ts + ts / 2;
+          const minDist = chosenPositions.reduce((min, p) => {
+            const d = Math.hypot(p.x - px, p.y - py);
+            return Math.min(min, d);
+          }, Infinity);
+
+          if (minDist < ts * 3) score -= 15; // избегаем скопления в одной точке
+          else score += Math.min(10, minDist / ts);
+
+          spots.push({ cx, cy, score });
+        }
+      }
+
+      // Сортируем кандидатов по качеству
+      spots.sort((a, b) => b.score - a.score);
+
+      let chosenX = Math.round((room.x + room.width / 2) * ts);
+      let chosenY = Math.round((room.y + room.height / 2) * ts);
+
+      if (spots.length > 0) {
+        // Выбираем из лучших кандидатов для естественного разнообразия
+        const poolSize = Math.max(1, Math.min(spots.length, 5));
+        const pick = spots[Math.floor(Math.random() * poolSize)];
+        chosenX = pick.cx * ts + ts / 2;
+        chosenY = pick.cy * ts + ts / 2;
+      }
+
+      chosenPositions.push({ x: chosenX, y: chosenY });
+
+      const clueId = `clue_${i + 1}`;
+      const roman = toRoman(i + 1);
+      const roomTitle = room.name || `Отсек ${i + 1}`;
+
+      this.clues.set(clueId, {
+        id: clueId,
+        orderIndex: i,
+        roman,
+        digit: digits[i],
+        x: chosenX,
+        y: chosenY,
+        roomName: roomTitle,
+        label: `[Локация 1] ${roomTitle}: цифра [${roman}] = ${digits[i]}`,
+        isDiscovered: false,
+        discoveryRadius: 42
+      });
+    }
+
+    // 5. Определение позиции терминала ввода пароля
+    const passwordObj = levelDef.objects?.find((o) => o.type === 'password');
+    if (passwordObj) {
+      this.terminalLocation = {
+        x: passwordObj.x,
+        y: passwordObj.y,
+        interactionRadius: 44
+      };
+    } else {
+      const passwordRoom = allRooms.find((r) => (r.name || '').toLowerCase().includes('пароль'));
+      if (passwordRoom) {
+        this.terminalLocation = {
+          x: Math.round((passwordRoom.x + passwordRoom.width / 2) * ts),
+          y: Math.round((passwordRoom.y + passwordRoom.height - 1) * ts),
+          interactionRadius: 48
+        };
+      }
+    }
+
+    this.resetInput();
+    this.isPuzzleSolved = false;
+
+    if (this.emitEvents) {
+      EventBus.get().emit('puzzle:cipher:reset', this.getState());
+    }
+
+    return this.getClues();
+  }
+
+  /**
    * Сгенерировать новый случайный шифр и разложить цифры по точкам интереса
    */
   public generateRandomCode(length: number = this.codeLength, customLocations?: Partial<CipherClue>[]): void {
@@ -179,7 +402,7 @@ export class CipherTerminalPuzzle implements IPuzzle {
     this.secretCode = digits.join('');
 
     // Дефолтные координаты для нарисованных цифр в разных уголках уровня
-    const defaultCoords: Array<{ x: number; y: number; label: string; discoveryRadius?: number }> = [
+    const defaultCoords: Array<{ x: number; y: number; label: string; roomName?: string; discoveryRadius?: number }> = [
       { x: 90, y: 160, label: 'Секция A: За трансформатором [I]' },
       { x: 260, y: 80, label: 'Секция B: На медном радиаторе [II]' },
       { x: 380, y: 310, label: 'Секция C: Под вентилятором [III]' },
@@ -191,13 +414,16 @@ export class CipherTerminalPuzzle implements IPuzzle {
     for (let i = 0; i < length; i++) {
       const loc = customLocations?.[i] ?? defaultCoords[i % defaultCoords.length];
       const clueId = `clue_${i + 1}`;
+      const roman = toRoman(i + 1);
       this.clues.set(clueId, {
         id: clueId,
         orderIndex: i,
+        roman,
         digit: digits[i],
         x: loc.x ?? (100 + i * 80),
         y: loc.y ?? 150,
-        label: loc.label ?? `Шифр: позиция #${i + 1} = ${digits[i]}`,
+        roomName: loc.roomName,
+        label: loc.label ?? `Шифр: позиция [${roman}] = ${digits[i]}`,
         isDiscovered: false,
         discoveryRadius: loc.discoveryRadius ?? 32
       });

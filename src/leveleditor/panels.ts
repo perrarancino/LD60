@@ -262,6 +262,19 @@ export class Panels {
     const list = h('div', { class: 'room-list' });
     for (const room of ed.rooms) {
       const active = room.id === ed.activeRoom;
+      const locSelect = select(
+        String(room.location ?? ''),
+        [['', '—'], ['1', 'Лока 1'], ['2', 'Лока 2'], ['3', 'Лока 3'], ['4', 'Лока 4']],
+        (v) => ed.edit(() => {
+          const num = Number(v);
+          if (num > 0) room.location = num;
+          else delete room.location;
+        })
+      );
+      locSelect.title = 'Привязка комнаты к локации (1, 2, 3...)';
+      locSelect.className = 'room-loc-select';
+      locSelect.onclick = (e: Event) => e.stopPropagation();
+
       list.append(h('div', { class: `room-row${active ? ' active' : ''}`, onclick: () => { ed.activeRoom = room.id; ed.setTool('room'); } },
         h('input', {
           type: 'color', value: ed.roomColor(room), title: 'Цвет',
@@ -269,6 +282,7 @@ export class Panels {
           onclick: (e: Event) => e.stopPropagation()
         }),
         h('input', { class: 'room-name', type: 'text', value: room.name, onclick: (e: Event) => e.stopPropagation(), onchange: (e: Event) => ed.edit(() => { room.name = (e.target as HTMLInputElement).value; }) }),
+        locSelect,
         h('small', {}, String(roomCellCount(room))),
         h('button', { class: 'btn small', title: 'Удалить комнату', onclick: (e: Event) => { e.stopPropagation(); ed.deleteRoom(room.id); } }, '✕')));
     }

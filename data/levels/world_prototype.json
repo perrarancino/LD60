@@ -106,7 +106,8 @@
       "y": 24,
       "width": 20,
       "height": 12,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_1792350468378_173",
@@ -115,7 +116,8 @@
       "y": 21,
       "width": 30,
       "height": 15,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_1792350689091_266",
@@ -124,7 +126,8 @@
       "y": 34,
       "width": 25,
       "height": 12,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_1792351055354_265",
@@ -133,7 +136,8 @@
       "y": 9,
       "width": 22,
       "height": 14,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_1792351171247_462",
@@ -142,7 +146,8 @@
       "y": 10,
       "width": 10,
       "height": 8,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_1792351256509_106",
@@ -151,7 +156,8 @@
       "y": 3,
       "width": 35,
       "height": 20,
-      "beveled": false
+      "beveled": false,
+      "location": 1
     },
     {
       "id": "room_7",
@@ -3783,6 +3789,12 @@
     }
   ],
   "objects": [
+    {
+      "id": "password_loc1",
+      "type": "password",
+      "x": 6368,
+      "y": 544
+    },
     {
       "id": "door_1",
       "type": "door",
