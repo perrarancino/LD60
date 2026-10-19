@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["id", "tile_size", "width", "height", "legend", "rows", "player_spawn", "enemies"],
   "properties": {
+    "$schema": { "type": "string" },
     "id": { "type": "string" },
     "display_name": { "type": "string" },
     "debug_key": { "type": "integer", "minimum": 1, "maximum": 9, "description": "Отладка: клавиша 1–9 в игре переключает на этот уровень" },
@@ -34,9 +35,66 @@
           "sprite_id": { "type": "string" },
           "x": { "type": "number" },
           "y": { "type": "number" },
-          "layer": { "type": "string", "enum": ["back", "front"], "description": "back — за тайлами (фон: куллер), front — поверх тайлов, под героем и врагами (по умолчанию)" }
+          "layer": { "type": "string", "enum": ["back", "front"], "description": "back — за тайлами (фон: куллер), front — поверх тайлов, под героем и врагами (по умолчанию)" },
+          "flip_x": { "type": "boolean", "description": "Отразить рисунок по горизонтали (вокруг точки привязки)" },
+          "flip_y": { "type": "boolean", "description": "Отразить рисунок по вертикали" }
         }
       }
+    },
+    "tile_xform": {
+      "type": "array",
+      "description": "Повороты и отражения отдельных тайлов: рисунок отражается (flip_x, flip_y), затем поворачивается по часовой стрелке на rot. Скосы (slope) при этом меняют сторону — коллизия следует за рисунком. Единичные преобразования не хранятся.",
+      "items": {
+        "type": "object",
+        "required": ["x", "y"],
+        "properties": {
+          "x": { "type": "integer" },
+          "y": { "type": "integer" },
+          "flip_x": { "type": "boolean" },
+          "flip_y": { "type": "boolean" },
+          "rot": { "type": "integer", "enum": [90, 180, 270] }
+        }
+      }
+    },
+    "threads": {
+      "type": "array",
+      "description": "Нитки, поставленные на конкретные пиксели (x, y — пиксели мира). vine — физичная лиана вниз от точки (pieces звеньев по 14 px), sky — длинная нитка как у паучихи: верх в точке, свободный низ на глубине length, качается на swing px.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "x", "y"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["vine", "sky"] },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "pieces": { "type": "integer", "minimum": 1, "maximum": 12 },
+          "length": { "type": "number", "minimum": 16 },
+          "swing": { "type": "number", "minimum": 0 },
+          "bead": { "type": "boolean", "description": "Капля на конце" }
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "description": "Объекты из каталога data/objects/placeables.json: двери, квестовые предметы, подставки. x, y — пиксели мира, точка привязки спрайта (у стоящих на полу — низ по центру). props — поля, описанные у типа в каталоге.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "x", "y"],
+        "properties": {
+          "id": { "type": "string", "description": "Уникален на уровне: на него ссылаются двери (to_door) и сохранения" },
+          "type": { "type": "string", "description": "Тип из placeables.json: door, battery, battery_stand, password…" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "flip_x": { "type": "boolean" },
+          "props": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } }
+        }
+      }
+    },
+    "fog": {
+      "description": "Туман войны: true или { mode } — вне комнаты, где стоит герой, мир чёрный (нужен список rooms). mode: current — только текущая комната, explored — ещё и уже посещённые.",
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "object", "properties": { "mode": { "type": "string", "enum": ["current", "explored"] } } }
+      ]
     },
     "start_armor": { "type": "integer", "minimum": 1, "maximum": 2, "description": "Герой входит на уровень в частях этой модели: 1 — прежний герой, 2 — герой второй локации (части выдаются и надеваются, где надето что-то слабее)" },
     "terminals": {
@@ -100,6 +158,7 @@
           "x": { "type": "integer" },
           "y": { "type": "integer" },
           "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" },
+          "room": { "type": "string", "description": "Id комнаты-«дома»: моб замечает героя и атакует только в ней. По умолчанию — комната, в которой он стоит" },
           "anchor_y": { "type": "integer", "description": "Только для висящих на нитке (паучиха): ряд тайлов, где закреплён верх нитки (может быть отрицательным — за верхом уровня); по умолчанию -2" },
           "length": { "type": "integer", "minimum": 3, "maximum": 5, "description": "Только для червей: длина в сегментах (по умолчанию случайная в пределах рига)" }
         }
@@ -107,7 +166,7 @@
     },
     "rooms": {
       "type": "array",
-      "description": "Список комнат на уровне: координаты, размеры, имя и параметры",
+      "description": "Комнаты уровня: что видит герой внутри (вне комнаты — туман войны) и «дом» для мобов и боссов (они нападают только в своей комнате). Границы — прямоугольник x, y, width, height в клетках; mask — какие клетки внутри него принадлежат комнате. Комнаты могут перекрываться (проём между ними принадлежит обеим).",
       "items": {
         "type": "object",
         "required": ["id", "x", "y", "width", "height"],
@@ -118,6 +177,7 @@
           "y": { "type": "integer" },
           "width": { "type": "integer" },
           "height": { "type": "integer" },
+          "mask": { "type": "array", "items": { "type": "string", "pattern": "^[#.]*$" }, "description": "height рядов по width символов: # — клетка комнаты, . — нет. Без mask комната — весь прямоугольник" },
           "color": { "type": "string" },
           "beveled": { "type": "boolean" }
         }

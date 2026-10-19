@@ -8,7 +8,8 @@ import type { ObjectKind } from './placeables.ts';
 
 const REACH_X = 24; // px: на таком расстоянии по горизонтали герой «у объекта»
 const REACH_UP = 56; // px вверх от низа объекта
-const PICK_RADIUS = 20; // px: касание предмета
+const PICK_REACH = 24; // px: на таком расстоянии по горизонтали предмет подбирается
+const HERO_HEIGHT = 58; // px: рост героя — предмет выше головы не берётся
 const LOCKED_TINT = 0xa9b4c4;
 
 export interface ObjectEvents {
@@ -99,7 +100,8 @@ export class LevelObjects {
       const { def, kind } = p;
       if (kind.behavior === 'pickup') {
         p.sprite.y = Math.round(Math.sin(p.t * 3) * 2);
-        if (!frozen && Math.hypot(hero.x - def.x, hero.y - 16 - def.y) < PICK_RADIUS) this.collect(i);
+        // касание телом героя: предмет в полосе его роста и в пределах PICK_REACH по горизонтали
+        if (!frozen && Math.abs(hero.x - def.x) < PICK_REACH && def.y > hero.y - HERO_HEIGHT && def.y < hero.y + 10) this.collect(i);
         continue;
       }
       const near = !frozen && Math.abs(hero.x - def.x) <= REACH_X && hero.y <= def.y + 6 && hero.y >= def.y - REACH_UP;

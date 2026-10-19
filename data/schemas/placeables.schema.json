@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Placeables",
+  "description": "Каталог расставляемого в редакторе уровней: декор с его свойствами (куда привязывается, с каким шагом ставится), нитки и объекты (двери, квестовые предметы). Тот же файл читают игра (поведение объектов) и редактор (палитра и поля свойств).",
+  "type": "object",
+  "required": ["version", "items", "decor", "threads", "objects"],
+  "$defs": {
+    "anchor": { "type": "string", "enum": ["free", "floor", "ceiling"], "description": "free — куда ткнули (с точностью до пикселя), floor — встаёт на твёрдую поверхность под курсором, ceiling — вешается под потолок над курсором. Alt при установке отключает привязку." },
+    "snap": { "type": "string", "enum": ["pixel", "half", "tile"], "description": "Шаг по x: pixel — любой пиксель, half — через пол-клетки, tile — по центру клетки" },
+    "prop": {
+      "type": "object",
+      "required": ["key", "label", "kind"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "kind": { "type": "string", "enum": ["text", "number", "bool", "select", "level", "door", "item"], "description": "level — список уровней, door — двери целевого уровня, item — предметы из items" },
+        "default": { "type": ["string", "number", "boolean"] },
+        "options": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "items": {
+      "type": "array",
+      "description": "Квестовые предметы, которые можно носить (батарейка)",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "sprite_id"],
+        "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "sprite_id": { "type": "string" } }
+      }
+    },
+    "decor": {
+      "type": "array",
+      "description": "Декор: спрайты без коллизии (level.decor). Спрайты категории decor, которых здесь нет, ставятся свободно (free, pixel, front).",
+      "items": {
+        "type": "object",
+        "required": ["sprite_id", "label", "anchor", "snap"],
+        "properties": {
+          "sprite_id": { "type": "string" },
+          "label": { "type": "string" },
+          "group": { "type": "string" },
+          "anchor": { "$ref": "#/$defs/anchor" },
+          "snap": { "$ref": "#/$defs/snap" },
+          "layer": { "type": "string", "enum": ["back", "front"], "description": "Слой по умолчанию" },
+          "flip": { "type": "boolean", "description": "Можно отражать" }
+        }
+      }
+    },
+    "threads": {
+      "type": "array",
+      "description": "Виды ниток, ставящихся на пиксели (level.threads)",
+      "items": {
+        "type": "object",
+        "required": ["kind", "label", "sprite_id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["vine", "sky"] },
+          "label": { "type": "string" },
+          "sprite_id": { "type": "string" },
+          "hint": { "type": "string" },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "pieces": { "type": "integer" },
+              "length": { "type": "number" },
+              "swing": { "type": "number" },
+              "bead": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "description": "Объекты уровня (level.objects, а для store: terminals — level.terminals). behavior — как объект работает в игре.",
+      "items": {
+        "type": "object",
+        "required": ["type", "label", "behavior", "sprite_id", "anchor", "snap"],
+        "properties": {
+          "type": { "type": "string", "description": "Уникальный тип; пишется в level.objects[].type" },
+          "label": { "type": "string" },
+          "group": { "type": "string" },
+          "behavior": {
+            "type": "string",
+            "enum": ["door", "pickup", "socket", "terminal", "prop"],
+            "description": "door — E ведёт к двери to_door (to_level — другой уровень), заперта до requires_item/requires_flag; pickup — подбирается касанием; socket — E вставляет needs_item и ставит флаг sets_flag; terminal — терминал брони; prop — обстановка"
+          },
+          "store": { "type": "string", "enum": ["objects", "terminals"] },
+          "sprite_id": { "type": "string" },
+          "anchor": { "$ref": "#/$defs/anchor" },
+          "snap": { "$ref": "#/$defs/snap" },
+          "flip": { "type": "boolean" },
+          "hint": { "type": "string" },
+          "overlay": {
+            "type": "object",
+            "description": "Спрайт поверх объекта, когда в него вставили предмет",
+            "required": ["sprite_id", "x", "y"],
+            "properties": { "sprite_id": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" } }
+          },
+          "props": { "type": "array", "items": { "$ref": "#/$defs/prop" } }
+        }
+      }
+    }
+  }
+}

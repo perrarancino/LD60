@@ -46,6 +46,8 @@ function editorApiPlugin(): Plugin {
             const bossesFile = path.join(dataDir, 'bosses', 'bosses.json');
             const backgroundsDir = path.join(dataDir, 'backgrounds');
             const levelsDir = path.join(dataDir, 'levels');
+            const placeablesFile = path.join(dataDir, 'objects', 'placeables.json');
+            const placeables = fs.existsSync(placeablesFile) ? JSON.parse(fs.readFileSync(placeablesFile, 'utf-8')) : { version: '0', items: [], decor: [], threads: [], objects: [] };
 
             const tiles = fs.existsSync(tilesFile) ? JSON.parse(fs.readFileSync(tilesFile, 'utf-8')) : null;
             const sprites = fs.existsSync(spritesFile) ? JSON.parse(fs.readFileSync(spritesFile, 'utf-8')) : null;
@@ -89,12 +91,53 @@ function editorApiPlugin(): Plugin {
               bosses,
               world,
               backgrounds,
+              placeables,
               levels
             }));
           } catch (err: any) {
             res.statusCode = 500;
             return res.end(JSON.stringify({ error: err.message }));
           }
+        }
+
+        // 2b. API: один уровень с диска (игра по ?live=1 берёт свежую версию без пересборки)
+        if (url === '/api/ld60/level' && req.method === 'GET') {
+          const id = new URL(req.url!, 'http://x').searchParams.get('id') ?? '';
+          const levelsDir = path.join(__dirname, 'data', 'levels');
+          for (const file of fs.existsSync(levelsDir) ? fs.readdirSync(levelsDir) : []) {
+            if (!file.endsWith('.json')) continue;
+            try {
+              const content = JSON.parse(fs.readFileSync(path.join(levelsDir, file), 'utf-8'));
+              if (content.id === id) {
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Cache-Control', 'no-store');
+                return res.end(JSON.stringify(content));
+              }
+            } catch { /* битый файл пропускаем */ }
+          }
+          res.statusCode = 404;
+          return res.end(JSON.stringify({ error: 'level not found' }));
+        }
+
+        // 2c. API: удаление уровня
+        if (url === '/api/ld60/level/delete' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const { filename } = JSON.parse(body);
+              const safe = path.basename(String(filename ?? ''));
+              if (!safe.endsWith('.json')) throw new Error('bad filename');
+              const filePath = path.join(__dirname, 'data', 'levels', safe);
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ ok: true }));
+            } catch (err: any) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
         }
 
         // 3. API: Сохранение уровня
@@ -104,7 +147,9 @@ function editorApiPlugin(): Plugin {
           req.on('end', () => {
             try {
               const payload = JSON.parse(body);
-              const { filename, level } = payload;
+              // новый редактор присылает готовый текст файла (text), старый — объект level
+              const { filename } = payload;
+              const level = typeof payload.text === 'string' ? JSON.parse(payload.text) : payload.level;
               if (!level || !level.id) {
                 res.statusCode = 400;
                 return res.end(JSON.stringify({ error: 'Missing level.id' }));
@@ -115,14 +160,14 @@ function editorApiPlugin(): Plugin {
                 fs.mkdirSync(levelsDir, { recursive: true });
               }
 
-              const targetFilename = filename || `${level.id}.json`;
+              const targetFilename = path.basename(String(filename || `${level.id}.json`));
               const filePath = path.join(levelsDir, targetFilename);
 
               if (!level.$schema) {
                 level.$schema = '../schemas/level.schema.json';
               }
 
-              fs.writeFileSync(filePath, JSON.stringify(level, null, 2) + '\n', 'utf-8');
+              fs.writeFileSync(filePath, typeof payload.text === 'string' ? payload.text : JSON.stringify(level, null, 2) + '\n', 'utf-8');
 
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ ok: true, filename: targetFilename, path: filePath }));
@@ -218,7 +263,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        editor: path.resolve(__dirname, 'editor.html')
+        editor: path.resolve(__dirname, 'editor.html'),
+        editorLegacy: path.resolve(__dirname, 'editor-legacy.html')
       }
     }
   }

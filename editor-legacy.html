@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LD60 Level Editor & Engine</title>
+  <link rel="stylesheet" href="/src/editor/style.css" />
+</head>
+<body>
+  <!-- Верхняя панель -->
+  <header class="topbar">
+    <div class="topbar-group">
+      <a href="/" class="btn" style="text-decoration: none;" title="Вернуться в игру">🎮 В игру</a><div class="brand">
+        <span class="brand-badge">LD60</span>
+        <span>LEVEL ENGINE</span>
+      </div>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <div style="display: flex; align-items: center; gap: 8px; background: rgba(30, 41, 59, 0.85); border: 1px solid var(--border); padding: 3px 10px; border-radius: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #38bdf8;">🗺️ УРОВЕНЬ:</span>
+        <select id="editor-level-select" class="select-input" style="background: #0f172a; color: #fff; border: 1px solid #334155; padding: 3px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+          <!-- Заполняется динамически -->
+        </select>
+        <button id="btn-new-level" type="button" class="btn" style="padding: 2px 8px; font-size: 11px; color: #4ade80; border-color: #166534;" title="Создать новую отдельную карту/локацию">+ Новая карта</button>
+      </div>
+      <button id="btn-auto-fit-bounds" class="btn btn-primary" title="Умная оптимизация и подгонка границ мира под все комнаты">
+        📐 Подогнать границы
+      </button>
+      <button id="btn-save" class="btn btn-primary" title="Сохранить уровень в LD60 (Ctrl+S)">
+        💾 Сохранить
+      </button>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <button id="btn-playtest" class="btn btn-success" title="Instant Playtest: проверка прыжка и коллизий прямо на холсте (P)">
+        ▶️ Тест
+      </button>
+      <button id="btn-world-graph" class="btn" title="Интерактивная карта открытого мира метроидвании">
+        🗺️ Карта мира
+      </button>
+    </div>
+
+    <div class="topbar-group">
+      <button id="btn-undo" class="btn btn-icon" title="Отмена (Ctrl+Z)">↩</button>
+      <button id="btn-redo" class="btn btn-icon" title="Повтор (Ctrl+Y)">↪</button>
+      <button id="btn-zoom-out" class="btn btn-icon" title="Уменьшить">-</button>
+      <button id="btn-zoom-fit" class="btn" title="Центрировать">100%</button>
+      <button id="btn-zoom-in" class="btn btn-icon" title="Увеличить">+</button>
+
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+
+      <button id="btn-toggle-autotile" class="btn" title="Автотайлинг (9-slice / Wang rules)">🪄 Автотайл</button>
+      <button id="btn-toggle-arc" class="btn active" title="Визуализатор дуги и досягаемости прыжка">📐 Дуга</button>
+      <button id="toggle-walkability" class="btn" title="Оверлей сетки проходимости (зеленый=пол, красный=блок, синий=воздух)">🟩 Проходимость</button>
+      <button id="toggle-grid" class="btn active" title="Сетка"># Сетка</button>
+      <button id="toggle-collisions" class="btn" title="Оверлей коллизий">🛡 Коллизии</button>
+      <button id="toggle-bg" class="btn active" title="Параллакс-фон">🖼 Фон</button>
+      <button id="toggle-entities" class="btn active" title="Сущности (Герой и Враги)">👾 Сущности</button>
+    </div>
+  </header>
+
+  <!-- Рабочая область -->
+  <main class="workspace">
+    <!-- Левый тулбар -->
+    <aside class="toolbar-left">
+      <button class="tool-btn active" data-tool="brush" title="Кисть тайлов (B)">
+        🖌️<span class="hotkey">B</span>
+      </button>
+      <button class="tool-btn" data-tool="eraser" title="Ластик (E)">
+        🧽<span class="hotkey">E</span>
+      </button>
+      <button class="tool-btn" data-tool="fill" title="Заливка области (G)">
+        🪣<span class="hotkey">G</span>
+      </button>
+
+      <div class="toolbar-separator"></div>
+
+      <button class="tool-btn" data-tool="room" title="Конструктор комнат: добавление комнат со стенами и скосами (R)">
+        🏛️<span class="hotkey">R</span>
+      </button>
+      <button class="tool-btn" data-tool="passage" title="Рисование проходов и коридоров (W)">
+        ⛏️<span class="hotkey">W</span>
+      </button>
+      <button class="tool-btn" data-tool="walkability" title="Кубики проходимости (Q)">
+        🟩<span class="hotkey">Q</span>
+      </button>
+      <button class="tool-btn" data-tool="bevel" title="Срез углов и диагональные 45° скосы (X)">
+        📐<span class="hotkey">X</span>
+      </button>
+
+      <div class="toolbar-separator"></div>
+
+      <button class="tool-btn" data-tool="move" title="Перемещение объектов / Drag-and-Drop (M)">
+        ✋<span class="hotkey">M</span>
+      </button>
+      <button class="tool-btn" data-tool="player_spawn" title="Спавн героя (H)">
+        🤖<span class="hotkey">H</span>
+      </button>
+      <button class="tool-btn" data-tool="mob_zone" title="Область спавна мобов строго на полу (Z)">
+        👾<span class="hotkey">Z</span>
+      </button>
+      <button class="tool-btn" data-tool="boss_spawn" title="Фиксированный спавн босса со спец-короной (F)">
+        👑<span class="hotkey">F</span>
+      </button>
+      <button class="tool-btn" data-tool="enemy_spawn" title="Одиночный спавн обычного врага (O)">
+        🎯<span class="hotkey">O</span>
+      </button>
+      <button class="tool-btn" data-tool="transition" title="Шлюз / Переход между комнатами (D)">
+        🚪<span class="hotkey">D</span>
+      </button>
+      <button class="tool-btn" data-tool="cable" title="Провода и шлейфы (C)">
+        🔌<span class="hotkey">C</span>
+      </button>
+      <button class="tool-btn" data-tool="decor" title="Декор и интерактивные объекты (Y)">
+        🖼️<span class="hotkey">Y</span>
+      </button>
+      <button class="tool-btn" data-tool="select" title="Выделение и удаление сущностей (V)">
+        🔍<span class="hotkey">V</span>
+      </button>
+    </aside>
+
+    <!-- Холст уровня -->
+    <section class="canvas-container">
+      <canvas id="editor-canvas"></canvas>
+    </section>
+
+    <!-- Правая панель палитр -->
+    <aside class="sidebar-right">
+      <nav class="sidebar-tabs">
+        <button id="tab-tiles-btn" class="tab-btn active">ТАЙЛЫ</button>
+        <button id="tab-rooms-btn" class="tab-btn">КОМНАТЫ</button>
+        <button id="tab-zones-btn" class="tab-btn">ЗОНЫ</button>
+        <button id="tab-bosses-btn" class="tab-btn">БОССЫ</button>
+        <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
+        <button id="tab-decor-btn" class="tab-btn">ДЕКОР & ПРЕДМЕТЫ</button>
+        <button id="tab-bg-btn" class="tab-btn">ФОН</button>
+        <button id="tab-settings-btn" class="tab-btn">МИР</button>
+      </nav>
+
+      <!-- Вкладка: Тайлы -->
+      <div id="tab-tiles" class="tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">КАТАЛОГ ТАЙЛОВ</span>
+          <button id="btn-add-tile" class="btn" style="padding: 3px 8px; font-size: 11px;">+ Новый тайл</button>
+        </div>
+        <div id="palette-tiles-list" class="palette-grid">
+          <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Комнаты и Проходы -->
+      <div id="tab-rooms" class="tab-content">
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">КОНСТРУКТОР КОМНАТ (ROOM TOOL [R])</div>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <button id="btn-tool-room" type="button" class="btn btn-primary" style="flex: 1; font-size: 12px; justify-content: center;">
+            🏛️ Режим комнат [R]
+          </button>
+        </div>
+
+        <div style="padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px;">
+          <label style="font-size: 11px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-main); font-weight: 600;">
+            <input id="checkbox-room-bevel" type="checkbox" />
+            <span>Срезать углы комнат (45° скосы)</span>
+          </label>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
+            При растягивании комнаты по углам автоматически разместятся скошенные тайлы платформ.
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПРОХОДЫ И ТОННЕЛИ (PASSAGE TOOL [W])</div>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <button id="btn-tool-passage" type="button" class="btn" style="flex: 1; font-size: 11px; justify-content: center; border-left: 3px solid #eab308;">
+            ⛏️ Режим проходов [W]
+          </button>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+            <span>Ширина прохода:</span>
+            <span id="label-passage-width">3 клетки</span>
+          </div>
+          <input id="slider-passage-width" type="range" min="1" max="7" value="3" step="1" style="width: 100%; accent-color: #eab308;" />
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 11px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-main);">
+            <input id="checkbox-passage-autowalls" type="checkbox" checked />
+            <span>Авто-стены сверху и снизу коридора</span>
+          </label>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">КИСТЬ ПРОХОДИМОСТИ (WALKABILITY BRUSH [Q])</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+          <button id="btn-walk-passable" type="button" class="btn active" style="font-size: 11px; justify-content: center; border-left: 3px solid #22c55e;">
+            🟩 Воздух (пол)
+          </button>
+          <button id="btn-walk-solid" type="button" class="btn" style="font-size: 11px; justify-content: center; border-left: 3px solid #ef4444;">
+            🟥 Стена (блок)
+          </button>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">КОМНАТЫ НА УРОВНЕ</span>
+          <span id="badge-rooms-count" style="font-size: 10px; color: #38bdf8;">0 комнат</span>
+        </div>
+
+        <div id="rooms-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+          <!-- Заполняется динамически -->
+        </div>
+
+        <div id="selected-room-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px;">
+          <div style="font-weight: 700; font-size: 12px; color: #38bdf8; margin-bottom: 6px;">Выбранная комната:</div>
+          <div id="selected-room-desc" style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;"></div>
+          <button id="btn-delete-room" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+            🗑 Удалить комнату
+          </button>
+        </div>
+      </div>
+
+      <!-- Вкладка: Зоны спавна мобов -->
+      <div id="tab-zones" class="tab-content">
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ОБЛАСТИ СПАВНА МОБОВ (ZONE TOOL [Z])</div>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <button id="btn-tool-mob-zone" type="button" class="btn btn-primary" style="flex: 1; font-size: 12px; justify-content: center; background: #9333ea; border-color: #a855f7;">
+            👾 Задать область [Z]
+          </button>
+        </div>
+
+        <div style="padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px;">
+          <div style="font-size: 10px; color: #4ade80; font-weight: 600; margin-bottom: 6px;">
+            ✓ Строгая привязка к полу (Strict Floor Snapping):
+          </div>
+          <div style="font-size: 10px; color: var(--text-muted); line-height: 1.3; margin-bottom: 8px;">
+            Мобы спавнятся строго на твёрдых блоках пола, над которыми воздух. Никаких мобов в воздухе или в стенах!
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label" style="font-size: 11px;">Тип противника:</label>
+            <select id="zone-enemy-select" class="select-input" style="width: 100%;">
+              <!-- Заполняется динамически -->
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label" style="font-size: 11px;">Количество мобов в зоне:</label>
+            <input id="zone-mob-count" type="number" min="1" max="20" value="3" class="text-input" style="width: 100%;" />
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">ЗОНЫ СПАВНА НА УРОВНЕ</span>
+          <span id="badge-zones-count" style="font-size: 10px; color: #c084fc;">0 зон</span>
+        </div>
+
+        <div id="zones-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+          <!-- Заполняется динамически -->
+        </div>
+
+        <div id="selected-zone-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px;">
+          <div style="font-weight: 700; font-size: 12px; color: #c084fc; margin-bottom: 6px;">Выбранная зона:</div>
+          <div id="selected-zone-desc" style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;"></div>
+          
+          <button id="btn-generate-zone-mobs" type="button" class="btn btn-success" style="width: 100%; font-size: 11px; margin-bottom: 6px;">
+            🎲 Сгенерировать мобов на полу зоны
+          </button>
+          
+          <button id="btn-delete-zone" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+            🗑 Удалить зону спавна
+          </button>
+        </div>
+      </div>
+
+      <!-- Вкладка: Боссы -->
+      <div id="tab-bosses" class="tab-content">
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ФИКСИРОВАННЫЙ СПАВН БОССОВ (BOSS TOOL [F])</div>
+        
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3; margin-bottom: 10px;">
+          Боссы привязаны к конкретным координатам арены и отображаются со статусной золотой короной 👑.
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button id="btn-tool-boss-spawn" type="button" class="btn btn-primary" style="flex: 1; font-size: 12px; justify-content: center; background: #d97706; border-color: #f59e0b;">
+            👑 Разместить босса [F]
+          </button>
+        </div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">КАТАЛОГ БОССОВ (BOSSES.JSON)</div>
+        <div id="palette-bosses-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Враги -->
+      <div id="tab-enemies" class="tab-content">
+        <div id="palette-enemies-list">
+          <!-- Заполняется динамически -->
+        </div>
+      </div>
+
+      <!-- Вкладка: Декор & Двери (Кабели, Шлюзы, Объекты) -->
+      <div id="tab-decor" class="tab-content">
+        <!-- Секция объектов декора и ассетов -->
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">
+              КАТАЛОГ ДЕКОРА & ПРЕДМЕТОВ (Y) <span id="decor-count-badge" style="color: #38bdf8; font-size: 10px; font-weight: normal; margin-left: 4px;"></span>
+            </div>
+            <button id="btn-tool-decor" type="button" class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;">
+              🖼️ Режим [Y]
+            </button>
+          </div>
+          
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+            Кликните по спрайту, затем по карте для размещения.
+          </div>
+
+          <!-- Фильтры категорий -->
+          <div id="decor-category-filters" class="decor-filter-pills">
+            <button type="button" class="btn-pill active" data-filter="all">Все</button>
+            <button type="button" class="btn-pill" data-filter="decor">Декор</button>
+            <button type="button" class="btn-pill" data-filter="items">Предметы</button>
+            <button type="button" class="btn-pill" data-filter="enemies">Враги / Боссы</button>
+            <button type="button" class="btn-pill" data-filter="effects">Эффекты</button>
+            <button type="button" class="btn-pill" data-filter="ui">UI / Прочее</button>
+          </div>
+
+          <!-- Поиск спрайта -->
+          <input id="decor-search-input" type="text" class="text-input" placeholder="🔍 Поиск спрайта (например: battery, scrap, cooler)..." style="width: 100%; margin-bottom: 8px; font-size: 11px; padding: 4px 8px;" />
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label" style="font-size: 11px;">Слой размещения (Layer):</label>
+            <select id="decor-layer-select" class="select-input" style="width: 100%;">
+              <option value="front">front — поверх тайлов (по умолчанию)</option>
+              <option value="back">back — за тайлами (задний план)</option>
+            </select>
+          </div>
+
+          <div id="palette-decor-list" class="palette-grid" style="max-height: 280px; overflow-y: auto;">
+            <!-- Заполняется динамически из sprites.json -->
+          </div>
+
+          <div id="selected-decor-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; margin-top: 10px;">
+            <div style="color: #38bdf8; font-weight: 700; margin-bottom: 4px;">Выбранный объект декора:</div>
+            <div id="selected-decor-desc" style="color: var(--text-muted); margin-bottom: 6px;"></div>
+            <div class="form-row" style="margin-bottom: 6px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 10px;">X (тайлы)</label>
+                <input id="decor-edit-x" type="number" step="0.5" class="text-input" style="width: 100%;" />
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 10px;">Y (тайлы)</label>
+                <input id="decor-edit-y" type="number" step="0.5" class="text-input" style="width: 100%;" />
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 10px;">Слой отрисовки</label>
+              <select id="decor-edit-layer" class="select-input" style="width: 100%;">
+                <option value="front">front (поверх тайлов)</option>
+                <option value="back">back (за тайлами)</option>
+              </select>
+            </div>
+            <button id="btn-delete-decor" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить выбранный декор
+            </button>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 14px 0;"></div>
+
+        <!-- Секция кабелей -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПРОВОДА И ШЛЕЙФЫ (CABLE TOOL)</div>
+          
+          <div class="form-label" style="font-size: 11px; margin-bottom: 4px;">Типы и пресеты кабелей:</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+            <button type="button" class="btn" id="btn-preset-sata" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #ef4444;">
+              🔴 SATA (Красный)
+            </button>
+            <button type="button" class="btn" id="btn-preset-power" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #f59e0b;">
+              🟡 Питание 12V
+            </button>
+            <button type="button" class="btn" id="btn-preset-ide" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #94a3b8;">
+              ⚪ IDE Ribbon
+            </button>
+            <button type="button" class="btn" id="btn-preset-ground" style="font-size: 11px; justify-content: flex-start; border-left: 3px solid #10b981;">
+              🟢 Заземление
+            </button>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+              <span>Провисание кабеля (Sag):</span>
+              <span id="label-cable-sag">35px</span>
+            </div>
+            <input id="slider-cable-sag" type="range" min="0" max="120" value="35" style="width: 100%; accent-color: var(--accent);" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+              <span>Толщина провода:</span>
+              <span id="label-cable-thick">3px</span>
+            </div>
+            <input id="slider-cable-thick" type="range" min="1" max="8" value="3" style="width: 100%; accent-color: var(--accent);" />
+          </div>
+
+          <div id="selected-cable-box" style="padding: 8px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; margin-top: 8px; display: none;">
+            <div style="color: #eab308; font-weight: 700; margin-bottom: 4px;">Выбран кабель:</div>
+            <div id="selected-cable-desc" style="color: var(--text-muted); margin-bottom: 6px;"></div>
+            <button id="btn-delete-cable" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить выбранный кабель
+            </button>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 14px 0;"></div>
+
+        <!-- Секция шлюзов и переходов -->
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ШЛЮЗЫ И ПЕРЕХОДЫ (DOORS)</div>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3; margin-bottom: 10px;">
+            Кликните инструментом 🚪 (D) на карте для создания портала в другую локацию.
+          </div>
+
+          <div id="transition-editor-panel" style="display: none; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 12px; color: #38bdf8; margin-bottom: 8px;">Параметры перехода:</div>
+            
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">ID Перехода</label>
+              <input id="trans-id" type="text" class="text-input" style="width: 100%;" readonly />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">Название / Бейдж шлюза</label>
+              <input id="trans-label" type="text" class="text-input" style="width: 100%;" placeholder="Например: Вход в БП" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 11px;">Целевой уровень (Target Level)</label>
+              <select id="trans-target-level" class="select-input" style="width: 100%;">
+                <!-- Заполняется списком доступных уровней -->
+              </select>
+            </div>
+
+            <div class="form-row" style="margin-bottom: 6px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 11px;">Точка спавна X</label>
+                <input id="trans-target-spawn-x" type="number" class="text-input" style="width: 100%;" value="2" />
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 11px;">Точка спавна Y</label>
+                <input id="trans-target-spawn-y" type="number" class="text-input" style="width: 100%;" value="14" />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 11px;">Требуется сюжетных резисторов (0-3)</label>
+              <input id="trans-resistors" type="number" min="0" max="3" value="0" class="text-input" style="width: 100%;" />
+            </div>
+
+            <button id="btn-save-trans" type="button" class="btn btn-primary" style="width: 100%; font-size: 11px; margin-bottom: 6px;">
+              Применить к шлюзу
+            </button>
+            <button id="btn-delete-trans" type="button" class="btn" style="color: var(--danger); width: 100%; font-size: 11px;">
+              🗑 Удалить шлюз
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Вкладка: Настройка фона (Parallax Background Engine) -->
+      <div id="tab-bg" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">ПРЕСЕТ ФОНА</span>
+          <button id="btn-new-bg" class="btn" style="padding: 3px 8px; font-size: 11px;">+ Новый фон</button>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <select id="bg-select" class="select-input" style="width: 100%;">
+            <!-- Заполняется списком доступных фонов из data/backgrounds/ -->
+          </select>
+        </div>
+
+        <button id="btn-apply-bg-to-level" type="button" class="btn" style="width: 100%; font-size: 11px; margin-bottom: 12px; border-left: 3px solid #38bdf8;">
+          🖼️ Привязать этот фон к текущему уровню
+        </button>
+
+        <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+
+        <!-- Основные параметры фона -->
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПАРАМЕТРЫ ФОНА</div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label class="form-label" style="font-size: 11px;">ID фона</label>
+          <input id="bg-id" type="text" class="text-input" style="width: 100%;" placeholder="например, bg_textalite" />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label class="form-label" style="font-size: 11px;">Описание</label>
+          <input id="bg-description" type="text" class="text-input" style="width: 100%;" placeholder="Краткое описание фона" />
+        </div>
+
+        <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Цвет неба (Sky)</label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input id="bg-sky-color" type="color" value="#120a36" style="width: 32px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;" />
+              <input id="bg-sky-color-hex" type="text" class="text-input" value="#120a36" style="flex: 1; font-family: monospace; font-size: 11px;" />
+            </div>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Цвет земли (Ground)</label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input id="bg-ground-color" type="color" value="#1f1a38" style="width: 32px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;" />
+              <input id="bg-ground-color-hex" type="text" class="text-input" value="#1f1a38" style="flex: 1; font-family: monospace; font-size: 11px;" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" style="font-size: 11px;">Масштаб (Scale)</label>
+            <input id="bg-scale" type="number" min="1" max="8" value="1" class="text-input" style="width: 100%;" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" style="font-size: 11px;">Смещение (Offset)</label>
+              <span id="label-bg-ground-offset" style="font-size: 11px; color: var(--text-muted);">32px</span>
+            </div>
+            <input id="bg-ground-offset" type="number" min="0" max="500" value="32" class="text-input" style="width: 100%;" />
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Управление слоями -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">СЛОИ ПАРАЛЛАКСА</span>
+          <button id="btn-add-bg-layer" type="button" class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--accent);">
+            + Добавить слой
+          </button>
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 8px;">
+          Слои снизу вверх (от дальнего к ближнему).
+        </div>
+
+        <div id="bg-layers-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+          <!-- Карточки слоёв генерируются динамически -->
+        </div>
+
+        <!-- Сохранение фона в проект -->
+        <button id="btn-save-bg" type="button" class="btn btn-primary" style="width: 100%; font-size: 12px; padding: 10px;">
+          💾 Сохранить фон в проект (JSON)
+        </button>
+      </div>
+
+      <!-- Вкладка: Параметры единого мира -->
+      <div id="tab-settings" class="tab-content">
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ПАРАМЕТРЫ МИРА (WORLD ENGINE)</div>
+        
+        <!-- Карточка статистики мира -->
+        <div style="padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Размер мира:</span>
+            <b id="world-stats-dimensions" style="color: #38bdf8; font-family: monospace;">-- × --</b>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Комнат:</span>
+            <b id="world-stats-rooms" style="color: #4ade80;">0</b>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">Зон спавна мобов:</span>
+            <b id="world-stats-zones" style="color: #c084fc;">0</b>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Врагов / Боссов:</span>
+            <b id="world-stats-enemies" style="color: #fb923c;">0</b>
+          </div>
+        </div>
+
+        <!-- Умная подгонка границ -->
+        <div class="form-group" style="margin-bottom: 12px;">
+          <button id="btn-auto-fit-bounds-sidebar" type="button" class="btn btn-primary" style="width: 100%; font-size: 12px; justify-content: center; padding: 8px;">
+            📐 Подогнать границы под комнаты
+          </button>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
+            Обрезает лишнюю пустоту вокруг уровня, сохраняя все комнаты, тоннели и сущности с безопасным отступом.
+          </div>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Быстрое добавление свободного пространства -->
+        <div class="form-label" style="margin-bottom: 6px;">Добавить свободное пространство (+10 клеток)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px;">
+          <button type="button" id="btn-pad-top" class="btn" style="font-size: 11px;">+10 Сверху</button>
+          <button type="button" id="btn-pad-bottom" class="btn" style="font-size: 11px;">+10 Снизу</button>
+          <button type="button" id="btn-pad-left" class="btn" style="font-size: 11px;">+10 Слева</button>
+          <button type="button" id="btn-pad-right" class="btn" style="font-size: 11px;">+10 Справа</button>
+        </div>
+
+        <!-- Сдвиг карты -->
+        <div class="form-label">Сдвиг геометрии (Shift + Стрелки)</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; margin-bottom: 14px;">
+          <button type="button" id="btn-shift-left" class="btn btn-icon" title="Сдвиг влево (Shift+←)">⬅️</button>
+          <button type="button" id="btn-shift-right" class="btn btn-icon" title="Сдвиг вправо (Shift+→)">➡️</button>
+          <button type="button" id="btn-shift-up" class="btn btn-icon" title="Сдвиг вверх (Shift+↑)">⬆️</button>
+          <button type="button" id="btn-shift-down" class="btn btn-icon" title="Сдвиг вниз (Shift+↓)">⬇️</button>
+        </div>
+
+        <div style="height: 1px; background: var(--border); margin: 12px 0;"></div>
+
+        <!-- Глобальный фон мира -->
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label">Параллакс-фон мира</label>
+          <select id="setting-level-bg" class="select-input" style="width: 100%;">
+            <option value="">Без фона</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label">Регион мира (world_layout.json)</label>
+          <select id="setting-level-region" class="select-input" style="width: 100%;">
+            <option value="">Не привязан к локации</option>
+          </select>
+          <div id="setting-region-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.3;"></div>
+        </div>
+
+        <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+          <div class="form-label">Выбранная сущность</div>
+          <div id="selected-entity-info" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+            Кликните на врага инструментом 🔍 или зажмите ✋ для перемещения.
+          </div>
+          <button id="btn-delete-enemy" class="btn" style="color: var(--danger); width: 100%; margin-top: 10px; display: none;">
+            🗑 Удалить врага
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Статус-бар -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="status-indicator"></span>
+        <span id="status-project">Подключение к LD60...</span>
+      </div>
+      <span id="status-coords">Клетка: — , —</span>
+    </div>
+    <div class="status-right">
+      <span id="status-message">Готов к работе</span>
+    </div>
+  </footer>
+
+
+  <!-- Модальное окно добавления нового тайла -->
+  <div id="new-tile-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">Добавить новый тайл в tiles.json</div>
+      <form id="new-tile-form">
+        <div class="form-group">
+          <label class="form-label">ID Тайла (англ.)</label>
+          <input id="new-tile-id" type="text" class="text-input" style="width: 100%;" required placeholder="platform_copper_trace" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Отображаемое название</label>
+          <input id="new-tile-name" type="text" class="text-input" style="width: 100%;" required placeholder="Медная дорожка" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Спрайт из проекта (sprites.json)</label>
+          <select id="new-tile-sprite" class="select-input" style="width: 100%;" required>
+            <!-- Заполняется динамически -->
+          </select>
+          <div id="new-tile-sprite-preview" style="margin-top: 8px; width: 48px; height: 48px; background: #1e232f; border-radius: 6px; display: flex; align-items: center; justify-content: center;"></div>
+        </div>
+        <div class="form-group" style="display: flex; gap: 16px; margin-top: 10px;">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-tile-solid" type="checkbox" checked />
+            <span>Твёрдый (Solid / Коллизия)</span>
+          </label>
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-tile-oneway" type="checkbox" />
+            <span>One-way платформа</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="modal-tile-cancel-btn" class="btn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить тайл</button>
+        </div>
+      </form>
+    </div>
+  <!-- Модальное окно создания новой карты/уровня -->
+  <div id="new-level-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">Создать новую карту (прототип локации)</div>
+      <form id="new-level-form">
+        <div class="form-group">
+          <label class="form-label">ID Уровня (англ., имя файла)</label>
+          <input id="new-level-id" type="text" class="text-input" style="width: 100%;" required placeholder="loc_power_supply" />
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Файл будет сохранён как data/levels/&lt;id&gt;.json</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Отображаемое название карты</label>
+          <input id="new-level-name" type="text" class="text-input" style="width: 100%;" required placeholder="Блок питания (Прототип)" />
+        </div>
+        <div class="form-row" style="gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Ширина (тайлов)</label>
+            <input id="new-level-width" type="number" min="10" max="300" value="40" class="text-input" style="width: 100%;" required />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Высота (тайлов)</label>
+            <input id="new-level-height" type="number" min="8" max="200" value="20" class="text-input" style="width: 100%;" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Параллакс-фон</label>
+          <select id="new-level-bg" class="select-input" style="width: 100%;">
+            <!-- Заполняется динамически -->
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input id="new-level-border" type="checkbox" checked />
+            <span>Создать стартовый пол и границы стен</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="modal-level-cancel-btn" class="btn">Отмена</button>
+          <button type="submit" class="btn btn-primary">Создать карту</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/src/editor/main.ts"></script>
+</body>
+</html>
+

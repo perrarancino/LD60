@@ -166,6 +166,7 @@ export interface GradeDef {
 }
 
 export interface LevelDef {
+  $schema?: string;
   id: string;
   display_name?: string;
   debug_key?: number; // отладка: клавиша 1–4 в игре переключает на этот уровень

@@ -1,6 +1,18 @@
 import { EventBus } from '../core/EventBus.ts';
 import { Armor } from '../systems/ArmorSystem.ts';
 import { pal } from '../core/Palette.ts';
+import { Quest } from '../systems/Quest.ts';
+import { itemDef } from '../world/placeables.ts';
+import spritesJson from '../../data/sprites/sprites.json';
+
+// Картинки предметов (батарейка и т.п.) для строки инвентаря
+const ITEM_PNG = import.meta.glob('../../assets/sprites/items/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+
+function itemIcon(id: string): string | null {
+  const spriteId = itemDef(id)?.sprite_id;
+  const def = (spritesJson as unknown as { sprites: { id: string; image: string }[] }).sprites.find((sp) => sp.id === spriteId);
+  return def ? ITEM_PNG[`../../assets/sprites/${def.image}`] ?? null : null;
+}
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
@@ -17,6 +29,8 @@ export class Hud {
   private readonly enBar = document.createElement('div');
   private readonly scrap = document.createElement('span');
   private readonly hurt = document.createElement('div');
+  private readonly items = document.createElement('div');
+  private lastItems = '';
   private lastHp = -1;
   private lastEn = -1;
   private lastHpMax = -1;
@@ -36,6 +50,9 @@ export class Hud {
       #hud .en .fill { background: linear-gradient(${hex(pal('gold', 7))}, ${hex(pal('gold', 6))} 60%, ${hex(pal('gold', 4))}); }
       #hud .deny { border-color: ${hex(pal('ember', 4))} !important; animation: hud-shake 0.12s 2; }
       @keyframes hud-shake { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+      #hud .items { display: flex; gap: 8px; align-items: center; }
+      #hud .items span { display: flex; align-items: center; gap: 3px; }
+      #hud .items i { width: 24px; height: 24px; background-size: contain; background-repeat: no-repeat; image-rendering: pixelated; display: inline-block; }
       #hud .scrap { display: flex; align-items: center; gap: 6px; }
       #hud .scrap i { width: 11px; height: 11px; background: ${hex(pal('steel', 4))}; border: 2px solid ${hex(pal('steel', 6))};
         box-shadow: inset -2px -2px 0 ${hex(pal('steel', 2))}; display: inline-block; }
@@ -54,7 +71,8 @@ export class Hud {
     const scrapRow = document.createElement('div');
     scrapRow.className = 'scrap';
     scrapRow.append(document.createElement('i'), this.scrap);
-    this.root.append(this.hpBar, this.enBar, scrapRow);
+    this.items.className = 'items';
+    this.root.append(this.items, this.hpBar, this.enBar, scrapRow);
     document.body.appendChild(this.root);
     this.hurt.id = 'hurt-flash';
     document.body.appendChild(this.hurt);
@@ -98,5 +116,24 @@ export class Hud {
       this.scrap.textContent = String(a.scrap);
     }
     this.enBar.classList.toggle('deny', a.denyTimer > 0);
+    this.updateItems();
+  }
+
+  /** Квестовые предметы в рюкзаке: картинка и число (если больше одного). */
+  private updateItems(): void {
+    const inv = Quest.get().inventory();
+    const sig = inv.map(([id, n]) => `${id}:${n}`).join(',');
+    if (sig === this.lastItems) return;
+    this.lastItems = sig;
+    this.items.replaceChildren();
+    for (const [id, n] of inv) {
+      const icon = document.createElement('i');
+      const url = itemIcon(id);
+      if (url) icon.style.backgroundImage = `url(${url})`;
+      const cell = document.createElement('span');
+      cell.append(icon);
+      if (n > 1) cell.append(String(n));
+      this.items.append(cell);
+    }
   }
 }

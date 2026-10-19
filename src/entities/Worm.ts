@@ -239,7 +239,7 @@ export class Worm implements PartDamageable {
   /** Движение головы вдоль поверхности, огибание внутренних и внешних углов. */
   private crawl(step: number): void {
     // граница комнаты: впереди чужая клетка — разворот
-    if (this.leash && !this.leash.contains(this.s.x + this.t.x * (step + this.radius + 6), this.s.y + this.t.y * (step + this.radius + 6))) {
+    if (this.leash && !this.leash.contains(this.s.x + this.n.x * 4 + this.t.x * (step + this.radius + 6), this.s.y + this.n.y * 4 + this.t.y * (step + this.radius + 6))) {
       this.t = { x: -this.t.x, y: -this.t.y };
     }
     this.s = { x: this.s.x + this.t.x * step, y: this.s.y + this.t.y * step };

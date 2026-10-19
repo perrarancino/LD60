@@ -119,6 +119,28 @@ for bg in backgrounds.values():
             check(sp["category"] == "backgrounds", f"фон {bg['id']}: слой {layer['name']} не из категории backgrounds")
             check(sp["frame_width"] >= 16, f"фон {bg['id']}: слой {layer['name']} слишком узкий для тайлинга")
 
+# Каталог расставляемого (decor, нитки, объекты): спрайты существуют, типы уникальны
+placeables = load("objects/placeables.json")
+items = {i["id"] for i in placeables["items"]}
+for i in placeables["items"]:
+    check(i["sprite_id"] in sprites, f"placeables: предмет {i['id']}: нет спрайта {i['sprite_id']}")
+for d in placeables["decor"]:
+    check(d["sprite_id"] in sprites, f"placeables: декор: нет спрайта {d['sprite_id']}")
+for t in placeables["threads"]:
+    check(t["sprite_id"] in sprites, f"placeables: нить {t['kind']}: нет спрайта {t['sprite_id']}")
+object_kinds = {}
+for o in placeables["objects"]:
+    check(o["type"] not in object_kinds, f"placeables: тип объекта {o['type']} повторяется")
+    object_kinds[o["type"]] = o
+    check(o["sprite_id"] in sprites, f"placeables: объект {o['type']}: нет спрайта {o['sprite_id']}")
+    ov = o.get("overlay")
+    check(ov is None or ov["sprite_id"] in sprites, f"placeables: объект {o['type']}: нет спрайта наложения")
+
+all_levels = {}
+for path in sorted((DATA / "levels").glob("*.json")):
+    lv0 = json.loads(path.read_text(encoding="utf-8"))
+    all_levels[lv0["id"]] = lv0
+
 for path in sorted((DATA / "levels").glob("*.json")):
     lv = json.loads(path.read_text(encoding="utf-8"))
     n = lv["id"]
@@ -139,6 +161,46 @@ for path in sorted((DATA / "levels").glob("*.json")):
         check(en["enemy_id"] in enemies, f"{n}: неизвестный враг {en['enemy_id']}")
         check(en["sprite_id"] in enemies.get(en["enemy_id"], {}).get("sprite_variants", []),
               f"{n}: спрайт {en['sprite_id']} не входит в варианты врага {en['enemy_id']}")
+
+    # Комнаты (туман войны, дом мобов)
+    rooms = lv.get("rooms", [])
+    room_ids = [r["id"] for r in rooms]
+    check(len(room_ids) == len(set(room_ids)), f"{n}: id комнат повторяются")
+    for r in rooms:
+        mask = r.get("mask")
+        if mask is not None:
+            check(len(mask) == r["height"], f"{n}: комната {r['id']}: масок-рядов {len(mask)}, ожидалось {r['height']}")
+            check(all(len(row) == r["width"] for row in mask), f"{n}: комната {r['id']}: ряд маски не длиной {r['width']}")
+        check(r["x"] >= 0 and r["y"] >= 0 and r["x"] + r["width"] <= lv["width"] and r["y"] + r["height"] <= lv["height"],
+              f"{n}: комната {r['id']} выходит за границы уровня")
+    for en in lv["enemies"]:
+        check(en.get("room") is None or en["room"] in room_ids, f"{n}: враг {en['enemy_id']}: неизвестная комната {en.get('room')}")
+    # Повороты тайлов
+    for t in lv.get("tile_xform", []):
+        check(0 <= t["x"] < lv["width"] and 0 <= t["y"] < lv["height"], f"{n}: tile_xform ({t['x']},{t['y']}) вне уровня")
+        check(t.get("rot", 0) in (0, 90, 180, 270), f"{n}: tile_xform ({t['x']},{t['y']}): rot должен быть 0/90/180/270")
+    # Декор, терминалы, нитки
+    for d in lv.get("decor", []):
+        check(d["sprite_id"] in sprites, f"{n}: декор: нет спрайта {d['sprite_id']}")
+    for t in lv.get("terminals", []):
+        check(t["sprite_id"] in sprites, f"{n}: терминал: нет спрайта {t['sprite_id']}")
+    # Объекты: типы из каталога, уникальные id, двери ведут к существующим дверям
+    obj_ids = [o["id"] for o in lv.get("objects", [])]
+    check(len(obj_ids) == len(set(obj_ids)), f"{n}: id объектов повторяются")
+    for o in lv.get("objects", []):
+        kind = object_kinds.get(o["type"])
+        check(kind is not None, f"{n}: объект {o['id']}: неизвестный тип {o['type']}")
+        if kind is None:
+            continue
+        props = o.get("props", {})
+        for key in ("item", "needs_item", "requires_item"):
+            check(props.get(key) is None or props[key] in items, f"{n}: объект {o['id']}: неизвестный предмет {props.get(key)}")
+        if kind["behavior"] == "door":
+            target = all_levels.get(props.get("to_level") or n)
+            check(target is not None, f"{n}: дверь {o['id']}: неизвестный уровень {props.get('to_level')}")
+            if target is not None and props.get("to_door"):
+                doors = [x["id"] for x in target.get("objects", []) if object_kinds.get(x["type"], {}).get("behavior") == "door"]
+                check(props["to_door"] in doors, f"{n}: дверь {o['id']}: у уровня {target['id']} нет двери {props['to_door']}")
 
 sys.stdout.reconfigure(encoding="utf-8")  # корректная кириллица в консоли Windows
 print("\n".join(errors) if errors else "OK: данные и ассеты согласованы")

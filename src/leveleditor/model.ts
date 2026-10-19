@@ -311,6 +311,7 @@ export function newLevel(id: string, name: string, tileId: string | null, width 
   const floor = tileId ? '#'.repeat(width) : '.'.repeat(width);
   const rows = Array.from({ length: height }, (_, y) => (y === height - 1 ? floor : '.'.repeat(width)));
   return {
+    $schema: '../schemas/level.schema.json',
     id,
     display_name: name,
     tile_size: tileSize,

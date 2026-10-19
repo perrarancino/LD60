@@ -410,7 +410,7 @@ export class Spider implements Hittable {
   private crawl(dt: number, speedNow: number): void {
     const step = speedNow * dt;
     // граница комнаты: впереди чужая клетка — разворот
-    if (this.leash && !this.leash.contains(this.s.x + this.t.x * (step + 8), this.s.y + this.t.y * (step + 8))) {
+    if (this.leash && !this.leash.contains(this.s.x + this.n.x * 4 + this.t.x * (step + 8), this.s.y + this.n.y * 4 + this.t.y * (step + 8))) {
       this.t = { x: -this.t.x, y: -this.t.y };
     }
     this.s = { x: this.s.x + this.t.x * step, y: this.s.y + this.t.y * step };

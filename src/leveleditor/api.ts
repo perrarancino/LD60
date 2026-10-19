@@ -26,7 +26,8 @@ export async function saveLevel(filename: string, level: LevelDef): Promise<{ fi
   const res = await fetch('/api/ld60/level/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, level })
+    // текст файла готовит редактор (JSON с отступами, как в проекте): сервер записывает его как есть
+    body: JSON.stringify({ filename, text: JSON.stringify(level, null, 2) + '\n' })
   });
   return json<{ filename: string }>(res);
 }
