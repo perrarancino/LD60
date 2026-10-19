@@ -94,10 +94,109 @@
     ".............................................................................................................................................................................................................................................................................................."
   ],
   "player_spawn": {
-    "x": 137,
+    "x": 136,
     "y": 34
   },
-  "enemies": [],
+  "enemies": [
+    {
+      "enemy_id": "worm_boss",
+      "sprite_id": "boss_textalite",
+      "x": 265,
+      "y": 10,
+      "room": "room_1792351256509_106"
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 176,
+      "y": 34,
+      "room": "room_1792350468378_173"
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 186,
+      "y": 34,
+      "room": "room_1792350468378_173"
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 222,
+      "y": 44,
+      "room": "room_1792350689091_266"
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_amber",
+      "x": 230,
+      "y": 44,
+      "room": "room_1792350689091_266"
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 218,
+      "y": 21,
+      "room": "room_1792351055354_265"
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 226,
+      "y": 21,
+      "room": "room_1792351055354_265"
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 105,
+      "y": 34,
+      "room": "room_7"
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 112,
+      "y": 34,
+      "room": "room_7"
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 92,
+      "y": 19,
+      "room": "room_8"
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 70,
+      "y": 52,
+      "room": "room_9"
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 108,
+      "y": 52,
+      "room": "room_13"
+    },
+    {
+      "enemy_id": "ptichka",
+      "sprite_id": "enemy_ptichka",
+      "x": 65,
+      "y": 28,
+      "room": "room_12"
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 32,
+      "y": 38,
+      "room": "room_11"
+    }
+  ],
   "rooms": [
     {
       "id": "room_1792350413250_519",
@@ -106,8 +205,7 @@
       "y": 24,
       "width": 20,
       "height": 12,
-      "beveled": false,
-      "location": 1
+      "beveled": false
     },
     {
       "id": "room_1792350468378_173",
@@ -165,7 +263,8 @@
       "x": 97,
       "y": 24,
       "width": 20,
-      "height": 12
+      "height": 12,
+      "location": 2
     },
     {
       "id": "room_8",
@@ -173,7 +272,8 @@
       "x": 84,
       "y": 9,
       "width": 18,
-      "height": 12
+      "height": 12,
+      "location": 2
     },
     {
       "id": "room_9",
@@ -181,7 +281,8 @@
       "x": 62,
       "y": 39,
       "width": 19,
-      "height": 15
+      "height": 15,
+      "location": 2
     },
     {
       "id": "room_11",
@@ -189,7 +290,8 @@
       "x": 20,
       "y": 16,
       "width": 26,
-      "height": 24
+      "height": 24,
+      "location": 2
     },
     {
       "id": "room_12",
@@ -197,7 +299,8 @@
       "x": 57,
       "y": 22,
       "width": 19,
-      "height": 14
+      "height": 14,
+      "location": 2
     },
     {
       "id": "room_13",
@@ -221,7 +324,8 @@
         "#########################",
         "#########################",
         "#########################"
-      ]
+      ],
+      "location": 2
     }
   ],
   "transitions": [],
@@ -3790,9 +3894,28 @@
   ],
   "objects": [
     {
+      "id": "battery_1",
+      "type": "battery",
+      "x": 7296,
+      "y": 1424,
+      "props": {
+        "item": "battery"
+      }
+    },
+    {
+      "id": "batterystand",
+      "type": "battery_stand",
+      "x": 7488,
+      "y": 1440,
+      "props": {
+        "needs_item": "battery",
+        "sets_flag": "power_on"
+      }
+    },
+    {
       "id": "password_loc1",
       "type": "password",
-      "x": 6368,
+      "x": 6400,
       "y": 544
     },
     {
@@ -3919,5 +4042,17 @@
       "y": 960
     }
   ],
-  "fog": true
+  "fog": true,
+  "terminals": [
+    {
+      "sprite_id": "terminal_loc1",
+      "x": 151,
+      "y": 34
+    },
+    {
+      "sprite_id": "terminal_loc2",
+      "x": 126,
+      "y": 34
+    }
+  ]
 }

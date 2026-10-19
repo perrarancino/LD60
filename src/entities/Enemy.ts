@@ -3,12 +3,14 @@ import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { EnemyDef, EnemySpawnDef, HitboxDef } from '../data/types.ts';
 import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 const KNOCKBACK = 140; // px/с: отдача от удара
 
 /** Обычный враг: пока только внешность и расстановка (поведение по behavior_type — следующий шаг). */
 export class Enemy implements Hittable {
   public readonly sprite: AnimatedSprite;
+  public leash: Leash | null = null;
 
   private readonly home: { x: number; y: number };
   private readonly hitbox: HitboxDef;
@@ -29,7 +31,13 @@ export class Enemy implements Hittable {
 
   public update(dt: number): void {
     this.react.update(dt);
-    this.sprite.position.set(this.home.x + this.react.x, this.home.y + this.react.y);
+    let targetX = this.home.x + this.react.x;
+    let targetY = this.home.y + this.react.y;
+    if (this.leash && !this.leash.contains(targetX, targetY)) {
+      targetX = this.home.x;
+      targetY = this.home.y;
+    }
+    this.sprite.position.set(targetX, targetY);
   }
 
   /** Хитбокс спрайта в мире. */
