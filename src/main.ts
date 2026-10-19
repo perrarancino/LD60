@@ -12,6 +12,7 @@ import { isPartDamageable } from './entities/Hittable.ts';
 import type { Hittable } from './entities/Hittable.ts';
 import { Worm } from './entities/Worm.ts';
 import { WormBoss } from './entities/WormBoss.ts';
+import type { WormBossHooks } from './entities/WormBoss.ts';
 import { BirdBoss } from './entities/BirdBoss.ts';
 import type { BirdBossHooks } from './entities/BirdBoss.ts';
 import { BossBird } from './entities/BossBird.ts';
@@ -47,10 +48,13 @@ import { WorldProgression } from './systems/WorldProgression.ts';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
-import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
+import { BLUE, LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
+import { EnemyBolts } from './effects/EnemyBolts.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
 import { SoundManager } from './audio/SoundManager.ts';
+import cursorInteractUrl from '../assets/sprites/ui/cursor_interact.png';
+import { getSharedOutlineFilter } from './effects/OutlineFilter.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -100,7 +104,15 @@ const FIST_RADIUS = 6; // px: «толщина» кулака при прове�
 const FORE_ARM_START = 0.4; // с какой доли длины руки от плеча считается ударной частью (плечо в теле не бьёт)
 const PUNCH_SPARKS = [0xffffff, 0xdbe9f7, 0x9fb4c8]; // искры удара — цвета эффекта punch
 const ZAP_COLORS = [pal('cobalt', 5), pal('cobalt', 6), pal('cobalt', 7), pal('electric', 7)]; // искры электрокрысы
-const WHIP_DAMAGE = 18; // урон хвоста электрокрысы
+const WHIP_DAMAGE = 22; // урон хвоста электрокрысы
+const SPIDER_SIGHT = 170; // px: паук замечает героя и бежит к нему
+const BABY_SIGHT = 520; // px: паучки матки бегут на героя почти из всей комнаты
+const THROWN_SPIDER_SIGHT = 300; // px: пауки, которых швырнул краб
+const BOSS_SPIDER_SIGHT = 480; // px: паучки из тела босса-червя
+const BOSS_SPIDER_LIFE = 22; // с: через сколько паучки босса-червя исчезают
+const BOSS_SPIDER_SCALE = 0.85;
+const BOSS_SPIDER_CONTACT = 0.7; // доля контактного урона обычного паука: роем они бьют чаще
+const BOSS_SPIDER_MAX = 8; // сколько паучков босса-червя может быть живо разом (если не задано в data)
 const CONTACT_COOLDOWN = 1.0; // с: пауза между контактными ударами одного моба
 const HIT_SHAKE = 1.5; // px арта: тряска камеры при попадании
 const CRIT_SHAKE = 2.5;
@@ -184,6 +196,8 @@ class GameApp {
   private debris = new Debris();
   private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
   private beam!: LightningBeam; // луч молнии из руки
+  private enemyBolts!: EnemyBolts; // синие отражающиеся молнии стража
+  private readonly bossSpiders = new Set<Spider>(); // паучки из тела босса-червя
   private flashLayer = new Graphics(); // вспышка на весь экран
   private flashAlpha = 0;
   private flashColor = pal('gold', 7); // цвет вспышки на весь экран (молния героя — золотая, удары краба — розовая)
@@ -196,12 +210,25 @@ class GameApp {
   private viewW: number = GAME_CONFIG.VIRTUAL_WIDTH;
   private viewH: number = GAME_CONFIG.VIRTUAL_HEIGHT;
   private grid = new Graphics();
-  private background: ParallaxBackground | ShaderBackground | null = null;
+  private readonly backgrounds: Array<{ id: string; bg: ParallaxBackground | ShaderBackground; alpha: number }> = []; // все фоны уровня: свой у комнаты — включается при входе героя
+  private activeBg = '';
+  private bgBottom = 0; // низ, на котором «стоит» фон: у уровня из комнат — низ комнаты героя (иначе на высокой карте фон остался бы внизу карты, вне кадра)
   private scale = 1;
   private cameraY = 0;
   private groundRefY = 0; // высота ног при последнем касании земли
   private cameraReady = false;
   private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
+  private defaultCursorStyle = `url("${cursorUrl}") 0 0, auto`;
+  private hoverCursorStyle = `url("${cursorInteractUrl}") 0 0, pointer`;
+  private currentCursor = '';
+
+  private setCursor(hovered: boolean): void {
+    const style = hovered ? this.hoverCursorStyle : this.defaultCursorStyle;
+    if (this.currentCursor !== style) {
+      this.currentCursor = style;
+      this.app.canvas.style.cursor = style;
+    }
+  }
 
   constructor() {
     this.app = new Application();
@@ -242,10 +269,9 @@ class GameApp {
     });
 
     this.gameContainer.appendChild(this.app.canvas);
-    const cursorStyle = `url("${cursorUrl}") 0 0, auto`;
-    document.body.style.cursor = cursorStyle;
-    this.gameContainer.style.cursor = cursorStyle;
-    this.app.canvas.style.cursor = cursorStyle;
+    document.body.style.cursor = this.defaultCursorStyle;
+    this.gameContainer.style.cursor = this.defaultCursorStyle;
+    this.setCursor(false);
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
     window.addEventListener('pointermove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
@@ -254,7 +280,7 @@ class GameApp {
         e.preventDefault();
         window.location.href = './editor.html';
       }
-      // Отладка: клавиши 1–4 переключают уровень (у уровня в JSON задан debug_key)
+      // Отладка: клавиши 1–5 переключают уровень (у уровня в JSON задан debug_key): 1 — тест-локация со всеми мобами, 2 — локация 2, 3 — босс-червь, 4 — босс-птица, 5 — краб
       if (/^[1-9]$/.test(e.key) && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const next = LEVELS.find((l) => l.debug_key === Number(e.key));
         if (next && next.id !== activeLevelDef.id) {
@@ -310,7 +336,7 @@ class GameApp {
 
     this.drawGrid();
     this.lighting?.resize(physW, physH, this.scale);
-    this.background?.resize(this.viewW, this.viewH);
+    for (const b of this.backgrounds) b.bg.resize(this.viewW, this.viewH);
     if (this.level) this.updateCamera();
   }
 
@@ -391,7 +417,7 @@ class GameApp {
     const sy = this.shake ? snap(this.shake * Math.sin(this.shakePhase * 1.37 + 1.9)) : 0;
     this.worldLayer.position.set(-snap(camX) + sx, -snap(camY) + sy);
     this.numbers.container.position.copyFrom(this.worldLayer.position);
-    this.background?.update(snap(camX), snap(camY), lh, this.scale);
+    for (const b of this.backgrounds) if (b.alpha > 0.001) b.bg.update(snap(camX), snap(camY), this.bgBottom || lh, this.scale);
     // тайлы вне экрана (с запасом в клетку) не рисуются — ни в кадре, ни в проходах света
     const m = this.level.tileSize;
     this.level.cull(snap(camX) - m, snap(camX) + this.viewW + m, snap(camY) - m, snap(camY) + this.viewH + m);
@@ -430,8 +456,9 @@ class GameApp {
       'bullet1',
       'mat_scrap',
       'ui_cursor',
+      'ui_cursor_interact',
       ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
-      ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
+      ...this.levelBackgrounds(levelDef).flatMap((b) => ParallaxBackground.spriteIds(b)),
       heroSpriteId,
       ...MODELS.map((m) => m.sprite_id),
       ...modelRigs.flatMap((r) => r.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])])),
@@ -447,11 +474,20 @@ class GameApp {
       })
     ]);
 
-    if (bgDef) {
-      this.background = bgDef.shader ? new ShaderBackground(bgDef) : new ParallaxBackground(bgDef, this.sprites);
+    // Фон уровня и фоны комнат (room.background_id): у каждого свой объект, показывается тот, что у комнаты героя (плавная смена)
+    const bgDefs = this.levelBackgrounds(levelDef);
+    for (const def of bgDefs) {
+      const bg = def.shader ? new ShaderBackground(def) : new ParallaxBackground(def, this.sprites);
+      const isDefault = def.id === levelDef.background_id;
+      this.backgrounds.push({ id: def.id, bg, alpha: isDefault ? 1 : 0 });
+      bg.container.visible = isDefault;
+      this.sceneLayer.addChild(bg.container);
+      bg.resize(this.viewW, this.viewH);
+    }
+    if (bgDefs.length) {
       this.grid.visible = false; // вместо технической сетки — фон
-      this.sceneLayer.addChildAt(this.background.container, 0);
-      this.background.resize(this.viewW, this.viewH);
+      this.activeBg = levelDef.background_id ?? bgDefs[0].id;
+      this.backgrounds.forEach((b, i) => this.sceneLayer.setChildIndex(b.bg.container, i + 1)); // сразу за сеткой (она первая в сцене)
     }
 
     this.worldLayer = new Container();
@@ -517,6 +553,7 @@ class GameApp {
         const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
           (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
         mother.leash = this.bindRoom(mother, spawn);
+        mother.target = () => ({ x: this.player.body.x, y: this.player.body.y - 20 });
         this.mothers.push(mother);
         this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
         this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
@@ -527,10 +564,7 @@ class GameApp {
         // Босс-червь: летает сквозь тайлы за героем, рисуется под тайлами (часть тела в блоках скрыта маской)
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
-        const boss = new WormBoss(def, spawn, this.level, rig, this.sprites, () => {
-          const b = this.player.body;
-          return { x: b.x, y: b.y - 30 };
-        });
+        const boss = new WormBoss(def, spawn, this.level, rig, this.sprites, this.wormBossHooks(def));
         boss.leash = this.bindRoom(boss, spawn);
         this.bosses.push(boss);
         this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
@@ -568,6 +602,8 @@ class GameApp {
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
         const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
         worm.leash = this.bindRoom(worm, spawn);
+        worm.hero = () => this.heroBox();
+        worm.onBite = (x, y, dirX, dmg) => this.strikeHero(x, y, dirX, dmg, false);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
         this.contactDmg.set(worm, def.stats.contact_damage);
@@ -638,6 +674,8 @@ class GameApp {
     );
     this.worldLayer.addChild(this.beam.container);
     this.worldLayer.addChild(this.boltFx.container);
+    this.enemyBolts = new EnemyBolts(this.fx);
+    this.worldLayer.addChild(this.enemyBolts.container);
 
     this.worldLayer.addChild(this.fx.container); // частицы поверх всего
     this.spriteFx = new SpriteEffects(this.sprites);
@@ -657,7 +695,7 @@ class GameApp {
     // тени отбрасывают существа и транзисторы (слой декора поверх тайлов); тайлы, декор за тайлами и эффекты — нет
     this.lighting = new Lighting(this.app.renderer, this.worldLayer, [
       this.level.backLayer, this.level.container, this.fx.container, this.spriteFx.container, this.loot.container, this.projectiles.container,
-      this.debris.container, this.beam.container, this.boltFx.container, this.cipherCluesView.container, ...this.terminals.map((t) => t.container)
+      this.debris.container, this.beam.container, this.boltFx.container, this.enemyBolts.container, this.cipherCluesView.container, ...this.terminals.map((t) => t.container)
     ], this.level.container, [this.level.frontLayer], () => this.spiders.map((s) => s.container),
     () => [...this.spiders, ...this.worms, ...this.mothers, ...this.bosses].map((e) => e.container)); // мобы со светящимися пикселями сами светят
     if (levelDef.light) {
@@ -682,6 +720,52 @@ class GameApp {
     }
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
+  }
+
+  /** Фоны уровня: его собственный и фоны комнат (без повторов). */
+  private levelBackgrounds(levelDef: LevelDef): BackgroundDef[] {
+    const ids = [levelDef.background_id, ...(levelDef.rooms ?? []).map((r) => r.background_id)].filter((id): id is string => !!id);
+    return [...new Set(ids)].map((id) => {
+      const def = BACKGROUNDS.find((b) => b.id === id);
+      if (!def) throw new Error(`Уровень ссылается на неизвестный фон "${id}"`);
+      return def;
+    });
+  }
+
+  /**
+   * Смена фона по комнате: у комнаты героя задан background_id — плавно включается он (новый проявляется поверх прежнего, потом прежний гаснет);
+   * вне комнат (коридоры) остаётся прежний.
+   */
+  private updateBackgrounds(dt: number): void {
+    // фон стоит на низе комнаты героя (плавно): у многокомнатной карты нижний край мира далеко от героя
+    const ts = this.level.tileSize;
+    let bottom = 0;
+    for (const idx of this.rooms.current) {
+      const r = this.rooms.defs[idx];
+      if (r) bottom = Math.max(bottom, (r.y + r.height) * ts);
+    }
+    if (bottom > 0) this.bgBottom = this.bgBottom ? this.bgBottom + (bottom - this.bgBottom) * (1 - Math.exp(-6 * dt)) : bottom;
+    if (this.backgrounds.length < 2) return;
+    for (const idx of this.rooms.current) {
+      const id = this.rooms.defs[idx]?.background_id ?? activeLevelDef.background_id;
+      if (id && id !== this.activeBg) {
+        this.activeBg = id;
+        const top = this.backgrounds.find((b) => b.id === id);
+        if (top) {
+          this.sceneLayer.setChildIndex(top.bg.container, this.backgrounds.length); // новый — выше прежних
+          top.alpha = Math.min(top.alpha, 0.001);
+        }
+      }
+      break;
+    }
+    const active = this.backgrounds.find((b) => b.id === this.activeBg);
+    if (!active) return;
+    active.alpha = Math.min(1, active.alpha + dt * 1.6);
+    for (const b of this.backgrounds) {
+      if (b !== active && active.alpha >= 1) b.alpha = 0; // новый проявился полностью — прежний убираем
+      b.bg.container.visible = b === active || b.alpha > 0;
+      b.bg.container.alpha = b === active ? active.alpha : 1;
+    }
   }
 
   /** Комната-«дом» моба по его клетке спавна (или явному spawn.room); null — уровень без комнат / моб вне комнат. */
@@ -771,7 +855,9 @@ class GameApp {
     this.mobs.set(target, { hp: maxHp, max: maxHp, view, remove });
   }
 
-  private trackSpider(spider: Spider, maxHp: number, contact = 0): void {
+  private trackSpider(spider: Spider, maxHp: number, contact = 0, sight = SPIDER_SIGHT): void {
+    spider.hero = () => ({ x: this.player.body.x, y: this.player.body.y });
+    spider.sight = sight; // заметив героя, паук бежит к нему
     if (contact > 0) this.contactDmg.set(spider, contact);
     this.track(spider, maxHp, spider.container, () => {
       this.spiders.splice(this.spiders.indexOf(spider), 1);
@@ -1068,6 +1154,82 @@ class GameApp {
     }
   }
 
+  /** Эффекты броска воробья: пыль и искры на приседании, взрыв пыли и рывок камеры на отрыве, след в полёте, ударная пыль и тряска на приземлении. */
+  private lungeFx(kind: 'wind' | 'leap' | 'trail' | 'land', x: number, y: number, k: number, dirX: number): void {
+    const SPARK = [pal('cobalt', 6), pal('cobalt', 7), pal('electric', 7), pal('gold', 6)];
+    switch (kind) {
+      case 'wind':
+        if (Math.random() < 0.5) {
+          // сходящиеся к телу искры (энергия копится) и пыль из-под лап
+          const a = Math.random() * Math.PI * 2;
+          const r = 22 + 10 * (1 - k);
+          const life = 0.16 + Math.random() * 0.1;
+          this.fx.emit(x + Math.cos(a) * r, y - 14 + Math.sin(a) * r * 0.7, (-Math.cos(a) * r) / life, (-Math.sin(a) * r * 0.7) / life, SPARK[Math.floor(Math.random() * SPARK.length)], life, 1 + k * 1.5, { grow: 0.4 });
+        }
+        if (Math.random() < 0.25 + 0.4 * k) this.fx.emit(x + (Math.random() - 0.5) * 14, y - 1, (Math.random() - 0.5) * 50, -8 - Math.random() * 18, LAND_DUST[Math.floor(Math.random() * LAND_DUST.length)], 0.3 + Math.random() * 0.2, 1 + Math.random(), { drag: 3 });
+        break;
+      case 'leap':
+        this.fx.burst(x, y - 1, { count: 18, colors: LAND_DUST, speed: [50, 150], angle: -dirX * 0.3 + (dirX > 0 ? Math.PI : 0), spread: 1.1, life: [0.25, 0.55], size: [1, 3], gravity: -30, drag: 2.5 });
+        this.fx.burst(x, y - 12, { count: 12, colors: SPARK, speed: [90, 220], angle: dirX > 0 ? Math.PI : 0, spread: 0.5, life: [0.12, 0.3], size: [1, 2], drag: 3 });
+        this.shake = Math.max(this.shake, 1.8);
+        break;
+      case 'trail':
+        this.fx.emit(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 8, -dirX * 20, 0, SPARK[Math.floor(Math.random() * SPARK.length)], 0.2 + Math.random() * 0.15, 1 + Math.random() * 1.5, { grow: 0.3 });
+        break;
+      case 'land': {
+        this.fx.burst(x, y - 1, { count: 22, colors: LAND_DUST, speed: [60, 170], angle: 0, spread: 0.18, life: [0.25, 0.6], size: [1, 3], gravity: -20, drag: 2.5 }); // пыль вправо…
+        this.fx.burst(x, y - 1, { count: 22, colors: LAND_DUST, speed: [60, 170], angle: Math.PI, spread: 0.18, life: [0.25, 0.6], size: [1, 3], gravity: -20, drag: 2.5 }); // …и влево
+        this.fx.burst(x, y - 6, { count: 10, colors: SPARK, speed: [50, 150], angle: -Math.PI / 2, spread: 0.9, life: [0.15, 0.35], size: [1, 2], gravity: 200 });
+        this.shake = Math.max(this.shake, 2.8);
+        break;
+      }
+    }
+  }
+
+  /** Тело героя в мире (прямоугольник) — по нему мобы засчитывают броски, укусы и молнии. */
+  private heroBox(): { left: number; right: number; top: number; bottom: number } {
+    const b = this.player.body;
+    return { left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+  }
+
+  /** Атака моба по герою: урон (если засчитан — не неуязвимость и не шанс брони) и, если нужно, сбивание с ног. */
+  private strikeHero(_x: number, _y: number, dirX: number, damage: number, knock: boolean): boolean {
+    if (!this.hurtPlayer(damage, dirX)) return false;
+    if (knock && Armor.get().hp > 0) this.player.knockdown(dirX);
+    return true;
+  }
+
+  /** Связь босса-червя с игрой: герой, урон ему, паучки из тела, тряска. */
+  private wormBossHooks(def: EnemyDef): WormBossHooks {
+    return {
+      hero: () => this.heroBox(),
+      hurt: (amount, dirX, knock) => this.strikeHero(0, 0, dirX, amount, knock),
+      spawnSpider: (x, y, vx, vy) => this.spawnBossSpider(def, x, y, vx, vy),
+      shake: (power) => {
+        this.shake = Math.max(this.shake, power);
+      },
+      fx: this.fx
+    };
+  }
+
+  /** Паучок из тела босса-червя: вылетает из точки, падает на поверхность и бежит на героя; живых не больше max_alive. */
+  private spawnBossSpider(boss: EnemyDef, x: number, y: number, vx: number, vy: number): boolean {
+    for (const sp of this.bossSpiders) if (sp.expired || this.gone.has(sp)) this.bossSpiders.delete(sp);
+    if (this.bossSpiders.size >= (boss.summons?.max_alive ?? BOSS_SPIDER_MAX)) return false;
+    const id = boss.summons?.enemy_ids[0] ?? 'spider';
+    const def = this.enemyDefs.get(id);
+    const rig = def?.rig_id ? RIGS.find((r) => r.id === def.rig_id) : undefined;
+    if (!def || !rig) return false;
+    const spawn = { enemy_id: def.id, sprite_id: def.sprite_variants[0], x: 0, y: 0 };
+    const spider = new Spider(def, spawn, this.level, rig, this.sprites, { scale: BOSS_SPIDER_SCALE, lifetime: BOSS_SPIDER_LIFE, fx: this.fx });
+    spider.launch(x, y, vx, vy);
+    this.spiders.push(spider);
+    this.trackSpider(spider, Math.max(1, Math.round(def.stats.max_health * BOSS_SPIDER_SCALE)), Math.max(1, Math.round(def.stats.contact_damage * BOSS_SPIDER_CONTACT)), BOSS_SPIDER_SIGHT);
+    this.worldLayer.addChildAt(spider.container, this.worldLayer.getChildIndex(this.fx.container));
+    this.bossSpiders.add(spider);
+    return true;
+  }
+
   /** Связь босса-краба с игрой: герой, урон ему, шары, метание мобов, тряска. */
   private crabBossHooks(rig: RigDef): CrabBossHooks {
     const orbDef = rig.crab_boss!.orb;
@@ -1118,7 +1280,7 @@ class GameApp {
       const spider = new Spider(def, spawn, this.level, rig, this.sprites, { scale: 1, lifetime: 30, fx: this.fx });
       spider.launch(x, y, vx, vy);
       this.spiders.push(spider);
-      this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
+      this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage, THROWN_SPIDER_SIGHT);
       this.worldLayer.addChildAt(spider.container, this.worldLayer.getChildIndex(this.fx.container));
       this.thrownSpiders.add(spider);
       return;
@@ -1147,6 +1309,26 @@ class GameApp {
       return true;
     };
     mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+    // бросок воробья: прыгает в героя, на касании — урон
+    mob.heroBox = () => this.heroBox();
+    mob.onLungeHit = (x, y, dirX, dmg) => {
+      if (!this.strikeHero(x, y, dirX, dmg, false)) return false;
+      this.fx.burst(x, y, { count: 6, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+      return true;
+    };
+    mob.onLungeFx = (kind, x, y, k, dirX) => this.lungeFx(kind, x, y, k, dirX);
+    // страж: сходящиеся к глазу искры при зарядке и синяя молния на выстреле
+    mob.onCharge = (x, y, k) => {
+      if (Math.random() > 0.7) return;
+      const a = Math.random() * Math.PI * 2;
+      const r = 16 + 14 * (1 - k);
+      const life = 0.14 + Math.random() * 0.1;
+      this.fx.emit(x + Math.cos(a) * r, y + Math.sin(a) * r, (-Math.cos(a) * r) / life, (-Math.sin(a) * r) / life, BLUE.sparks[Math.floor(Math.random() * BLUE.sparks.length)], life, 1 + k * 1.5, { grow: 0.4 });
+    };
+    mob.onShoot = (x, y, angle, cfg) => {
+      this.enemyBolts.fire(x, y, angle, { speed: cfg.speed, bounces: cfg.bounces, life: cfg.life, damage: cfg.damage });
+      this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, angle, spread: 0.6, speed: [50, 140], life: [0.1, 0.25], size: [1, 2] });
+    };
     mob.leash = this.bindRoom(mob, spawn);
     this.critters.push(mob);
     if (runtime) this.worldLayer.addChildAt(mob.container, this.worldLayer.getChildIndex(this.player.sprite));
@@ -1249,7 +1431,7 @@ class GameApp {
       this.leashOf.set(baby, room);
     }
     this.spiders.push(baby); // слой выбирает матка: сначала ниже себя, потом передний
-    this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))), babyDef.stats.contact_damage);
+    this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))), babyDef.stats.contact_damage, BABY_SIGHT);
     return baby;
   }
 
@@ -1284,24 +1466,91 @@ class GameApp {
     dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
 
     const armor = Armor.get();
+    getSharedOutlineFilter().update(dt, this.scale);
     const terminalOpen = this.terminalUI.isOpen;
     const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
     armor.invulnerable = terminalOpen || this.deathTimer > 0;
     armor.update(dt);
 
-    // 1. Игрок: ввод + физика на тайлах
+    // 1. Игрок и ввод
     const input = this.input.poll();
     const aim = this.aimInWorld();
-    const live: InputState = frozen ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false,
-      specialAttackPressed: false, specialAttackHeld: false, hubMenuPressed: false } : input;
+    let anyHovered = false;
+    let mouseInteracted = false;
+    const pb = this.player.body;
 
-    // Перехват клика по кнопкам терминала пароля (если игрок рядом и кликнул по кнопке на спрайте)
-    if (live.attackPressed && aim && this.passwordTerminal?.onClick(aim.x, aim.y)) {
+    // Терминал брони: подсветка при наведении, клик мыши открывает окно
+    let hoveredTerm: Terminal | null = null;
+    for (const t of this.terminals) {
+      const hovered = !frozen && aim !== null && t.containsPoint(aim.x, aim.y);
+      if (hovered) {
+        hoveredTerm = t;
+        anyHovered = true;
+      }
+      t.update(dt, hovered);
+    }
+
+    if (input.mouseLeftPressed && hoveredTerm && !terminalOpen && this.deathTimer <= 0) {
+      const dist = Math.hypot(pb.x - hoveredTerm.x, pb.y - hoveredTerm.y);
+      if (dist <= 96) {
+        this.terminalUI.open(hoveredTerm.style);
+        mouseInteracted = true;
+      } else {
+        this.fx.burst(hoveredTerm.x, hoveredTerm.y - 30, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+        mouseInteracted = true;
+      }
+    }
+
+    // Объекты уровня: двери, предметы, подставки (подсветка при наведении, взаимодействие по клику мыши)
+    const objRes = this.objects?.update(
+      dt,
+      { x: pb.x, y: pb.y },
+      frozen,
+      aim,
+      input.mouseLeftPressed && !mouseInteracted && !terminalOpen && this.deathTimer <= 0
+    );
+    if (objRes?.hovered) anyHovered = true;
+    if (objRes?.interacted) mouseInteracted = true;
+
+    // Терминал ввода шифра — интерактивный спрайт: кнопки нажимаются кликом прямо на нём (PasswordTerminalEntity)
+    if (!frozen && aim && this.passwordTerminal?.hitTest(aim.x, aim.y) && this.passwordTerminal.isNearbyHero({ x: pb.x, y: pb.y })) anyHovered = true;
+
+    // Металлолом: подсветка и притягивание по клику мыши
+    const lootRes = this.loot.updateMouse(aim, input.mouseLeftPressed && !mouseInteracted, pb.x, pb.y);
+    if (lootRes.hovered) anyHovered = true;
+    if (lootRes.interacted) mouseInteracted = true;
+
+    // Обновление курсора мыши (обычный или курсор взаимодействия)
+    this.setCursor(anyHovered);
+
+    const live: InputState = frozen ? {
+      ...input,
+      horizontal: 0,
+      vertical: 0,
+      jumpPressed: false,
+      jumpHeld: false,
+      attackPressed: false,
+      attackHeld: false,
+      specialAttackPressed: false,
+      specialAttackHeld: false,
+      hubMenuPressed: false,
+      mouseLeftPressed: false,
+      mouseRightPressed: false
+    } : {
+      ...input,
+      attackPressed: mouseInteracted ? false : input.attackPressed,
+      attackHeld: mouseInteracted ? false : input.attackHeld
+    };
+
+    // Перехват клика по кнопкам терминала пароля (если герой рядом и кликнул по кнопке на спрайте)
+    if (input.mouseLeftPressed && aim && this.passwordTerminal?.onClick(aim.x, aim.y)) {
       live.attackPressed = false;
+      live.attackHeld = false;
     }
 
     // луч молнии: ПКМ зажата, броня на руках, есть энергия
     this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
+    this.player.slowMult = this.bosses.reduce((m, boss) => Math.min(m, boss.heroSlow), 1); // неоновый дождь босса-червя: −15 % к скорости
     this.player.update(dt, live, this.level, aim);
 
     // 2. Спец-атака на правую кнопку мыши (ПКМ): без брони на руках — бросок шестерёнки (замах, в момент отпускания из кисти вылетает снаряд, тратит энергию)
@@ -1312,15 +1561,6 @@ class GameApp {
     const bo = this.player.beamOrigin;
     if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
-
-    // Терминал брони: рядом — подсказка, E открывает и закрывает окно
-    const pb = this.player.body;
-    let nearTerm: Terminal | null = null;
-    for (const t of this.terminals) {
-      const near = !frozen && t.reaches(pb.x, pb.y);
-      t.update(dt, near || (terminalOpen && t.reaches(pb.x, pb.y)));
-      if (near) nearTerm = t;
-    }
 
     // Настенный шифр: анимация цифр и проверка обнаружения роботом
     this.cipherCluesView.update(dt);
@@ -1337,16 +1577,9 @@ class GameApp {
       });
     }
 
-    // Терминал ввода шифра: интерактивный спрайт (кнопки нажимаются прямо на спрайте)
+    // Терминал ввода шифра: интерактивный спрайт (курсор — через setCursor выше)
     this.passwordTerminal?.update(dt, { x: pb.x, y: pb.y }, aim);
-    if (this.app?.canvas) {
-      this.app.canvas.style.cursor = (aim && this.passwordTerminal?.hitTest(aim.x, aim.y) && this.passwordTerminal?.isNearbyHero({ x: pb.x, y: pb.y })) ? 'pointer' : 'default';
-    }
 
-    if (input.interactPressed) {
-      if (terminalOpen) this.terminalUI.close();
-      else if (nearTerm && this.deathTimer <= 0) this.terminalUI.open(nearTerm.style);
-    }
     if (this.deathTimer > 0) {
       this.deathTimer -= dt;
       if (this.deathTimer <= 0) this.respawnPlayer();
@@ -1354,14 +1587,13 @@ class GameApp {
     // герой мигает, пока неуязвим после попадания
     this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
-    // Комнаты: в какой стоит герой (от этого зависят мобы, арены и туман); объекты уровня: двери, предметы, подставки
-    const hb = this.player.body;
+    // Комнаты: в какой стоит герой (от этого зависят мобы, арены и туман)
     if (this.rooms.any) {
-      this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
+      this.rooms.updateHero(Math.floor(pb.x / this.level.tileSize), Math.floor((pb.y - 16) / this.level.tileSize));
       const heroRoomIds = [...this.rooms.current].map((idx) => this.rooms.defs[idx]?.id).filter(Boolean) as string[];
       WorldProgression.get().updateHeroRooms(heroRoomIds);
+      this.updateBackgrounds(dt);
     }
-    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && this.deathTimer <= 0, frozen);
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
@@ -1377,6 +1609,7 @@ class GameApp {
     this.resolveStrike();
     this.checkContactDamage(dt);
     this.projectiles.update(dt, this.level, this.hittables(), { x: this.player.body.x, y: this.player.body.y - 28 });
+    this.enemyBolts.update(dt, this.level, this.heroBox(), (x, y, dirX, dmg) => this.strikeHero(x, y, dirX, dmg, false));
     this.loot.update(dt, this.level, this.player);
     this.debris.update(dt, this.level, armor.debrisLife);
     this.boltFx.update(dt);
@@ -1390,7 +1623,8 @@ class GameApp {
       // полоса здоровья: босс-краб или птица, пока бой идёт
       const crab = this.crabBosses.find((b) => b.active);
       const bird = this.birdBosses.find((b) => b.active);
-      this.bossBar.update(dt, crab ? crab.health : bird ? bird.health : null, this.viewW, crab ? 'virus' : 'cobalt');
+      const worm = this.bosses.find((b) => b.active);
+      this.bossBar.update(dt, crab ? crab.health : bird ? bird.health : worm ? worm.health : null, this.viewW, crab ? 'virus' : bird ? 'cobalt' : 'void');
     }
     this.fx.update(dt);
     this.spriteFx.update(dt);
@@ -1426,6 +1660,8 @@ class GameApp {
       // Мягкий свет от сенсоров робота: подсвечивает окружение и коридоры вокруг героя
       extra.push({ x: b.x, y: b.y - 18, r: 80, i: 0.35, c: [0.35, 0.75, 1.0] });
       for (const boss of this.crabBosses) extra.push(...boss.lights());
+      for (const boss of this.bosses) extra.push(...boss.lights());
+      extra.push(...this.enemyBolts.lights);
       this.lighting.extraLights = extra;
     }
     this.lighting?.update();

@@ -14,7 +14,7 @@
     "kind": "walker",
     "draw_facing": -1,
     "stride": 0.16,
-    "sight": 190,
+    "sight": 280,
     "hit": [
       {
         "x": 18,
@@ -87,13 +87,13 @@
       "length": 30,
       "nodes": 11,
       "whip": {
-        "reach": 58,
-        "windup": 0.42,
-        "lash": 0.17,
-        "recover": 0.55,
+        "reach": 64,
+        "windup": 0.16,
+        "lash": 0.09,
+        "recover": 0.28,
         "cooldown": [
-          3.0,
-          6.0
+          0.7,
+          1.5
         ]
       }
     }

@@ -2,12 +2,10 @@ import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
 import type { LevelDef, LevelObjectDef } from '../data/types.ts';
 import { Quest } from '../systems/Quest.ts';
-import { InteractPrompt } from '../ui/InteractPrompt.ts';
+import { getSharedOutlineFilter } from '../effects/OutlineFilter.ts';
 import { itemDef, objectKind } from './placeables.ts';
 import type { ObjectKind } from './placeables.ts';
 
-const REACH_X = 24; // px: на таком расстоянии по горизонтали герой «у объекта»
-const REACH_UP = 56; // px вверх от низа объекта
 const PICK_REACH = 24; // px: на таком расстоянии по горизонтали предмет подбирается
 const HERO_HEIGHT = 58; // px: рост героя — предмет выше головы не берётся
 const LOCKED_TINT = 0xa9b4c4;
@@ -30,7 +28,6 @@ interface Placed {
   kind: ObjectKind;
   node: Container;
   sprite: Sprite;
-  prompt: InteractPrompt | null;
   overlay: Sprite | null; // вставленный предмет на подставке
   t: number;
   isOpen: boolean;
@@ -41,8 +38,8 @@ const prop = (o: LevelObjectDef, key: string): string => String(o.props?.[key] ?
 
 /**
  * Объекты уровня из level.objects (двери, квестовые предметы, подставки): рисуются спрайтом из каталога и работают по поведению:
- *  door — E ведёт к другой двери (запертая — пока нет предмета/флага), pickup — предмет подбирается касанием, socket — E вставляет предмет и ставит флаг,
- *  prop — только обстановка.
+ *  door — клик мыши ведёт к другой двери (запертая — пока нет предмета/флага), pickup — предмет подбирается касанием или кликом,
+ *  socket — клик вставляет предмет и ставит флаг, prop — только обстановка.
  */
 export class LevelObjects {
   public readonly container = new Container();
@@ -61,7 +58,7 @@ export class LevelObjects {
       const sprite = sprites.createSprite(kind.behavior === 'pickup' ? itemDef(prop(def, 'item'))?.sprite_id ?? kind.sprite_id : kind.sprite_id);
       if (def.flip_x) sprite.scale.x = -1;
       node.addChild(sprite);
-      const prompt = kind.behavior === 'door' || kind.behavior === 'socket' ? new InteractPrompt(-this.promptHeight(sprite)) : null;
+
       let overlay: Sprite | null = null;
       if (kind.behavior === 'socket' && kind.overlay) {
         overlay = sprites.createSprite(kind.overlay.sprite_id);
@@ -69,14 +66,9 @@ export class LevelObjects {
         overlay.visible = this.inserted(def);
         node.addChild(overlay);
       }
-      if (prompt) node.addChild(prompt.graphics);
       this.container.addChild(node);
-      this.placed.push({ def, kind, node, sprite, prompt, overlay, t: Math.random() * 6, isOpen: false, openProgress: 0 });
+      this.placed.push({ def, kind, node, sprite, overlay, t: Math.random() * 6, isOpen: false, openProgress: 0 });
     }
-  }
-
-  private promptHeight(sprite: Sprite): number {
-    return Math.round(sprite.texture.height * (sprite.anchor.y || 1)) + 12;
   }
 
   private inserted(def: LevelObjectDef): boolean {
@@ -115,12 +107,64 @@ export class LevelObjects {
   }
 
   /** hero — ноги героя (мир, px). */
-  public update(dt: number, hero: { x: number; y: number }, interact: boolean, frozen: boolean): void {
-    let target: Placed | null = null;
+  public update(
+    dt: number,
+    hero: { x: number; y: number },
+    frozen: boolean,
+    aim: { x: number; y: number } | null = null,
+    mouseClick = false
+  ): { hovered: boolean; interacted: boolean } {
+    let anyHovered = false;
+    let mouseInteracted = false;
+
     for (let i = this.placed.length - 1; i >= 0; i--) {
       const p = this.placed[i];
       p.t += dt;
       const { def, kind } = p;
+
+      const w = p.sprite.texture.width || 32;
+      const h = p.sprite.texture.height || 32;
+      const ax = p.sprite.anchor.x;
+      const ay = p.sprite.anchor.y;
+      const flip = def.flip_x;
+      const minX = def.x + (flip ? -(1 - ax) * w : -ax * w) - 6;
+      const maxX = def.x + (flip ? ax * w : (1 - ax) * w) + 6;
+      const minY = def.y - ay * h - 6;
+      const maxY = def.y + (1 - ay) * h + 6;
+
+      const isInteractive = kind.behavior === 'door' || kind.behavior === 'socket' || kind.behavior === 'pickup';
+      const hovered = !frozen && isInteractive && aim !== null &&
+        aim.x >= minX && aim.x <= maxX && aim.y >= minY && aim.y <= maxY;
+
+      if (hovered) anyHovered = true;
+
+      // Контурная обводка спрайта при наведении
+      if (hovered) {
+        const outline = getSharedOutlineFilter().filter;
+        p.sprite.filters = [outline];
+        if (p.overlay && p.overlay.visible) p.overlay.filters = [outline];
+      } else {
+        if (p.sprite.filters) p.sprite.filters = null;
+        if (p.overlay?.filters) p.overlay.filters = null;
+      }
+
+      // Клик мыши по подсвеченному объекту
+      if (mouseClick && hovered && !mouseInteracted) {
+        mouseInteracted = true;
+        const heroDist = Math.hypot(hero.x - def.x, hero.y - (def.y - h * ay));
+        const MOUSE_REACH = 96;
+        if (heroDist <= MOUSE_REACH) {
+          if (kind.behavior === 'pickup') {
+            this.collect(i);
+            continue;
+          } else {
+            this.use(p);
+          }
+        } else {
+          this.events.denied(def.x, def.y - 20);
+        }
+      }
+
       if (kind.behavior === 'pickup') {
         p.sprite.y = Math.round(Math.sin(p.t * 3) * 2);
         // касание телом героя: предмет в полосе его роста и в пределах PICK_REACH по горизонтали
@@ -140,19 +184,15 @@ export class LevelObjects {
         p.sprite.y = Math.round(-p.openProgress * 52);
         p.sprite.tint = this.doorOpen(def) ? 0xffffff : LOCKED_TINT;
       }
-
-      const near = !frozen && Math.abs(hero.x - def.x) <= REACH_X && hero.y <= def.y + 6 && hero.y >= def.y - REACH_UP;
-      if (kind.behavior === 'socket') p.prompt?.update(dt, near && !this.inserted(def));
-      else p.prompt?.update(dt, near && (!p.isOpen || !!prop(def, 'to_door') || !!prop(def, 'to_level')));
-      if (near && (kind.behavior === 'door' || (kind.behavior === 'socket' && !this.inserted(def)))) {
-        if (!target || Math.abs(hero.x - def.x) < Math.abs(hero.x - target.def.x)) target = p;
-      }
     }
-    if (interact && target) this.use(target);
+
+    return { hovered: anyHovered, interacted: mouseInteracted };
   }
 
   private collect(index: number): void {
     const p = this.placed[index];
+    p.sprite.filters = null;
+    if (p.overlay) p.overlay.filters = null;
     const item = prop(p.def, 'item') || 'item';
     this.quest.add(item);
     this.quest.markTaken(this.level.id, p.def.id);

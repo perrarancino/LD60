@@ -13,8 +13,8 @@
   "width": 56,
   "height": 18,
   "legend": {
-    "#": "loc2",
-    ".": null
+    ".": null,
+    "#": "loc2"
   },
   "rows": [
     "########################################################",
@@ -24,7 +24,7 @@
     "#......................................................#",
     "#......................................................#",
     "#......................................................#",
-    "#.............######...................................#",
+    "#.............########.................................#",
     "#......................................................#",
     "#...................................#########..........#",
     "#......................................................#",
@@ -40,6 +40,123 @@
     "x": 3,
     "y": 15
   },
+  "decor": [
+    {
+      "sprite_id": "deco_pipe_fg_left",
+      "x": 0.5,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_pipe_fg_right",
+      "x": 13.5,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_pipe_fg_left",
+      "x": 51,
+      "y": 16,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_pipe_fg_right",
+      "x": 33,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 8,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 22,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 38,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 15,
+      "y": 8,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 17.5,
+      "y": 8,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 10,
+      "y": 13,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 13.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 26,
+      "y": 12,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 29.5,
+      "y": 12,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 38,
+      "y": 10,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 41.5,
+      "y": 10,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 4,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 10.5,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 22,
+      "y": 16,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 44,
+      "y": 16,
+      "layer": "front"
+    }
+  ],
   "terminals": [
     {
       "sprite_id": "terminal_loc2",
@@ -83,6 +200,27 @@
       "sprite_id": "enemy_ward",
       "x": 12,
       "y": 11
+    }
+  ],
+  "objects": [
+    {
+      "id": "battery_stand_1",
+      "type": "battery_stand",
+      "x": 1136,
+      "y": 512,
+      "props": {
+        "needs_item": "battery",
+        "sets_flag": "power_on"
+      }
+    },
+    {
+      "id": "battery_1",
+      "type": "battery",
+      "x": 561,
+      "y": 490,
+      "props": {
+        "item": "battery"
+      }
     }
   ]
 }

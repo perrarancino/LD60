@@ -2,7 +2,6 @@
   "$schema": "../schemas/level.schema.json",
   "id": "loc4",
   "display_name": "Локация 4 (заготовка)",
-  "debug_key": 4,
   "start_armor": 2,
   "background_id": "bg_textalite",
   "tile_size": 32,

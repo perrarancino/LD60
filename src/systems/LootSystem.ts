@@ -5,6 +5,7 @@ import type { Player } from '../entities/Player.ts';
 import type { Particles } from '../effects/Particles.ts';
 import { Armor, type DropKind } from './ArmorSystem.ts';
 import { SoundManager } from '../audio/SoundManager.ts';
+import { getSharedOutlineFilter } from '../effects/OutlineFilter.ts';
 
 interface DroppedItem {
   sprite: Sprite;
@@ -140,8 +141,52 @@ export class LootSystem {
     }
   }
 
+  /**
+   * Проверка наведения курсора мыши на выпавший металлолом и клика по нему
+   */
+  public updateMouse(
+    aim: { x: number; y: number } | null,
+    mouseClicked: boolean,
+    heroX: number,
+    heroY: number
+  ): { hovered: boolean; interacted: boolean } {
+    if (!aim) return { hovered: false, interacted: false };
+    let hovered = false;
+    let interacted = false;
+
+    for (const it of this.items) {
+      const dist = Math.hypot(aim.x - it.x, aim.y - it.y);
+      if (dist <= 16) {
+        hovered = true;
+        it.sprite.filters = [getSharedOutlineFilter().filter];
+        if (mouseClicked && !interacted) {
+          const heroDist = Math.hypot(heroX - it.x, heroY - it.y);
+          if (heroDist <= 160) {
+            it.magnetized = true;
+            interacted = true;
+            this.fx?.burst(it.x, it.y, {
+              count: 6,
+              colors: [0xfbc53d, 0xffffff],
+              speed: [30, 80],
+              spread: Math.PI * 2,
+              life: [0.1, 0.25],
+              size: [1, 2]
+            });
+          }
+        }
+      } else {
+        if (it.sprite.filters) it.sprite.filters = null;
+      }
+    }
+
+    return { hovered, interacted };
+  }
+
   public clear(): void {
-    for (const it of this.items) it.sprite.destroy();
+    for (const it of this.items) {
+      it.sprite.filters = null;
+      it.sprite.destroy();
+    }
     this.items = [];
   }
 }

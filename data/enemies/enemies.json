@@ -67,7 +67,7 @@
     "stats": {
       "max_health": 18,
       "contact_damage": 6,
-      "movement_speed": 38.0
+      "movement_speed": 48.0
     },
     "behavior_type": "crawler",
     "attack": {
@@ -75,7 +75,7 @@
       "damage": 8,
       "cooldown_seconds": 1.5,
       "range": 14.0,
-      "description": "Кусает героя, если тот оказался рядом с телом."
+      "description": "Заметив героя, бежит к нему по полу, стенам и потолку и кусает при касании."
     },
     "drops": {
       "scrap_parts_min": 1,
@@ -93,16 +93,16 @@
     "rig_id": "worm_rig",
     "stats": {
       "max_health": 40,
-      "contact_damage": 10,
-      "movement_speed": 30.0
+      "contact_damage": 6,
+      "movement_speed": 38.0
     },
     "behavior_type": "burrower",
     "attack": {
-      "name": "Укус",
-      "damage": 12,
+      "name": "Укус-рывок",
+      "damage": 14,
       "cooldown_seconds": 1.8,
-      "range": 18.0,
-      "description": "Кусает зубастой пастью, если герой оказался перед головой."
+      "range": 54.0,
+      "description": "Заметив героя, ползёт к нему, замирает, отводит голову назад и бросается вперёд зубастой пастью."
     },
     "drops": {
       "scrap_parts_min": 1,
@@ -127,18 +127,18 @@
     "attack": {
       "name": "Выплюнуть паучка",
       "damage": 8,
-      "cooldown_seconds": 9.0,
+      "cooldown_seconds": 6.0,
       "range": 200.0,
-      "description": "Выплёвывает паука, который падает на платформы и ползёт по поверхностям."
+      "description": "Плюёт паучками в сторону героя; паучки, едва приземлившись, бегут на него."
     },
     "spawns": {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
       "interval_seconds": [
-        6.0,
-        12.0
+        4.0,
+        8.0
       ],
-      "max_alive": 4,
+      "max_alive": 5,
       "lifetime_seconds": 40.0
     },
     "drops": {
@@ -150,7 +150,7 @@
   {
     "id": "worm_boss",
     "display_name": "Босс: Пожиратель плат (червь-летун)",
-    "lore": "Огромный фиолетовый червь с рогатой головой и дрожащими щупальцами. Летает сквозь плату и камень, как рыба в воде, делает петли и проносится мимо добычи. Тело — десяток звеньев; пока ни на кого не нападает.",
+    "lore": "Огромный фиолетовый червь с рогатой головой и дрожащими щупальцами. Летает сквозь плату и камень, как рыба в воде, делает петли и таранит героя; ненадолго отступает, а потом осыпает арену неоном и паучками.",
     "sprite_variants": [
       "boss_textalite",
       "boss_worm_head"
@@ -163,16 +163,23 @@
     },
     "behavior_type": "flying_worm",
     "attack": {
-      "name": "Таран",
-      "damage": 0,
-      "cooldown_seconds": 0,
-      "range": 0,
-      "description": "Пока не наносит урона: только летает за героем и подставляет части тела под удары."
+      "name": "Таран и паучий дождь",
+      "damage": 22,
+      "cooldown_seconds": 3.0,
+      "range": 600.0,
+      "description": "Серия таранных пролётов сквозь героя (с передышками), затем паучий дождь: выкидывает из тела паучков и летит поверху, распыляя неон; герой замедлен на 15 %."
     },
     "drops": {
       "scrap_parts_min": 3,
       "scrap_parts_max": 5,
       "drop_chance_percent": 100.0
+    },
+    "summons": {
+      "enemy_ids": [
+        "spider"
+      ],
+      "count": 4,
+      "max_alive": 8
     }
   },
   {
@@ -185,17 +192,17 @@
     ],
     "rig_id": "electro_rat_rig",
     "stats": {
-      "max_health": 30,
-      "contact_damage": 6,
-      "movement_speed": 70.0
+      "max_health": 50,
+      "contact_damage": 9,
+      "movement_speed": 90.0
     },
     "behavior_type": "critter",
     "attack": {
-      "name": "Разряд",
-      "damage": 6,
+      "name": "Хлёст хвоста-молнии",
+      "damage": 22,
       "cooldown_seconds": 1.5,
-      "range": 20.0,
-      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+      "range": 56.0,
+      "description": "Подбегает к герою, замахивается хвостом-молнией и хлещет по ногам, сбивая с ног; хвост можно перепрыгнуть."
     },
     "drops": {
       "scrap_parts_min": 1,
@@ -213,17 +220,17 @@
     ],
     "rig_id": "vorobei_rig",
     "stats": {
-      "max_health": 25,
-      "contact_damage": 5,
-      "movement_speed": 60.0
+      "max_health": 40,
+      "contact_damage": 8,
+      "movement_speed": 70.0
     },
     "behavior_type": "critter",
     "attack": {
-      "name": "Клевок",
-      "damage": 5,
-      "cooldown_seconds": 1.5,
-      "range": 16.0,
-      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+      "name": "Бросок",
+      "damage": 13,
+      "cooldown_seconds": 1.4,
+      "range": 95.0,
+      "description": "Заметив героя, подскакивает ближе, приседает и прыгает прямо в него; после броска отскакивает и ждёт перезарядки."
     },
     "drops": {
       "scrap_parts_min": 1,
@@ -241,17 +248,18 @@
     ],
     "rig_id": "ward_rig",
     "stats": {
-      "max_health": 40,
-      "contact_damage": 4,
+      "max_health": 65,
+      "contact_damage": 6,
       "movement_speed": 0.0
     },
     "behavior_type": "critter",
     "attack": {
-      "name": "Взгляд",
-      "damage": 4,
-      "cooldown_seconds": 2.0,
-      "range": 120.0,
-      "description": "Пока не наносит урона: только живёт на локации и подставляется под удары."
+      "name": "Синяя молния",
+      "damage": 16,
+      "cooldown_seconds": 1.8,
+      "range": 340.0,
+      "description": "Заряжает глаз и пускает с упреждением синюю молнию (по две сразу), которая отражается от стен и ищет героя рикошетом.",
+      "projectile_type": "ricochet_bolt"
     },
     "drops": {
       "scrap_parts_min": 1,

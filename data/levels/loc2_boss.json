@@ -2,7 +2,7 @@
   "$schema": "../schemas/level.schema.json",
   "id": "loc2_boss",
   "display_name": "Арена: Бонзай",
-  "debug_key": 5,
+  "debug_key": 4,
   "start_armor": 2,
   "background_id": "bg_loc2",
   "light": {
