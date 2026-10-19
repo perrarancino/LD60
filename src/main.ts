@@ -26,7 +26,9 @@ import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
 import { LevelObjects } from './world/Objects.ts';
-import { Fog, RoomMap } from './world/Rooms.ts';
+import { RoomMap } from './world/Rooms.ts';
+import { SightFog } from './world/SightFog.ts';
+import { Minimap } from './ui/Minimap.ts';
 import { Quest } from './systems/Quest.ts';
 import type { Leash } from './world/Rooms.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
@@ -189,7 +191,8 @@ class GameApp {
   private cipherCluesView!: CipherCluesView;
   private passwordTerminal: PasswordTerminalEntity | null = null;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
-  private fog: Fog | null = null;
+  private fog: SightFog | null = null; // туман по линии видимости (уровень с полем fog)
+  private readonly minimap = new Minimap(); // миникарта слева сверху
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
   private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private lastErrorAt = 0;
@@ -711,10 +714,12 @@ class GameApp {
     this.sceneLayer.removeChild(this.worldLayer);
     this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
-    if (!DEBUG_MODE && Fog.enabled(levelDef.fog, this.rooms)) {
-      this.fog = new Fog(this.rooms, levelDef.fog); // туман войны: вне комнаты героя мир чёрный (закрывает и свет жуков)
+    if (!DEBUG_MODE && levelDef.fog) {
+      this.fog = new SightFog(this.level); // туман: герой видит только то, что перед ним в прямой видимости (закрывает и свет жуков)
       this.app.stage.addChild(this.fog.container);
     }
+    this.minimap.container.visible = !!levelDef.fog || (DEBUG_MODE && this.level.widthTiles > 60);
+    this.app.stage.addChild(this.minimap.container);
     this.app.stage.addChild(this.flashLayer); // вспышка молнии на весь экран
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
     this.app.stage.addChild(this.bossBar.container); // полоса здоровья босса
@@ -1669,7 +1674,11 @@ class GameApp {
     this.lighting?.update();
     if (this.fog) {
       this.fog.container.position.copyFrom(this.worldLayer.position);
-      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, b.x, b.y - 20);
+      this.fog.update(-this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH, { x: b.x, y: b.y - 28 }, this.player.facingDir);
+    }
+    if (this.minimap.container.visible) {
+      this.minimap.update(dt, this.level, this.fog ? this.fog.explored : null, this.fog?.exploredChanged ?? false, { x: b.x, y: b.y - 20 });
+      if (this.fog) this.fog.exploredChanged = false;
     }
     if (this.grade) {
       const span = Math.max(1, this.level.pixelWidth - this.viewW);
