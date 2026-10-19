@@ -26,6 +26,19 @@ const DIG_SPEED = 2.2; // множитель скорости под землё�
 const TUNNEL_MIN = 2; // длина подземного хода в клетках (от входа до выхода)
 const TUNNEL_MAX = 14;
 
+// ---- Укус: заметил героя — ползёт к нему, у цели замирает, отводит голову назад и рывком бросается вперёд
+const SIGHT = 190; // px: на таком расстоянии червь замечает героя и ползёт к нему
+const CHASE_BOOST = 1.7; // во сколько раз быстрее ползёт за героем
+const CHASE_TURN_CD = 0.9; // с: не чаще раза за это время разворачивается к герою
+const CHASE_BEHIND = 18; // px: герой должен остаться позади на столько, чтобы червь развернулся
+const BITE_RANGE = 54; // px: с такого расстояния (до тела героя) червь начинает кусать
+const BITE_WINDUP = 0.42; // с: отвод головы назад
+const BITE_RECOIL = 7; // px: на сколько голова отводится назад
+const BITE_DASH = 0.26; // с: рывок вперёд
+const BITE_SPEED = 6.5; // во сколько раз быстрее обычной скорости рывок
+const BITE_REACH = 10; // px: запас к радиусу головы при проверке укуса
+const BITE_REST = 0.55; // с: после рывка червь «выдыхается»
+
 const AXES: Vec[] = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
 const rand = (r: [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
 
@@ -64,6 +77,21 @@ export class Worm implements PartDamageable {
   /** Комната-«дом»: ползает и выныривает только в её клетках (null — без привязки). */
   public leash: Leash | null = null;
 
+  // Укус
+  /** Тело героя (прямоугольник мира): червь его чует и кусает. */
+  public hero: (() => { left: number; right: number; top: number; bottom: number } | null) | null = null;
+  /** Укус достал героя: (x, y, сторона отбрасывания, урон). Возвращает true, если урон засчитан. */
+  public onBite: ((x: number, y: number, dirX: number, damage: number) => boolean) | null = null;
+  private readonly biteDamage: number;
+  private readonly biteCooldown: number;
+  private biteState: 'none' | 'windup' | 'dash' | 'rest' = 'none';
+  private biteT = 0;
+  private biteCd = rand([0.5, 1.6]);
+  private biteDone = false;
+  private chaseCd = 0;
+  private chasing = false;
+  private recoil = 0; // 0..1: насколько голова отведена назад (только вид)
+
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
     private readonly flock: Worm[] = [] // все черви уровня (включая этого): чтобы не пересекаться
@@ -72,6 +100,8 @@ export class Worm implements PartDamageable {
     if (!seg) throw new Error(`[Worm] в риге "${rig.id}" нет блока segmented`);
     this.radius = seg.thickness / 2;
     this.speed = def.stats.movement_speed;
+    this.biteDamage = def.attack.damage;
+    this.biteCooldown = def.attack.cooldown_seconds;
 
     // Длина: голова + туловища + хвост, всего 3–5 (или как задано в спавне)
     const total = Math.max(seg.length_min, Math.min(seg.length_max, spawn.length ?? Math.round(rand([seg.length_min, seg.length_max]))));
@@ -199,19 +229,24 @@ export class Worm implements PartDamageable {
       this.updateTunnel(dt);
     }
 
-    // Видимая голова догоняет истинную: углы и стыки с туннелем скругляются
+    // Видимая голова догоняет истинную: углы и стыки с туннелем скругляются; перед укусом голова отводится назад
     const kp = 1 - Math.exp(-FOLLOW_POS * dt);
     this.vis.x += (this.p.x - this.vis.x) * kp;
     this.vis.y += (this.p.y - this.vis.y) * kp;
-    this.chain.update(dt, this.vis, this.phase);
+    const back = this.recoil * BITE_RECOIL;
+    this.chain.update(dt, { x: this.vis.x - this.t.x * back, y: this.vis.y - this.t.y * back }, this.phase);
   }
 
   private updateCrawl(dt: number): void {
     this.cornerCooldown -= dt;
     this.burrowTimer -= dt;
 
-    // Ползёт «гусеницей»: скорость пульсирует, в среднем равна movement_speed
+    // Ползёт «гусеницей»: скорость пульсирует, в среднем равна movement_speed; заметив героя — быстрее и к нему
+    this.stepBite(dt);
     let step = this.speed * (1 + INCH_SPEED * Math.sin(this.phase)) * dt;
+    if (this.biteState === 'windup' || this.biteState === 'rest') step = 0;
+    else if (this.biteState === 'dash') step = this.speed * BITE_SPEED * dt;
+    else if (this.chasing) step *= CHASE_BOOST;
 
     // Голова не лезет в тело (своё или чужого червя): стоит, а если не отпускает — зарывается и уходит
     const ahead = { x: this.p.x + this.t.x * (step + 3), y: this.p.y + this.t.y * (step + 3) };
@@ -228,11 +263,70 @@ export class Worm implements PartDamageable {
     this.crawl(step);
     this.p = { x: this.s.x + this.n.x * this.radius, y: this.s.y + this.n.y * this.radius };
 
-    if (this.stuck > STUCK_TIME && !yielding) {
+    if (this.biteState !== 'none') {
+      this.stuck = 0; // в укусе червь не зарывается
+    } else if (this.stuck > STUCK_TIME && !yielding) {
       this.tryBurrow(0, true);
       if (this.state === 'crawl') this.stuck = 0; // не вышло — подождём ещё
-    } else if (this.burrowTimer <= 0) {
+    } else if (this.burrowTimer <= 0 && !this.chasing) {
       this.tryBurrow(step, false);
+    }
+  }
+
+  /** Укус: ползёт к герою, у цели замирает, отводит голову и бросается вперёд по поверхности; задел — урон, потом передышка. */
+  private stepBite(dt: number): void {
+    this.biteCd -= dt;
+    this.chaseCd -= dt;
+    const box = this.leash && !this.leash.hero() ? null : this.hero?.() ?? null;
+    // расстояние от головы до тела героя
+    const gap = box ? Math.hypot(this.p.x - Math.max(box.left, Math.min(this.p.x, box.right)), this.p.y - Math.max(box.top, Math.min(this.p.y, box.bottom))) : Infinity;
+    this.chasing = !!box && gap < SIGHT && this.biteState === 'none';
+    switch (this.biteState) {
+      case 'none': {
+        this.recoil = Math.max(0, this.recoil - dt * 6);
+        if (!box || !this.chasing) break;
+        const cx = (box.left + box.right) / 2;
+        const cy = (box.top + box.bottom) / 2;
+        const along = (cx - this.p.x) * this.t.x + (cy - this.p.y) * this.t.y;
+        if (this.chaseCd <= 0 && along < -CHASE_BEHIND) {
+          this.t = { x: -this.t.x, y: -this.t.y };
+          this.chaseCd = CHASE_TURN_CD;
+        }
+        // герой в пределах укуса и впереди (рывок идёт вдоль поверхности): отводим голову
+        if (gap < BITE_RANGE && along > -4 && this.biteCd <= 0) {
+          this.biteState = 'windup';
+          this.biteT = 0;
+          this.biteDone = false;
+        }
+        break;
+      }
+      case 'windup':
+        this.biteT += dt;
+        this.recoil = Math.min(1, this.biteT / BITE_WINDUP);
+        if (this.biteT >= BITE_WINDUP) {
+          this.biteState = 'dash';
+          this.biteT = 0;
+        }
+        break;
+      case 'dash':
+        this.biteT += dt;
+        this.recoil = Math.max(0, this.recoil - dt * 14); // голова выстреливает вперёд из отвода
+        if (!this.biteDone && box && this.onBite && gap < this.radius + BITE_REACH) {
+          this.biteDone = true;
+          const dirX = (box.left + box.right) / 2 >= this.p.x ? 1 : -1;
+          this.onBite(this.p.x, this.p.y, dirX, this.biteDamage);
+        }
+        if (this.biteT >= BITE_DASH) {
+          this.biteState = 'rest';
+          this.biteT = 0;
+        }
+        break;
+      default:
+        this.biteT += dt;
+        if (this.biteT >= BITE_REST) {
+          this.biteState = 'none';
+          this.biteCd = this.biteCooldown * (0.8 + Math.random() * 0.5);
+        }
     }
   }
 

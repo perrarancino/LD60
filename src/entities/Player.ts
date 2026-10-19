@@ -89,6 +89,8 @@ export class Player {
   public readonly sprite: Container;
   public readonly body = new Body();
   /** Вызывается при прыжке от стены: точка касания стены (мир) и сторона стены — для эффекта дыма. */
+  /** Замедление от врагов (босс-червь распыляет неон): множитель скорости бега, 1 — без замедления. Игра выставляет его каждый кадр. */
+  public slowMult = 1;
   public onWallKick: ((x: number, y: number, wallDir: -1 | 1, along: boolean) => void) | null = null;
   /** Вызывается, когда герой приземлился с большой высоты и теряет равновесие: точка у ног и сила 0..1. */
   public onHardLanding: ((x: number, y: number, power: number) => void) | null = null;
@@ -426,7 +428,7 @@ export class Player {
     this.wallJumpCd -= dt;
 
     if (input.horizontal !== 0) this.face(input.horizontal > 0 ? 1 : -1);
-    const speedMult = Armor.get().speedMult;
+    const speedMult = Armor.get().speedMult * this.slowMult;
     const targetVx = input.horizontal * GAME_CONFIG.PLAYER_SPEED * speedMult;
     if (this.downed) {
       b.vx = 0; // лежит: хитбокс двигает регдолл (updateDowned)

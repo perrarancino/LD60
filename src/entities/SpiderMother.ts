@@ -116,6 +116,8 @@ export class SpiderMother implements Hittable {
   private suckTimer = 0;
   /** Комната-«дом»: плюётся паучками только пока герой в ней (null — без привязки). */
   public leash: Leash | null = null;
+  /** Герой (мир): паучок вылетает в его сторону и сразу бежит к нему. */
+  public target: (() => Vec | null) | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, tileSize: number, rig: RigDef, sprites: SpriteLibrary,
@@ -302,12 +304,14 @@ export class SpiderMother implements Hittable {
 
   /** Выстрел: паучок вылетает изо рта; тело «выдыхает» пружинящим перелётом, лапки раскрываются, брызги, отдача качает нитку. */
   private spit(): void {
-    const sign = Math.random() < 0.5 ? -1 : 1;
+    const mouth = this.bodyPoint(this.mouth);
+    const hero = this.leash && !this.leash.hero() ? null : this.target?.() ?? null;
+    const sign = hero ? (hero.x >= mouth.x ? 1 : -1) : Math.random() < 0.5 ? -1 : 1; // плюёт в сторону героя
     // паучок не отстаёт от качающейся матки: берём скорость пасти из маятника
     const L = this.hangLength;
-    const vx = sign * rand(SPIT_SPEED_X[0], SPIT_SPEED_X[1]) - this.omega * L * Math.cos(this.theta) * 0.7;
+    const speedX = hero ? Math.max(SPIT_SPEED_X[0], Math.min(SPIT_SPEED_X[1] * 1.5, Math.abs(hero.x - mouth.x) * 0.8)) : rand(SPIT_SPEED_X[0], SPIT_SPEED_X[1]);
+    const vx = sign * speedX - this.omega * L * Math.cos(this.theta) * 0.7;
     const vy = rand(SPIT_SPEED_Y[0], SPIT_SPEED_Y[1]);
-    const mouth = this.bodyPoint(this.mouth);
     const baby = this.spawnBaby(mouth.x, mouth.y, vx, vy);
     if (baby) {
       this.babies.push(baby);

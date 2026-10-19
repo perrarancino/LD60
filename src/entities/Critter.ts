@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { CritterAnimDef, CritterDef, EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
+import type { CritterAnimDef, CritterDef, CritterLungeDef, CritterShootDef, EnemyDef, EnemySpawnDef, RigDef } from '../data/types.ts';
 import type { Level } from '../world/Level.ts';
 import { LightningTail } from '../effects/LightningTail.ts';
 import { Body } from './Body.ts';
@@ -27,8 +27,16 @@ const TUCK_OPEN_SPEED = 200; // px/с: на такой скорости паде
 const WHIP_MARGIN = 12; // px: хлестать начинает, подойдя ближе reach на столько
 const WHIP_HIT_R = 11; // px: на таком расстоянии от хвоста герой считается задетым
 const WHIP_GIVE_UP = 5; // с: гонится за героем так долго и не дотянулся — отстаёт на время
-const KEEP_AWAY_NEAR = 64; // px: если герой подошёл ближе этого во время перезарядки хвоста, крыса отступает
-const KEEP_AWAY_FAR = 92; // px: отступает до этого безопасного расстояния, затем останавливается и ждёт
+const KEEP_AWAY_NEAR = 40; // px: если герой подошёл ближе этого во время перезарядки хвоста, крыса отступает
+const KEEP_AWAY_FAR = 60; // px: отступает до этого безопасного расстояния, затем останавливается и ждёт
+const LUNGE_SQUASH = -0.34; // сжатие тела на приседании перед броском
+const LUNGE_RETREAT = 0.6; // с: после броска прыгун отскакивает от героя
+const LUNGE_HOP_RUN = 1.5; // во сколько раз длиннее прыжки-подскоки, когда идёт на героя
+const SHOOT_HEIGHT = 120; // px: стражу видно героя и на такой разнице высот (обычный SEE_HEIGHT мал для стрелка)
+const SHOOT_LEAD = 0.6; // доля упреждения: куда герой дойдёт, пока летит молния (молния медленная)
+const SHOOT_LEAD_MAX = 70; // px: потолок упреждения
+const SHOOT_JITTER = 0.07; // рад: случайный разброс каждой молнии
+const HERO_CHEST = 26; // px: в какую точку над ногами героя целится страж
 
 interface Vec {
   x: number;
@@ -102,6 +110,34 @@ export class Critter implements Hittable {
   /** Комната-«дом»: замечает героя и держится только в ней (null — без привязки). */
   public leash: Leash | null = null;
 
+  // ---- Бросок прыгуна (cfg.lunge): приседание -> прыжок в героя -> отскок
+  private lState: 'none' | 'windup' | 'air' = 'none';
+  private lT = 0;
+  private lungeCd = rand(0.8, 2);
+  private retreatT = 0; // с: после броска отскакивает от героя
+  private lungeHit = false;
+  /** Тело героя (прямоугольник мира) — по нему засчитывается бросок. */
+  public heroBox: (() => { left: number; right: number; top: number; bottom: number } | null) | null = null;
+  /** Бросок достал героя: (x, y, сторона отбрасывания, урон). Возвращает true, если урон засчитан. */
+  public onLungeHit: ((x: number, y: number, dirX: number, damage: number) => boolean) | null = null;
+  private readonly attackDamage: number;
+  private shakeX = 0; // px: дрожь тела на приседании перед броском
+  /** Эффекты броска: wind — приседание (k 0..1), leap — отрыв от земли, trail — полёт, land — приземление (k — сила). x, y — ноги; dirX — куда летит. */
+  public onLungeFx: ((kind: 'wind' | 'leap' | 'trail' | 'land', x: number, y: number, k: number, dirX: number) => void) | null = null;
+
+  // ---- Выстрел стража (cfg.shoot): зарядка глаза -> молния -> пауза
+  private sState: 'idle' | 'charge' = 'idle';
+  private sT = 0;
+  private shootCd = rand(1.2, 2.6);
+  private chargeK = 0; // сглаженная зарядка 0..1 (для анимации стража)
+  private recoil = 0; // отдача выстрела 1 -> 0
+  private heroLast: Vec | null = null;
+  private heroVel: Vec = { x: 0, y: 0 }; // сглаженная скорость героя (для упреждения)
+  /** Зарядка глаза: точка глаза в мире и доля зарядки 0..1 (игра рисует сходящиеся искры). */
+  public onCharge: ((x: number, y: number, k: number) => void) | null = null;
+  /** Выстрел: глаз (мир), курс (рад) и параметры залпа. */
+  public onShoot: ((x: number, y: number, angle: number, cfg: CritterShootDef) => void) | null = null;
+
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
     private readonly target: () => Vec | null // герой (ноги)
@@ -110,6 +146,7 @@ export class Critter implements Hittable {
     if (!cfg) throw new Error(`[Critter] в риге "${rig.id}" нет блока critter`);
     this.cfg = cfg;
     this.speed = def.stats.movement_speed;
+    this.attackDamage = def.attack.damage;
     this.spriteDef = sprites.def(spawn.sprite_id);
     this.anchor = { x: this.spriteDef.frame_width * this.spriteDef.origin.x, y: this.spriteDef.frame_height * this.spriteDef.origin.y };
 
@@ -152,6 +189,13 @@ export class Critter implements Hittable {
    * null — хвоста нет или он вне зоны видимости.
    */
   public tailLight(): { x: number; y: number; r: number; i: number; c: [number, number, number] } | null {
+    const shoot = this.cfg.shoot;
+    if (shoot && this.sState === 'charge') {
+      // страж заряжает выстрел: глаз разгорается синим
+      const eye = this.hitCircles()[0];
+      const k = clamp(this.sT / shoot.windup, 0, 1);
+      return { x: eye.x, y: eye.y, r: 36 + 54 * k, i: 0.3 + 1.1 * k, c: [0.24, 0.91, 0.9] };
+    }
     const tail = this.tail;
     if (!tail || !tail.graphics.visible) return null;
     const p = this.position;
@@ -314,12 +358,16 @@ export class Critter implements Hittable {
   private updateSquash(dt: number): void {
     const grounded = this.cfg.kind === 'hopper' || this.cfg.kind === 'walker' ? this.body.grounded : true;
     if (grounded && !this.wasGrounded && this.cfg.kind === 'hopper') {
-      this.sq = -0.2; // приземлился — сплющило
+      this.sq = Math.min(this.sq, -0.2); // приземлился — сплющило (после броска — сильнее)
       this.sqV = 0;
     }
     this.wasGrounded = grounded;
-    // в воздухе цель — растяжение по скорости, на земле — покой
-    const target = this.cfg.kind === 'hopper' && !grounded ? clamp(-this.body.vy / 1500, -0.07, 0.13) : 0;
+    // в воздухе цель — растяжение по скорости, на земле — покой, на приседании перед броском — сжатие
+    let target = this.cfg.kind === 'hopper' && !grounded ? clamp(-this.body.vy / 1500, -0.07, 0.13) : 0;
+    if (this.lState === 'windup' && this.cfg.lunge) {
+      const u = clamp(this.lT / this.cfg.lunge.windup, 0, 1);
+      target = LUNGE_SQUASH * u * u * (3 - 2 * u);
+    }
     this.sqV += (SQUASH_K * (target - this.sq) - SQUASH_D * this.sqV) * dt;
     this.sq += this.sqV * dt;
   }
@@ -434,25 +482,99 @@ export class Critter implements Hittable {
   private updateHopper(dt: number): void {
     if (this.flyingToss(dt)) return;
     const b = this.body;
+    const lunge = this.cfg.lunge;
     this.hopTimer -= dt;
-    if (b.grounded) {
+    this.lungeCd -= dt;
+    this.retreatT -= dt;
+    const hero = this.heroNear(lunge ? Math.max(lunge.sight, this.cfg.sight ?? 0) : this.cfg.sight ?? 100);
+
+    if (lunge && this.lState === 'windup') {
+      // приседает и смотрит на героя; пока присел — не двигается
+      this.lT += dt;
+      b.vx *= Math.exp(-20 * dt);
+      const h = this.target();
+      if (h && Math.abs(h.x - b.x) > 4) this.setFacing(h.x > b.x ? 1 : -1);
+      const k = clamp(this.lT / lunge.windup, 0, 1);
+      this.shakeX = Math.sin(this.t * 90) * 1.4 * k * k; // перед прыжком мелко дрожит
+      this.onLungeFx?.('wind', b.x, b.y, k, this.facing);
+      if (this.lT >= lunge.windup) this.leap(lunge);
+    } else if (b.grounded && !(lunge && this.lState === 'air')) {
       b.vx *= Math.exp(-14 * dt);
-      if (this.hopTimer <= 0) {
-        const hero = this.heroNear(this.cfg.sight ?? 100);
-        // от героя — прочь; иначе куда придётся (чаще — туда же, куда смотрит)
+      // заметил героя в пределах броска: присесть
+      if (lunge && hero && this.lungeCd <= 0 && Math.abs(hero.x - b.x) <= lunge.range && Math.abs(hero.y - b.y) < 56) {
+        this.lState = 'windup';
+        this.lT = 0;
+        this.lungeHit = false;
+        this.setFacing(hero.x > b.x ? 1 : -1);
+      } else if (this.hopTimer <= 0) {
+        // обычный прыгун от героя — прочь; бросающийся — к нему, пока бросок заряжен, и от него — пока перезаряжается
+        const approach = !!lunge && this.lungeCd <= 0 && this.retreatT <= 0;
         let dir: 1 | -1 = Math.random() < 0.65 ? this.facing : ((-this.facing) as 1 | -1);
-        if (hero) dir = hero.x > b.x ? -1 : 1;
+        if (hero) dir = (hero.x > b.x) === approach ? 1 : -1;
         if (b.blockedX === dir || !this.inRoom(b.x + dir * 40, b.y - 4)) dir = (-dir) as 1 | -1;
         this.setFacing(dir);
         b.vy = -rand(HOP_SPEED[0], HOP_SPEED[1]) * (hero ? 1.2 : 1);
-        b.vx = dir * rand(HOP_RUN[0], HOP_RUN[1]) * (hero ? 1.4 : 1);
+        b.vx = dir * rand(HOP_RUN[0], HOP_RUN[1]) * (hero ? (approach ? LUNGE_HOP_RUN : 1.4) : 1);
         this.hopTimer = rand(HOP_TIME[0], HOP_TIME[1]) * (hero ? 0.5 : 1);
       }
     }
     this.gravity(dt);
+    if (lunge && this.lState === 'air') this.stepLungeAir(dt, lunge);
     this.air = !b.grounded;
     this.move += ((this.air ? 1 : 0) - this.move) * (1 - Math.exp(-MOVE_RATE * dt));
     this.stepPhase += (this.air ? 1 : 0) * dt * 14;
+  }
+
+  /** Прыжок на героя: дуга рассчитана так, чтобы приземлиться там, где герой стоит сейчас (но не дальше max_vx). */
+  private leap(lunge: CritterLungeDef): void {
+    const b = this.body;
+    const h = this.target();
+    const dir: 1 | -1 = h ? (h.x > b.x ? 1 : -1) : this.facing;
+    const flightTime = (2 * lunge.speed_y) / GRAVITY;
+    const dx = h ? h.x - b.x : dir * 60;
+    b.vy = -lunge.speed_y;
+    b.vx = clamp(dx / flightTime, -lunge.max_vx, lunge.max_vx);
+    this.setFacing(dir);
+    this.lState = 'air';
+    this.lT = 0;
+    this.lungeHit = false;
+    this.shakeX = 0;
+    this.sq = 0.3; // мощный толчок: тело вытягивается вверх
+    this.sqV = 4;
+    this.onLungeFx?.('leap', b.x, b.y, 1, dir);
+  }
+
+  /** Бросок в воздухе: задел героя — урон; приземлился — пауза и отскок. */
+  private stepLungeAir(dt: number, lunge: CritterLungeDef): void {
+    const b = this.body;
+    this.lT += dt;
+    if (this.lT > 0.05) this.onLungeFx?.('trail', b.x, b.y - 14, 1, b.vx >= 0 ? 1 : -1);
+    if (!this.lungeHit && this.onLungeHit) {
+      const box = this.heroBox?.();
+      if (box && this.touches(box)) {
+        this.lungeHit = true;
+        this.onLungeHit(b.x, b.y - 10, b.vx >= 0 ? 1 : -1, this.attackDamage);
+      }
+    }
+    if (b.grounded && this.lT > 0.12) {
+      this.sq = -0.36; // тяжёлое приземление: сплющивает
+      this.sqV = 0;
+      this.onLungeFx?.('land', b.x, b.y, 1, b.vx >= 0 ? 1 : -1);
+      this.lState = 'none';
+      this.lungeCd = rand(lunge.cooldown[0], lunge.cooldown[1]);
+      this.retreatT = LUNGE_RETREAT;
+      this.hopTimer = rand(0.25, 0.5);
+    }
+  }
+
+  /** Касается ли тело зверька прямоугольника героя (по кругам попадания). */
+  private touches(box: { left: number; right: number; top: number; bottom: number }): boolean {
+    for (const c of this.hitCircles()) {
+      const nx = clamp(c.x, box.left, box.right);
+      const ny = clamp(c.y, box.top, box.bottom);
+      if (Math.hypot(c.x - nx, c.y - ny) <= c.r * 0.85) return true;
+    }
+    return false;
   }
 
   private gravity(dt: number): void {
@@ -498,7 +620,56 @@ export class Critter implements Hittable {
     this.lookX += (goal - this.lookX) * (1 - Math.exp(-6 * dt));
     if (hero && Math.abs(hero.x - this.pos.x) > 6) this.setFacing(hero.x > this.pos.x ? 1 : -1);
     this.move = 0;
+    if (this.cfg.shoot) this.stepShoot(dt, this.cfg.shoot);
   }
+
+  /** Страж стреляет: видит героя (в дальности, без стены между ними) -> заряжает глаз -> пускает залп молний -> пауза. */
+  private stepShoot(dt: number, shoot: CritterShootDef): void {
+    const h = this.leash && !this.leash.hero() ? null : this.target();
+    // скорость героя для упреждения (сглаженная по кадрам)
+    if (h && this.heroLast) {
+      const k = 1 - Math.exp(-8 * dt);
+      this.heroVel.x += ((h.x - this.heroLast.x) / Math.max(dt, 1e-3) - this.heroVel.x) * k;
+      this.heroVel.y += ((h.y - this.heroLast.y) / Math.max(dt, 1e-3) - this.heroVel.y) * k;
+    }
+    this.heroLast = h ? { x: h.x, y: h.y } : null;
+
+    const eye = this.hitCircles()[0];
+    const chest = h ? { x: h.x, y: h.y - HERO_CHEST } : null;
+    const inRange = !!chest && Math.hypot(chest.x - eye.x, chest.y - eye.y) <= shoot.sight && Math.abs(chest.y - eye.y) < SHOOT_HEIGHT * 2;
+
+    if (this.sState === 'idle') {
+      this.shootCd -= dt;
+      if (this.shootCd <= 0) {
+        if (inRange) { // стена между ними не мешает: молнии отражаются и ищут героя рикошетом
+          this.sState = 'charge';
+          this.sT = 0;
+        } else {
+          this.shootCd = 0.4; // героя нет в дальности — присмотреться позже
+        }
+      }
+      return;
+    }
+    this.sT += dt;
+    this.onCharge?.(eye.x, eye.y, clamp(this.sT / shoot.windup, 0, 1));
+    if (this.sT < shoot.windup) return;
+    this.sState = 'idle';
+    this.recoil = 1; // отдача выстрела: голова вдавливается, ножка качается
+    this.shootCd = rand(shoot.cooldown[0], shoot.cooldown[1]);
+    if (!chest) return;
+    // целится в упреждённую точку: герой дойдёт до неё, пока молния летит
+    const dist = Math.hypot(chest.x - eye.x, chest.y - eye.y);
+    const lead = Math.min(SHOOT_LEAD_MAX, (dist / shoot.speed) * SHOOT_LEAD * Math.hypot(this.heroVel.x, this.heroVel.y));
+    const vlen = Math.hypot(this.heroVel.x, this.heroVel.y) || 1;
+    const ax = chest.x + (this.heroVel.x / vlen) * lead;
+    const ay = chest.y + (this.heroVel.y / vlen) * lead * 0.5;
+    const base = Math.atan2(ay - eye.y, ax - eye.x);
+    for (let i = 0; i < shoot.count; i++) {
+      const off = shoot.count > 1 ? (i / (shoot.count - 1) - 0.5) * shoot.spread : 0;
+      this.onShoot?.(eye.x, eye.y, base + off + (Math.random() * 2 - 1) * SHOOT_JITTER, shoot);
+    }
+  }
+
 
   // ---------- Рисование ----------
 
@@ -509,6 +680,7 @@ export class Critter implements Hittable {
     this.flip += ((this.mirrored() ? -1 : 1) - this.flip) * (dt > 0 ? 1 - Math.exp(-FLIP_RATE * dt) : 1);
     if (Math.abs(this.flip) < 0.06) this.flip = this.flip < 0 ? -0.06 : 0.06; // не схлопывается в нитку
     this.node.scale.set(this.flip * (1 - this.sq * 0.7), 1 + this.sq);
+    this.node.position.x = this.shakeX;
     // птичка кренится по курсу: нос вверх при подъёме
     this.node.rotation = this.cfg.kind === 'flyer' ? Math.sin(this.heading) * 0.4 * (this.mirrored() ? -1 : 1) * -1 : 0;
   }
@@ -521,11 +693,32 @@ export class Critter implements Hittable {
     const k = dt > 0 ? 1 - Math.exp(-PART_SMOOTH * dt) : 1;
     // подбор ног: в воздухе подтянуты, на спуске раскрываются навстречу земле (готовятся к приземлению)
     const tuck = this.cfg.kind === 'hopper' ? airT * clamp(1 - Math.max(0, this.body.vy) / TUCK_OPEN_SPEED, 0, 1) : 0;
-    for (const part of this.parts) {
+    // страж: зарядка и отдача выстрела (глаз приподнимается и дрожит, после выстрела вдавливается, ножка раскачивается)
+    const watcher = this.cfg.kind === 'watcher' && !!this.cfg.shoot;
+    if (watcher) {
+      const goal = this.sState === 'charge' ? clamp(this.sT / this.cfg.shoot!.windup, 0, 1) : 0;
+      this.chargeK += (goal - this.chargeK) * (dt > 0 ? 1 - Math.exp(-14 * dt) : 1);
+      this.recoil = Math.max(0, this.recoil - dt * 3.2);
+    }
+    const ck = this.chargeK;
+    const rc = this.recoil * this.recoil;
+    for (const [pi, part] of this.parts.entries()) {
       let dx = 0;
       let dy = 0;
       let rot = 0;
       let sy = 1;
+      if (watcher) {
+        const head = pi === this.parts.length - 1;
+        if (head) {
+          dy += -3.5 * ck + 4 * rc;
+          dx += Math.sin(this.t * 70) * 0.9 * ck * ck;
+          rot += Math.sin(this.t * 55) * 0.07 * ck * ck + Math.sin(this.t * 22) * 0.1 * rc;
+          sy *= 1 + 0.1 * ck - 0.22 * rc;
+        } else {
+          rot += Math.sin(this.t * 30) * 0.12 * rc - 0.05 * ck;
+          sy *= 1 - 0.05 * ck + 0.08 * rc;
+        }
+      }
       for (const a of part.anims) {
         const ph = (a.phase ?? 0);
         const rate = a.rate ?? 1;

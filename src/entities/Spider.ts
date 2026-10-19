@@ -28,6 +28,11 @@ const SPRINT_BOOST = 1.9; // ускорение ног на поворотах �
 const RUN_TIME: [number, number] = [1.6, 4.2];
 const PAUSE_TIME: [number, number] = [0.5, 1.3];
 
+// ---- Погоня: заметив героя, паук бежит к нему (по поверхностям — полу, стенам, потолку), быстрее обычного
+const CHASE_BOOST = 2.1; // во сколько раз быстрее бежит за героем
+const CHASE_TURN_CD = 0.8; // с: не чаще раза за это время решает, что герой остался позади, и разворачивается
+const CHASE_BEHIND = 24; // px: герой должен остаться позади на столько, чтобы паук развернулся
+
 // ---- Выплюнутый паучок: летит по дуге, потом садится на поверхность и ползёт как обычный
 const GRAVITY = 520; // px/с²
 const FLY_STEP = 2; // px: максимальный шаг интегрирования полёта (чтобы не пролететь сквозь тайл)
@@ -112,6 +117,12 @@ export class Spider implements Hittable {
   public expired = false;
   /** Комната-«дом»: ползает только в её клетках (null — без привязки). */
   public leash: Leash | null = null;
+  /** Герой (ноги, мир): паук, заметивший его в пределах sight, бежит к нему. */
+  public hero: (() => { x: number; y: number } | null) | null = null;
+  /** Дальность, на которой паук замечает героя, px (0 — не гонится). */
+  public sight = 0;
+  private chasing = false;
+  private chaseCd = 0;
   private readonly react = new HitReaction(this.container);
 
   constructor(
@@ -377,7 +388,9 @@ export class Spider implements Hittable {
     this.sprint -= dt;
     this.squash = Math.max(0, this.squash - dt / 0.35);
 
-    // Поведение: бежит рывками, замирает; иногда разворачивается
+    this.updateChase(dt);
+
+    // Поведение: бежит рывками, замирает; иногда разворачивается (гонясь за героем — не останавливается и не разворачивается без причины)
     this.stateTimer -= dt;
     if (this.stateTimer <= 0) {
       this.running = !this.running;
@@ -385,13 +398,13 @@ export class Spider implements Hittable {
     }
     this.turnTimer -= dt;
     if (this.turnTimer <= 0) {
-      this.t = { x: -this.t.x, y: -this.t.y };
+      if (!this.chasing) this.t = { x: -this.t.x, y: -this.t.y };
       this.turnTimer = 4 + Math.random() * 6;
     }
     // плавный разгон и торможение
-    const moveTarget = this.running ? 1 : 0;
-    this.move += (moveTarget - this.move) * (1 - Math.exp(-(this.running ? 9 : 14) * dt));
-    const speedNow = this.speed * this.move;
+    const moveTarget = this.running || this.chasing ? 1 : 0;
+    this.move += (moveTarget - this.move) * (1 - Math.exp(-(this.running || this.chasing ? 9 : 14) * dt));
+    const speedNow = this.speed * this.move * (this.chasing ? CHASE_BOOST : 1);
 
     this.crawl(dt, speedNow);
 
@@ -404,6 +417,23 @@ export class Spider implements Hittable {
     this.applyTransform();
 
     this.animate(dt, speedNow);
+  }
+
+  /** Погоня: герой в пределах sight (и в одной комнате с пауком) — бежим к нему; ушёл у паука из-за спины — разворот (не чаще CHASE_TURN_CD). */
+  private updateChase(dt: number): void {
+    this.chaseCd -= dt;
+    this.chasing = false;
+    if (this.sight <= 0 || !this.hero || (this.leash && !this.leash.hero())) return;
+    const h = this.hero();
+    if (!h) return;
+    const dx = h.x - this.s.x;
+    const dy = h.y - this.s.y;
+    if (Math.hypot(dx, dy) > this.sight) return;
+    this.chasing = true;
+    if (this.chaseCd <= 0 && dx * this.t.x + dy * this.t.y < -CHASE_BEHIND) {
+      this.t = { x: -this.t.x, y: -this.t.y };
+      this.chaseCd = CHASE_TURN_CD;
+    }
   }
 
   /** Движение тела вдоль поверхности, огибание внутренних и внешних углов. */

@@ -198,8 +198,9 @@ export interface EnemyDef {
   rig_id?: string;
   stats: { max_health: number; contact_damage: number; movement_speed: number };
   behavior_type: string;
+  attack: { name: string; damage: number; cooldown_seconds: number; range?: number; projectile_type?: string; description?: string }; // главная атака: damage — урон герою (укус, бросок, таран)
   spawns?: SpawnsDef; // для spawner: кого и как выплёвывает
-  summons?: SummonsDef; // для flying_bird (босс-птица): кого призывает, когда садится на пол
+  summons?: SummonsDef; // для flying_bird (босс-птица): кого призывает, когда садится на пол; для flying_worm: паучки «Паучьего дождя»
 }
 
 /** Призыв босса-птицы: при посадке рядом с ней появляются count существ из enemy_ids (случайно), живых одновременно не больше max_alive. */
@@ -280,6 +281,29 @@ export interface CritterTailDef {
   };
 }
 
+/** Бросок прыгуна на героя (hopper): заметил — подпрыгивает ближе, приседает и прыгает прямо в него; после — отходит и ждёт перезарядки. */
+export interface CritterLungeDef {
+  sight: number; // px: на таком расстоянии по горизонтали замечает героя и идёт на него
+  range: number; // px: с такого расстояния приседает перед броском
+  windup: number; // с: приседание перед прыжком
+  speed_y: number; // px/с: взлёт в прыжке
+  max_vx: number; // px/с: потолок скорости вперёд в прыжке (дальше — недолёт)
+  cooldown: [number, number]; // с: пауза между бросками
+}
+
+/** Стрельба стража (watcher): заряжает глаз и пускает синюю молнию, которая отражается от стен. */
+export interface CritterShootDef {
+  sight: number; // px: дальность, с которой начинает стрелять
+  windup: number; // с: зарядка глаза перед выстрелом
+  cooldown: [number, number]; // с: пауза между залпами
+  count: number; // молний в залпе
+  spread: number; // рад: разброс залпа (вокруг линии на героя)
+  speed: number; // px/с
+  bounces: number; // сколько раз молния отражается от стен
+  life: number; // с: сколько живёт молния
+  damage: number;
+}
+
 /** Небольшое существо из слоёв с процедурной анимацией: ходит (walker), скачет (hopper), летает (flyer) или стоит и следит (watcher). */
 export interface CritterDef {
   kind: 'walker' | 'hopper' | 'flyer' | 'watcher';
@@ -289,6 +313,8 @@ export interface CritterDef {
   hit: Array<{ x: number; y: number; r: number }>; // круги попадания на холсте рига
   parts: CritterPartDef[]; // снизу вверх
   tail?: CritterTailDef; // процедурный хвост-молния поверх деталей
+  lunge?: CritterLungeDef; // hopper: прыгает на героя
+  shoot?: CritterShootDef; // watcher: стреляет отражающимися молниями
 }
 
 export interface SegmentDef {

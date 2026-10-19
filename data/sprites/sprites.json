@@ -1606,7 +1606,7 @@
       "frames": 1,
       "origin": {
         "x": 0.5,
-        "y": 1.0
+        "y": 0.9375
       },
       "hitbox": {
         "offset_x": 5,

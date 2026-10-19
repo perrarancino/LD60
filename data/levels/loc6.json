@@ -2,7 +2,7 @@
   "$schema": "../schemas/level.schema.json",
   "id": "loc6",
   "display_name": "Локация 6: Краб-Ядро",
-  "debug_key": 6,
+  "debug_key": 5,
   "start_armor": 2,
   "background_id": "bg_loc6",
   "light": {

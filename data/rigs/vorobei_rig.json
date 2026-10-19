@@ -14,7 +14,7 @@
     "kind": "hopper",
     "draw_facing": -1,
     "stride": 0.1,
-    "sight": 110,
+    "sight": 200,
     "hit": [
       {
         "x": 32,
@@ -97,7 +97,18 @@
           }
         ]
       }
-    ]
+    ],
+    "lunge": {
+      "sight": 280,
+      "range": 130,
+      "windup": 0.55,
+      "speed_y": 330,
+      "max_vx": 330,
+      "cooldown": [
+        0.9,
+        1.7
+      ]
+    }
   },
   "parts": []
 }
