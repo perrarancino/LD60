@@ -4,7 +4,7 @@
 assets/
 ├── source/            # ИСХОДНИКИ (.aseprite) — редактируем только их
 │   ├── player/        #   player.aseprite            — робот-герой (64x64)
-│   ├── enemies/       #   transistoid_purple/amber   — обычные враги (32x32, 3 кадра)
+│   ├── enemies/       #   spider, worm, vorobei, ward — обычные враги
 │   ├── bosses/
 │   ├── tiles/         #   platform_block.aseprite    — блок-платформа (32x32)
 │   ├── items/         #   запчасти, резисторы
@@ -175,7 +175,7 @@ assets/
 ## Правила
 
 - Категория (подпапка) одинакова в `source/` и `sprites/` и совпадает с полем `category` в реестре спрайтов.
-- Один файл `.aseprite` = один спрайт. Имя файла: `snake_case`, для вариантов врага — суффикс (`transistoid_purple`).
+- Один файл `.aseprite` = один спрайт. Имя файла: `snake_case`, для вариантов и частей — суффикс (`spider_leg1_1`).
 - Статичный файл → один PNG. Анимация → PNG-лист из кадров в одну строку (+ `.json` с длительностями кадров).
 - Игровой код не знает путей к файлам: всё идёт через `id` спрайта из [`data/sprites/sprites.json`](../data/sprites/sprites.json).
 

@@ -16,7 +16,7 @@
       "type": "object",
       "required": ["id", "category", "image", "frame_width", "frame_height", "frames", "origin", "animations"],
       "properties": {
-        "id": { "type": "string", "description": "Уникальный id спрайта, например enemy_transistoid_purple" },
+        "id": { "type": "string", "description": "Уникальный id спрайта, например enemy_spider" },
         "category": {
           "type": "string",
           "enum": ["player", "enemies", "bosses", "tiles", "items", "effects", "ui", "backgrounds", "decor"],

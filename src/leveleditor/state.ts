@@ -98,6 +98,9 @@ export class Editor {
   public selection: Selection = { kind: 'none' };
   public clipboard: TileClip | null = null;
 
+  /** Фильтр волн рогалика: null — показаны все мобы, число — только мобы этой волны (как отдельный слой). */
+  public waveFilter: number | null = null;
+
   // отображение
   public show: Record<LayerKey, boolean> = {
     grid: true, fog: false, rooms: true, collisions: false, labels: true, background: true,
@@ -106,6 +109,10 @@ export class Editor {
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
+  /** Снимок, положенный в историю текущим beginEdit: если правка ничего не изменила, endEdit его убирает. */
+  private pushedSnap: string | null = null;
+  /** Вложенность правок: запись в историю идёт по внешнему beginEdit, а сигнал — по внешнему endEdit. */
+  private editDepth = 0;
   private readonly listeners = new Map<Channel, Set<() => void>>();
   private status = '';
   private statusError = false;
@@ -203,7 +210,10 @@ export class Editor {
     this.dirty = false;
     this.undoStack = [];
     this.redoStack = [];
+    this.pushedSnap = null;
+    this.editDepth = 0;
     this.selection = { kind: 'none' };
+    this.waveFilter = null;
     this.activeRoom = this.def.rooms?.[0]?.id ?? null;
     // старые зоны автодекора (транзисторы, паутина) раскладывались сами — превращаем в обычные предметы, чтобы всё было ручным
     const converted = convertZonesToItems(this.def, (cx, cy) => this.isSolid(cx, cy), (id) => this.atlas.def(id));
@@ -291,14 +301,26 @@ export class Editor {
 
   /** Вызывать перед правкой: запоминает состояние для Ctrl+Z. */
   public beginEdit(): void {
-    const snap = JSON.stringify(this.def);
-    if (this.undoStack[this.undoStack.length - 1] !== snap) this.undoStack.push(snap);
-    if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
-    this.redoStack = [];
+    if (this.editDepth === 0) {
+      const snap = JSON.stringify(this.def);
+      this.pushedSnap = null;
+      if (this.undoStack[this.undoStack.length - 1] !== snap) {
+        this.undoStack.push(snap);
+        if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
+        this.pushedSnap = snap;
+      }
+      this.redoStack = [];
+    }
+    this.editDepth++;
   }
 
-  /** Вызывать после правки. */
+  /** Вызывать после правки. Правка без изменений (клик мимо, рисование поверх того же) в историю не попадает. */
   public endEdit(): void {
+    if (this.editDepth === 0) return; // непарный вызов
+    this.editDepth--;
+    if (this.editDepth > 0) return; // внутренний вызов: правка ещё идёт
+    if (this.pushedSnap !== null && this.pushedSnap === JSON.stringify(this.def)) this.undoStack.pop();
+    this.pushedSnap = null;
     this.dirty = true;
     this.emit('doc');
   }
@@ -327,6 +349,8 @@ export class Editor {
   }
 
   private afterHistory(): void {
+    this.pushedSnap = null; // незакрытая правка не должна трогать историю после отмены
+    this.editDepth = 0;
     this.dirty = true;
     this.selection = { kind: 'none' };
     if (this.activeRoom && !this.room(this.activeRoom)) this.activeRoom = this.rooms[0]?.id ?? null;
@@ -378,6 +402,24 @@ export class Editor {
   public setSelection(sel: Selection): void {
     this.selection = sel;
     this.emit('sel');
+  }
+
+  /** Номер волны моба (по умолчанию 1). */
+  public waveOf(e: EnemySpawnDef): number {
+    return Math.max(1, Math.round(e.wave ?? 1));
+  }
+
+  /** Виден ли моб при текущем фильтре волн: по нему же работает выбор мышью и список «Расставлено». */
+  public waveVisible(e: EnemySpawnDef): boolean {
+    return this.waveFilter === null || this.waveOf(e) === this.waveFilter;
+  }
+
+  /** Показать только одну волну (null — все): как слой, чтобы видеть, где стоят её мобы. Новые мобы идут в неё же. */
+  public setWaveFilter(wave: number | null): void {
+    this.waveFilter = wave;
+    this.setStatus(wave === null ? 'Показаны мобы всех волн' : `Показаны мобы волны ${wave}: новые мобы попадут в неё`);
+    this.emit('view');
+    this.emit('tool');
   }
 
   /** Повернуть/отразить то, что сейчас «в руке» или выделено: кисть тайла, выбранный объект или блок тайлов. */
@@ -639,6 +681,7 @@ export class Editor {
     const spawn: EnemySpawnDef = { enemy_id: a.def.id, sprite_id: a.sprite_id, x: cx, y: cy };
     if (a.def.behavior_type === 'crawler') spawn.surface = this.autoSurface(cx, cy);
     if (a.def.behavior_type === 'spawner') spawn.anchor_y = -2;
+    if (this.waveFilter !== null && this.waveFilter > 1) spawn.wave = this.waveFilter; // ставим в ту волну, что сейчас показана
     this.def.enemies.push(spawn);
     this.endEdit();
     this.setSelection({ kind: 'enemy', index: this.def.enemies.length - 1 });

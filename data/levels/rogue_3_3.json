@@ -30,46 +30,6 @@
     "x": 2,
     "y": 12
   },
-  "decor": [
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 22.5,
-      "y": 9,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 15.5,
-      "y": 9,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 22.5,
-      "y": 13,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_right",
-      "x": 12.5,
-      "y": 5,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_left",
-      "x": 5.5,
-      "y": 13,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 20.5,
-      "y": 1,
-      "layer": "back"
-    }
-  ],
   "objects": [
     {
       "id": "door_in",

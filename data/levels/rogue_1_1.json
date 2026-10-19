@@ -40,60 +40,6 @@
     "x": 3,
     "y": 13
   },
-  "decor": [
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 25.5,
-      "y": 14,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 26.5,
-      "y": 8,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 14.5,
-      "y": 5,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 12.5,
-      "y": 1,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 25.5,
-      "y": 9,
-      "layer": "back"
-    }
-  ],
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 448
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 912,
-      "y": 448,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "enemies": [
     {
       "enemy_id": "spider",
@@ -143,20 +89,6 @@
       "x": 13,
       "y": 6,
       "surface": "ceiling"
-    },
-    {
-      "enemy_id": "transistoid",
-      "sprite_id": "enemy_transistoid_purple",
-      "x": 17,
-      "y": 13,
-      "wave": 2
-    },
-    {
-      "enemy_id": "transistoid",
-      "sprite_id": "enemy_transistoid_purple",
-      "x": 24,
-      "y": 7,
-      "wave": 2
     },
     {
       "enemy_id": "spider",

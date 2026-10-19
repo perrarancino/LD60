@@ -92,7 +92,6 @@ class EditorApp {
       // Загружаем начальный уровень (по URL параметру ?level=... или первый доступный)
       const urlLevel = new URLSearchParams(window.location.search).get('level');
       const targetLvl = (urlLevel ? this.config?.levels?.find(l => l.filename === urlLevel || l.data.id === urlLevel) : undefined)
-        ?? this.config?.levels?.find(l => l.filename === 'test_level.json')
         ?? this.config?.levels?.[0];
 
       if (targetLvl) {

@@ -81,7 +81,7 @@ export class Panels {
     const dataTabs: Tab[] = ['rooms', 'level'];
     const key = dataTabs.includes(this.tab)
       ? ''
-      : `${this.tab}|${ed.brushTile}|${JSON.stringify(ed.brushXf)}|${ed.armedDecor?.sprite_id}|${ed.armedThread?.kind}|${ed.armedEnemy?.sprite_id}|${ed.armedObject?.type}|${ed.tool}|${ed.placeFlipX}${ed.placeFlipY}|${JSON.stringify(ed.selection)}|${ed.def.decor?.length}|${ed.def.threads?.length}|${ed.def.enemies.length}|${ed.def.objects?.length}|${ed.def.terminals?.length}|${this.tab === 'tiles' ? 0 : ed.rev}`;
+      : `${this.tab}|${ed.brushTile}|${JSON.stringify(ed.brushXf)}|${ed.armedDecor?.sprite_id}|${ed.armedThread?.kind}|${ed.armedEnemy?.sprite_id}|${ed.armedObject?.type}|${ed.tool}|${ed.placeFlipX}${ed.placeFlipY}|${JSON.stringify(ed.selection)}|${ed.def.decor?.length}|${ed.def.threads?.length}|${ed.def.enemies.length}|${ed.def.objects?.length}|${ed.def.terminals?.length}|w${ed.waveFilter}|${this.tab === 'tiles' ? 0 : ed.rev}`;
     if (key && key === this.lastKey) return;
     this.lastKey = key;
     clear(this.bodyEl);
@@ -116,7 +116,11 @@ export class Panels {
     for (const kind of kinds) {
       if (kind === 'decor') (def.decor ?? []).forEach((d, i) => rows.push({ kind: 'decor', index: i, label: `${ed.decorKind(d.sprite_id)?.label ?? d.sprite_id} · ${Math.round(d.x * ed.ts)}, ${Math.round(d.y * ed.ts)}` }));
       if (kind === 'thread') (def.threads ?? []).forEach((t, i) => rows.push({ kind: 'thread', index: i, label: `${t.kind === 'vine' ? 'Лиана' : 'Нитка'} · ${Math.round(t.x)}, ${Math.round(t.y)}` }));
-      if (kind === 'enemy') def.enemies.forEach((e, i) => rows.push({ kind: 'enemy', index: i, label: `${ed.enemyDef(e.enemy_id)?.display_name ?? e.enemy_id} · ${e.x}, ${e.y}` }));
+      if (kind === 'enemy') def.enemies.forEach((e, i) => {
+        if (!ed.waveVisible(e)) return; // список показывает ту же волну, что и холст
+        const wave = ed.waveOf(e);
+        rows.push({ kind: 'enemy', index: i, label: `${ed.enemyDef(e.enemy_id)?.display_name ?? e.enemy_id} · ${e.x}, ${e.y}${wave > 1 ? ` · волна ${wave}` : ''}` });
+      });
       if (kind === 'object') {
         (def.objects ?? []).forEach((o, i) => rows.push({ kind: 'object', index: i, label: `${ed.objectKind(o.type)?.label ?? o.type} · ${o.id}` }));
         (def.terminals ?? []).forEach((t, i) => rows.push({ kind: 'terminal', index: i, label: `Терминал · ${t.x}, ${t.y}` }));
@@ -206,6 +210,7 @@ export class Panels {
   private mobsPanel(): HTMLElement {
     const ed = this.ed;
     const wrap = h('div', { class: 'panel' });
+    wrap.append(this.waveRow());
     const placeable = ed.project.enemies.filter((e) => e.sprite_variants.length > 0);
     const groups: Array<[string, EnemyDef[]]> = [
       ['Мобы', placeable.filter((e) => !['flying_worm', 'flying_bird', 'crab_boss'].includes(e.behavior_type))],
@@ -229,6 +234,32 @@ export class Panels {
     if (outside.length) wrap.append(h('p', { class: 'warn' }, `Вне комнат: ${outside.length}`));
     wrap.append(this.placedList(['enemy']));
     return wrap;
+  }
+
+  /** Волны рогалика: клик по номеру показывает только мобы этой волны; «+» — волну дальше (сколько угодно). */
+  private waveRow(): HTMLElement {
+    const ed = this.ed;
+    const counts = new Map<number, number>();
+    for (const e of ed.def.enemies) counts.set(ed.waveOf(e), (counts.get(ed.waveOf(e)) ?? 0) + 1);
+    const last = Math.max(1, ...counts.keys());
+    const row = h('div', { class: 'wave-row' });
+    const chip = (label: string, active: boolean, title: string, onclick: () => void): HTMLElement =>
+      h('button', { class: `btn small wave-chip${active ? ' on' : ''}`, title, onclick }, label);
+    row.append(chip('Все', ed.waveFilter === null, 'Показать мобы всех волн', () => ed.setWaveFilter(null)));
+    for (let n = 1; n <= last; n++) {
+      const count = counts.get(n) ?? 0;
+      row.append(chip(`${n}${count ? `·${count}` : ''}`, ed.waveFilter === n,
+        count ? `Только волна ${n}: мобов ${count}` : `Пустая волна ${n}: поставьте мобов — они попадут в неё`,
+        () => ed.setWaveFilter(ed.waveFilter === n ? null : n)));
+    }
+    row.append(chip(`+${last + 1}`, ed.waveFilter === last + 1, `Новая волна ${last + 1}: поставьте мобов — они попадут в неё`,
+      () => ed.setWaveFilter(ed.waveFilter === last + 1 ? null : last + 1)));
+    return h('div', { class: 'group' },
+      h('div', { class: 'group-title' }, 'Волны'),
+      row,
+      h('small', {}, ed.waveFilter === null
+        ? 'Мобы всех волн. Клик по номеру — показать только эту волну.'
+        : `Показана волна ${ed.waveFilter}; новые мобы попадут в неё.`));
   }
 
   // ---------- Объекты ----------
@@ -452,8 +483,8 @@ export class Panels {
     if (def?.behavior_type === 'flying_worm') {
       wrap.append(field('Длина', numberInput(e.length ?? 10, (v) => ed.edit(() => { e.length = Math.max(3, Math.round(v)); }), { min: 3 })));
     }
-    wrap.append(field('Волна (рогалик)', numberInput(e.wave ?? 1, (v) => ed.edit(() => { const w = Math.max(1, Math.min(9, Math.round(v))); if (w > 1) e.wave = w; else delete e.wave; }), { min: 1, max: 9 }),
-      'Следующая волна выходит, когда погибли все враги предыдущей; 1 — враги есть сразу'));
+    wrap.append(field('Волна (рогалик)', numberInput(e.wave ?? 1, (v) => ed.edit(() => { const w = Math.max(1, Math.round(v)); if (w > 1) e.wave = w; else delete e.wave; }), { min: 1 }),
+      'Любой номер: следующая волна выходит, когда погибли все враги предыдущей; 1 — враги есть сразу'));
     if (ed.rooms.length) {
       const auto = roomsAt(ed.def, e.x, e.y)[0];
       wrap.append(field('Комната', select(e.room ?? '', [['', auto ? `авто · ${auto.name}` : 'авто · вне комнат'], ...ed.rooms.map((r): [string, string] => [r.id, r.name])], (v) => ed.edit(() => { if (v) e.room = v; else delete e.room; })),

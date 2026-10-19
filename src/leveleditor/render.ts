@@ -105,11 +105,11 @@ export function pickEntity(ed: Editor, wx: number, wy: number, only?: readonly E
   const allow = (k: EntityKind) => (!only || only.includes(k));
   const sp = def.player_spawn;
   if (!only && ed.visible('spawn') && wx >= sp.x * ts && wx <= (sp.x + 1) * ts && wy >= sp.y * ts && wy <= (sp.y + 1) * ts) return { kind: 'spawn', index: 0 };
-  const scan = (kind: EntityKind, count: number, pad = 0) => {
-    for (let i = count - 1; i >= 0; i--) if (ed.visible(kind, i) && inside(entityBox(ed, kind, i), Math.max(pad, pad ? 8 / ed.view.zoom : 0))) return { kind, index: i };
+  const scan = (kind: EntityKind, count: number, pad = 0, ok?: (i: number) => boolean) => {
+    for (let i = count - 1; i >= 0; i--) if (ed.visible(kind, i) && (!ok || ok(i)) && inside(entityBox(ed, kind, i), Math.max(pad, pad ? 8 / ed.view.zoom : 0))) return { kind, index: i };
     return null;
   };
-  return (allow('enemy') ? scan('enemy', def.enemies.length) : null)
+  return (allow('enemy') ? scan('enemy', def.enemies.length, 0, (i) => ed.waveVisible(def.enemies[i])) : null)
     ?? (allow('object') ? scan('object', def.objects?.length ?? 0) : null)
     ?? (allow('terminal') ? scan('terminal', def.terminals?.length ?? 0) : null)
     ?? (allow('thread') ? scan('thread', def.threads?.length ?? 0, 3) : null)
@@ -308,6 +308,7 @@ function drawObjects(ctx: CanvasRenderingContext2D, ed: Editor): void {
 function drawEnemies(ctx: CanvasRenderingContext2D, ed: Editor): void {
   const ts = ed.ts;
   for (const e of ed.def.enemies) {
+    if (!ed.waveVisible(e)) continue; // показана только выбранная волна
     const spot = enemySpot(ed, e);
     const def = ed.enemyDef(e.enemy_id);
     if (def?.behavior_type === 'spawner') {
@@ -324,10 +325,10 @@ function drawEnemies(ctx: CanvasRenderingContext2D, ed: Editor): void {
     ctx.strokeStyle = 'rgba(248, 113, 113, 0.55)';
     ctx.lineWidth = 1;
     ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
-    if ((e.wave ?? 1) > 1) {
+    if (ed.waveOf(e) > 1 || ed.waveFilter !== null) {
       ctx.fillStyle = '#fbbf24';
       ctx.font = 'bold 10px monospace';
-      ctx.fillText(`волна ${e.wave}`, b.x, b.y + b.h + 10);
+      ctx.fillText(`волна ${ed.waveOf(e)}`, b.x, b.y + b.h + 10);
     }
     if (e.surface && e.surface !== 'floor') {
       ctx.fillStyle = '#f87171';

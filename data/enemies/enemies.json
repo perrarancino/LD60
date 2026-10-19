@@ -1,62 +1,5 @@
 [
   {
-    "id": "transistoid",
-    "display_name": "Транзистоид (маленький паук)",
-    "location_id": "loc_motherboard",
-    "lore": "Полупроводниковый механический паразит. Использует три металлических вывода (эмиттер, базу и коллектор) для быстрого бега по дорожкам платы.",
-    "stats": {
-      "max_health": 30,
-      "contact_damage": 10,
-      "movement_speed": 110.0
-    },
-    "sprite_variants": [
-      "enemy_transistoid_purple",
-      "enemy_transistoid_amber"
-    ],
-    "behavior_type": "jumper",
-    "attack": {
-      "name": "Искровой прыжок",
-      "damage": 12,
-      "cooldown_seconds": 2.2,
-      "range": 120.0,
-      "projectile_type": "none",
-      "description": "Прыгает в сторону игрока и при соприкосновении наносит контактный урон."
-    },
-    "drops": {
-      "scrap_parts_min": 1,
-      "scrap_parts_max": 2,
-      "drop_chance_percent": 70.0
-    }
-  },
-  {
-    "id": "swire",
-    "display_name": "Свайр (таракан)",
-    "location_id": "loc_motherboard",
-    "lore": "Шустрый тараканоподобный дрон-кабельщик. Стремительно сокращает дистанцию и атакует заострёнными контактами.",
-    "stats": {
-      "max_health": 45,
-      "contact_damage": 12,
-      "movement_speed": 130.0
-    },
-    "sprite_variants": [
-      "enemy_swire"
-    ],
-    "behavior_type": "patrol_crawler",
-    "attack": {
-      "name": "Удар лапкой",
-      "damage": 14,
-      "cooldown_seconds": 1.5,
-      "range": 45.0,
-      "projectile_type": "melee_slash",
-      "description": "Подбегает вплотную к игроку и наносит быстрый резкий удар лапкой."
-    },
-    "drops": {
-      "scrap_parts_min": 1,
-      "scrap_parts_max": 2,
-      "drop_chance_percent": 75.0
-    }
-  },
-  {
     "id": "spider",
     "display_name": "Паук-ползун (модель SOIC-8)",
     "lore": "Восьминогий механический паук. Лапки-выводы цепляются за любую поверхность платы: ползает по полу, стенам и потолку, огибая выступы.",
@@ -93,13 +36,13 @@
     "rig_id": "worm_rig",
     "stats": {
       "max_health": 40,
-      "contact_damage": 6,
+      "contact_damage": 3,
       "movement_speed": 41.8
     },
     "behavior_type": "burrower",
     "attack": {
       "name": "Укус-рывок",
-      "damage": 14,
+      "damage": 7,
       "cooldown_seconds": 1.8,
       "range": 54.0,
       "description": "Заметив героя, ползёт к нему, замирает, отводит голову назад и бросается вперёд зубастой пастью."

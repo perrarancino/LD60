@@ -16,7 +16,7 @@ pip install -r tools/aseprite2png/requirements.txt
 
 ```bash
 # один или несколько файлов
-python tools/aseprite2png/aseprite2png.py char.aseprite transistoid.aseprite
+python tools/aseprite2png/aseprite2png.py char.aseprite spider.aseprite
 
 # целая папка, свой каталог вывода
 python tools/aseprite2png/aseprite2png.py ~/Downloads -o assets/sprites

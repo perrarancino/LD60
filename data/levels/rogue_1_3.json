@@ -31,67 +31,14 @@
     "i............................g",
     "g............................e",
     "h.......dacaabbadbcbba.......i",
-    ".......aheegehfffhihfgb.......",
-    "......dghhfifihfhggehgfd......",
+    "i......aheegehfffhihfgb......i",
+    "i.....dghhfifihfhggehgfd.....i",
     "bcddcahiihhfheghiffheihgddccbb"
   ],
   "player_spawn": {
     "x": 2,
     "y": 13
   },
-  "decor": [
-    {
-      "sprite_id": "deco_ram",
-      "x": 13.5,
-      "y": 11,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_ram",
-      "x": 23.5,
-      "y": 13,
-      "layer": "back",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_transistor2",
-      "x": 7.5,
-      "y": 7,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_transistor",
-      "x": 16.5,
-      "y": 11,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 22.5,
-      "y": 1,
-      "layer": "back"
-    }
-  ],
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 16,
-      "y": 448
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 944,
-      "y": 448,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "enemies": [
     {
       "enemy_id": "spider_mother",
@@ -131,8 +78,8 @@
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 11,
-      "y": 3,
+      "x": 17,
+      "y": 11,
       "surface": "floor",
       "length": 5,
       "wave": 2
@@ -141,45 +88,10 @@
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
       "x": 21,
-      "y": 10,
+      "y": 11,
       "surface": "floor",
       "length": 3,
       "wave": 2
-    },
-    {
-      "enemy_id": "swire",
-      "sprite_id": "enemy_swire",
-      "x": 12,
-      "y": 10,
-      "wave": 2
-    },
-    {
-      "enemy_id": "swire",
-      "sprite_id": "enemy_swire",
-      "x": 21,
-      "y": 6,
-      "wave": 2
-    },
-    {
-      "enemy_id": "transistoid",
-      "sprite_id": "enemy_transistoid_amber",
-      "x": 9,
-      "y": 10,
-      "wave": 3
-    },
-    {
-      "enemy_id": "transistoid",
-      "sprite_id": "enemy_transistoid_purple",
-      "x": 18,
-      "y": 3,
-      "wave": 3
-    },
-    {
-      "enemy_id": "transistoid",
-      "sprite_id": "enemy_transistoid_amber",
-      "x": 22,
-      "y": 6,
-      "wave": 3
     },
     {
       "enemy_id": "spider",
@@ -212,6 +124,20 @@
       "y": 10,
       "surface": "floor",
       "wave": 3
+    },
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 26,
+      "y": 2,
+      "anchor_y": -2
+    },
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 4,
+      "y": 3,
+      "anchor_y": -2
     }
   ],
   "rooms": [

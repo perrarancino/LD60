@@ -110,8 +110,8 @@ if (ROGUE) {
 let activeLevelDef: LevelDef = ROGUE
   ? prepareRogueLevel(Run.get().current, LEVELS)
   : ((requestedLevel
-    ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
-    : undefined) ?? (LEVELS.find(l => l.id === 'world_prototype') || LEVELS[0]));
+    ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel))
+    : undefined) ?? LEVELS[0]);
 
 /**
  * Свежая версия уровня с диска: редактор открывает игру с ?live=1, и сервер (vite или exe-редактор) отдаёт уровень, только что сохранённый

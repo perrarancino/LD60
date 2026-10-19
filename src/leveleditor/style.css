@@ -154,6 +154,10 @@ small { color: var(--muted); }
 .layer-row { display: flex; align-items: center; gap: 8px; padding: 3px 2px; cursor: pointer; }
 .layer-row span { flex: 1; }
 .layer-row input { width: 16px; height: 16px; }
+/* ---- волны рогалика ---- */
+.wave-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0 6px; }
+.wave-row .btn.small { min-width: 28px; }
+
 /* ---- список расставленного ---- */
 .placed-list { display: flex; flex-direction: column; gap: 2px; max-height: 190px; overflow-y: auto; margin: 4px 0 8px; }
 .placed-row { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; cursor: pointer; }

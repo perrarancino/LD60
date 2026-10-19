@@ -274,64 +274,6 @@
       }
     },
     {
-      "id": "enemy_transistoid_purple",
-      "category": "enemies",
-      "image": "enemies/transistoid_purple.png",
-      "frame_width": 32,
-      "frame_height": 32,
-      "frames": 3,
-      "origin": {
-        "x": 0.5,
-        "y": 1.0
-      },
-      "hitbox": {
-        "offset_x": 8,
-        "offset_y": 5,
-        "width": 18,
-        "height": 26
-      },
-      "animations": {
-        "idle": {
-          "frames": [
-            0,
-            1,
-            2
-          ],
-          "frame_duration_ms": 100,
-          "loop": true
-        }
-      }
-    },
-    {
-      "id": "enemy_transistoid_amber",
-      "category": "enemies",
-      "image": "enemies/transistoid_amber.png",
-      "frame_width": 32,
-      "frame_height": 32,
-      "frames": 3,
-      "origin": {
-        "x": 0.5,
-        "y": 1.0
-      },
-      "hitbox": {
-        "offset_x": 8,
-        "offset_y": 5,
-        "width": 18,
-        "height": 26
-      },
-      "animations": {
-        "idle": {
-          "frames": [
-            0,
-            1,
-            2
-          ],
-          "frame_duration_ms": 100,
-          "loop": true
-        }
-      }
-    },
-    {
       "id": "tile_platform_block",
       "category": "tiles",
       "image": "tiles/platform_block.png",
@@ -580,32 +522,6 @@
       "animations": {}
     },
     {
-      "id": "deco_pipe_fg_left",
-      "category": "decor",
-      "image": "decor/pipe_fg_left.png",
-      "frame_width": 64,
-      "frame_height": 96,
-      "frames": 1,
-      "origin": {
-        "x": 0.0,
-        "y": 1.0
-      },
-      "animations": {}
-    },
-    {
-      "id": "deco_pipe_fg_right",
-      "category": "decor",
-      "image": "decor/pipe_fg_right.png",
-      "frame_width": 64,
-      "frame_height": 64,
-      "frames": 1,
-      "origin": {
-        "x": 0.0,
-        "y": 1.0
-      },
-      "animations": {}
-    },
-    {
       "id": "deco_drips_hanging",
       "category": "decor",
       "image": "decor/drips_hanging.png",
@@ -630,51 +546,6 @@
         "y": 0.0
       },
       "animations": {}
-    },
-    {
-      "id": "deco_moss_tuft_fg",
-      "category": "decor",
-      "image": "decor/moss_tuft_fg.png",
-      "frame_width": 32,
-      "frame_height": 16,
-      "frames": 1,
-      "origin": {
-        "x": 0.0,
-        "y": 1.0
-      },
-      "animations": {}
-    },
-    {
-      "id": "enemy_swire",
-      "category": "enemies",
-      "image": "enemies/swire.png",
-      "frame_width": 64,
-      "frame_height": 64,
-      "frames": 7,
-      "origin": {
-        "x": 0.5,
-        "y": 1.0
-      },
-      "hitbox": {
-        "offset_x": 10,
-        "offset_y": 20,
-        "width": 44,
-        "height": 44
-      },
-      "animations": {
-        "idle": {
-          "frames": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "frame_duration_ms": 100,
-          "loop": true
-        }
-      }
     },
     {
       "id": "enemy_spider",

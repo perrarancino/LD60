@@ -3,9 +3,9 @@ import { loadProject } from './api.ts';
 import { clear, field, h, numberInput, select, textInput } from './dom.ts';
 import { newLevel } from './model.ts';
 import { Panels } from './panels.ts';
-import { render } from './render.ts';
+import { pickEntity, render } from './render.ts';
 import { Editor } from './state.ts';
-import { CONTENT_LAYERS } from './state.ts';
+import { CONTENT_LAYERS, TOOL_KINDS } from './state.ts';
 import type { LayerKey, ToolId } from './state.ts';
 import { isTyping, Tools } from './tools.ts';
 
@@ -25,10 +25,10 @@ const TOOLS: ToolButton[] = [
   { id: 'rect', key: 'U', icon: '▭', label: 'Прямоугольник', tab: 'tiles', hint: 'Протяжка — залить прямоугольник · Shift — только рамка · СКМ — стереть' },
   { id: 'fill', key: 'G', icon: '◧', label: 'Заливка', tab: 'tiles', hint: 'Клик — залить связную область' },
   { id: 'pick', key: 'I', icon: '⌖', label: 'Пипетка', tab: 'tiles', hint: 'Клик — взять тайл с карты' },
-  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor', hint: 'Клик — поставить · Alt — без привязки · СКМ — удалить · Ctrl+клик — выбрать · X / Y — отразить' },
-  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки', tab: 'decor', hint: 'Клик — закрепить (лиана — по сетке) · протяжка вниз — длина · Alt — свободно · СКМ — удалить' },
-  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы', tab: 'mobs', hint: 'Клик — поставить в клетку · СКМ — удалить · Ctrl+клик — выбрать' },
-  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты', tab: 'objects', hint: 'Клик — поставить · СКМ — удалить · Ctrl+клик — выбрать' },
+  { id: 'decor', key: 'D', icon: '❀', label: 'Декор', tab: 'decor', hint: 'Клик — поставить · Alt — без привязки · СКМ или Delete — удалить под курсором · Ctrl+клик — выбрать · X / Y — отразить' },
+  { id: 'thread', key: 'N', icon: '𝄞', label: 'Нитки', tab: 'decor', hint: 'Клик — закрепить (лиана — по сетке) · протяжка вниз — длина · Alt — свободно · СКМ или Delete — удалить' },
+  { id: 'mob', key: 'M', icon: '☠', label: 'Мобы', tab: 'mobs', hint: 'Клик — поставить в клетку · СКМ или Delete — удалить под курсором · Ctrl+клик — выбрать · волны — во вкладке' },
+  { id: 'object', key: 'O', icon: '⌂', label: 'Объекты', tab: 'objects', hint: 'Клик — поставить · СКМ или Delete — удалить под курсором · Ctrl+клик — выбрать' },
   { id: 'spawn', key: 'S', icon: '⚑', label: 'Старт героя', tab: 'objects', hint: 'Клик — поставить точку появления героя' },
   { id: 'room', key: 'K', icon: '▦', label: 'Комнаты', tab: 'rooms', hint: 'ЛКМ — закрасить комнату · СКМ — стереть · режимы — во вкладке «Комнаты»' }
 ];
@@ -99,7 +99,7 @@ async function start(): Promise<void> {
   const btn = (label: string, title: string, onclick: () => void, cls = '') => h('button', { class: `btn ${cls}`.trim(), title, onclick }, label);
   const undoBtn = btn('↩', 'Отмена (Ctrl+Z)', () => ed.undo(), 'icon');
   const redoBtn = btn('↪', 'Повтор (Ctrl+Y)', () => ed.redo(), 'icon');
-  const saveBtn = btn('💾', 'Сохранить уровень (Ctrl+S)', () => void ed.save(), 'primary icon');
+  const saveBtn = btn('💾', 'Сохранить уровень (Ctrl+S или Enter)', () => void ed.save(), 'primary icon');
   const zoomLabel = h('span', { class: 'zoom-label' }, '100%');
 
   // ---- «Вид»: что показывать. Скрытое не рисуется и не выбирается мышью — чтобы не мешало
@@ -288,17 +288,38 @@ async function start(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     tools.setModifiers(e.altKey);
     redraw();
-    if (isTyping(e)) return;
     const ctrl = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
-    if (ctrl && k === 's') { e.preventDefault(); void ed.save(); return; }
-    if (ctrl && k === 'z') { e.preventDefault(); if (e.shiftKey) ed.redo(); else ed.undo(); return; }
-    if (ctrl && k === 'y') { e.preventDefault(); ed.redo(); return; }
+    const active = document.activeElement as HTMLElement | null;
+    // Сохранение, отмена и повтор — глобальные: работают, даже когда фокус в поле ввода (поле сначала фиксирует значение)
+    if (ctrl && k === 's') { e.preventDefault(); active?.blur(); void ed.save(); return; }
+    if (ctrl && k === 'z') { e.preventDefault(); active?.blur(); if (e.shiftKey) ed.redo(); else ed.undo(); return; }
+    if (ctrl && k === 'y') { e.preventDefault(); active?.blur(); ed.redo(); return; }
+    if (e.key === 'Enter' && !ctrl && !e.altKey && !e.shiftKey && !document.querySelector('dialog[open]')) {
+      e.preventDefault();
+      active?.blur();
+      void ed.save();
+      return;
+    }
+    if (isTyping(e)) return;
     if (ctrl && k === 'c') { e.preventDefault(); ed.copySelection(); return; }
     if (ctrl && k === 'v') { e.preventDefault(); ed.paste(ed.hover.cx, ed.hover.cy); return; }
     if (ctrl && k === 'd') { e.preventDefault(); ed.duplicateSelection(); return; }
     if (ctrl || e.altKey) return;
-    if (e.key === 'Delete' || e.key === 'Backspace') { ed.deleteSelection(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Ничего не выбрано — удаляем то, что под курсором (в инструментах расстановки — только свою категорию)
+      if (ed.selection.kind === 'none' && ed.hover.inside) {
+        const kinds = ed.tool === 'select' ? undefined : TOOL_KINDS[ed.tool];
+        const hit = ed.tool === 'select' || kinds ? pickEntity(ed, ed.hover.wx, ed.hover.wy, kinds) : null;
+        if (hit && hit.kind !== 'spawn') {
+          ed.setSelection({ kind: hit.kind, index: hit.index });
+          ed.deleteSelection();
+          return;
+        }
+      }
+      ed.deleteSelection();
+      return;
+    }
     if (e.key === 'Escape') { ed.setSelection({ kind: 'none' }); if (ed.tool !== 'select') chooseTool('select'); return; }
     if (e.key === 'Home') { ed.fitView(); return; }
     if (e.key === '+' || e.key === '=') { ed.zoomAt(1.25, canvas.width / 2, canvas.height / 2); return; }
@@ -324,7 +345,7 @@ async function start(): Promise<void> {
   // ---- старт
   resizeCanvas();
   const wanted = new URLSearchParams(location.search).get('level');
-  const first = project.levels.find((l) => l.data.id === wanted) ?? project.levels.find((l) => l.data.id === 'test_level') ?? project.levels[0];
+  const first = project.levels.find((l) => l.data.id === wanted) ?? project.levels[0];
   if (!first) {
     ed.setStatus('В data/levels нет уровней — создайте новый.', true);
     openNewLevelDialog();

@@ -37,88 +37,9 @@
     "aaaaaaaaaaaaaaaaaaaaaa"
   ],
   "player_spawn": {
-    "x": 3,
-    "y": 18
+    "x": 16,
+    "y": 21
   },
-  "decor": [
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 15.5,
-      "y": 4,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_pipe_fg_right",
-      "x": 20.5,
-      "y": 4,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_right",
-      "x": 12.5,
-      "y": 22,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_moss_tuft_fg",
-      "x": 4.5,
-      "y": 13,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_left",
-      "x": 7.5,
-      "y": 7,
-      "layer": "front"
-    },
-    {
-      "sprite_id": "deco_pipe_fg_right",
-      "x": 16.5,
-      "y": 16,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_pipe_fg_left",
-      "x": 4.5,
-      "y": 7,
-      "layer": "front",
-      "flip_x": true
-    },
-    {
-      "sprite_id": "deco_cable_bundle",
-      "x": 19.5,
-      "y": 17,
-      "layer": "back"
-    },
-    {
-      "sprite_id": "deco_drips_hanging",
-      "x": 8.5,
-      "y": 1,
-      "layer": "back"
-    }
-  ],
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 608
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 656,
-      "y": 704,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "enemies": [
     {
       "enemy_id": "electro_rat",
@@ -129,47 +50,47 @@
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 15,
+      "x": 13,
       "y": 15
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 5,
-      "y": 3
+      "x": 3,
+      "y": 6
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
       "x": 18,
-      "y": 7
+      "y": 9
     },
     {
       "enemy_id": "ward",
       "sprite_id": "enemy_ward",
       "x": 3,
-      "y": 18,
+      "y": 12,
       "wave": 2
     },
     {
       "enemy_id": "ward",
       "sprite_id": "enemy_ward",
-      "x": 14,
+      "x": 13,
       "y": 3,
       "wave": 2
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 4,
-      "y": 15,
+      "x": 3,
+      "y": 18,
       "wave": 2
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 6,
-      "y": 17,
+      "x": 7,
+      "y": 18,
       "wave": 2
     }
   ],
