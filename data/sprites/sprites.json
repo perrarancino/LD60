@@ -580,6 +580,71 @@
       "animations": {}
     },
     {
+      "id": "deco_pipe_fg_left",
+      "category": "decor",
+      "image": "decor/pipe_fg_left.png",
+      "frame_width": 64,
+      "frame_height": 96,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_pipe_fg_right",
+      "category": "decor",
+      "image": "decor/pipe_fg_right.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_drips_hanging",
+      "category": "decor",
+      "image": "decor/drips_hanging.png",
+      "frame_width": 32,
+      "frame_height": 48,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_cable_bundle",
+      "category": "decor",
+      "image": "decor/cable_bundle.png",
+      "frame_width": 96,
+      "frame_height": 48,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "deco_moss_tuft_fg",
+      "category": "decor",
+      "image": "decor/moss_tuft_fg.png",
+      "frame_width": 32,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 1.0
+      },
+      "animations": {}
+    },
+    {
       "id": "enemy_swire",
       "category": "enemies",
       "image": "enemies/swire.png",
@@ -1290,8 +1355,21 @@
       "id": "ui_cursor",
       "category": "ui",
       "image": "ui/cursor.png",
-      "frame_width": 16,
-      "frame_height": 16,
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "ui_cursor_interact",
+      "category": "ui",
+      "image": "ui/cursor_interact.png",
+      "frame_width": 32,
+      "frame_height": 32,
       "frames": 1,
       "origin": {
         "x": 0.0,

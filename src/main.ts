@@ -44,6 +44,8 @@ import { Debris } from './effects/Debris.ts';
 import { LightningBeam, LightningFx, LIGHTNING_SPARKS } from './effects/Lightning.ts';
 import type { InputState } from './core/InputManager.ts';
 import cursorUrl from '../assets/sprites/ui/cursor.png';
+import cursorInteractUrl from '../assets/sprites/ui/cursor_interact.png';
+import { getSharedOutlineFilter } from './effects/OutlineFilter.ts';
 
 // Загрузка начальных параметров игрока из конфигурационного JSON
 import playerData from '../data/player/player_initial_state.json';
@@ -188,6 +190,17 @@ class GameApp {
   private groundRefY = 0; // высота ног при последнем касании земли
   private cameraReady = false;
   private pointer: { x: number; y: number } | null = null; // курсор в пикселях окна
+  private defaultCursorStyle = `url("${cursorUrl}") 0 0, auto`;
+  private hoverCursorStyle = `url("${cursorInteractUrl}") 0 0, pointer`;
+  private currentCursor = '';
+
+  private setCursor(hovered: boolean): void {
+    const style = hovered ? this.hoverCursorStyle : this.defaultCursorStyle;
+    if (this.currentCursor !== style) {
+      this.currentCursor = style;
+      this.app.canvas.style.cursor = style;
+    }
+  }
 
   constructor() {
     this.app = new Application();
@@ -224,10 +237,9 @@ class GameApp {
     });
 
     this.gameContainer.appendChild(this.app.canvas);
-    const cursorStyle = `url("${cursorUrl}") 0 0, auto`;
-    document.body.style.cursor = cursorStyle;
-    this.gameContainer.style.cursor = cursorStyle;
-    this.app.canvas.style.cursor = cursorStyle;
+    document.body.style.cursor = this.defaultCursorStyle;
+    this.gameContainer.style.cursor = this.defaultCursorStyle;
+    this.setCursor(false);
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
     window.addEventListener('pointermove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
@@ -410,6 +422,7 @@ class GameApp {
       'bullet1',
       'mat_scrap',
       'ui_cursor',
+      'ui_cursor_interact',
       ...(levelDef.terminals ?? []).map((t) => t.sprite_id),
       ...(bgDef ? ParallaxBackground.spriteIds(bgDef) : []),
       heroSpriteId,
@@ -1129,17 +1142,96 @@ class GameApp {
     dt = Math.min(dt, 1 / 30); // защита от «туннелирования» после лагов/вкладки в фоне
 
     const armor = Armor.get();
+    getSharedOutlineFilter().update(dt, this.scale);
     const terminalOpen = this.terminalUI.isOpen;
     const cipherOpen = this.cipherTerminalUI.isOpen;
     const frozen = terminalOpen || cipherOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
     armor.invulnerable = terminalOpen || cipherOpen || this.deathTimer > 0;
     armor.update(dt);
 
-    // 1. Игрок: ввод + физика на тайлах
+    // 1. Игрок и ввод
     const input = this.input.poll();
     const aim = this.aimInWorld();
-    const live: InputState = frozen ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false,
-      specialAttackPressed: false, specialAttackHeld: false, hubMenuPressed: false } : input;
+    let anyHovered = false;
+    let mouseInteracted = false;
+    const pb = this.player.body;
+
+    // Терминал брони: подсветка при наведении, клик мыши открывает окно
+    let hoveredTerm: Terminal | null = null;
+    for (const t of this.terminals) {
+      const hovered = !frozen && aim !== null && t.containsPoint(aim.x, aim.y);
+      if (hovered) {
+        hoveredTerm = t;
+        anyHovered = true;
+      }
+      t.update(dt, hovered);
+    }
+
+    if (input.mouseLeftPressed && hoveredTerm && !terminalOpen && !cipherOpen && this.deathTimer <= 0) {
+      const dist = Math.hypot(pb.x - hoveredTerm.x, pb.y - hoveredTerm.y);
+      if (dist <= 96) {
+        this.terminalUI.open(hoveredTerm.style);
+        mouseInteracted = true;
+      } else {
+        this.fx.burst(hoveredTerm.x, hoveredTerm.y - 30, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+        mouseInteracted = true;
+      }
+    }
+
+    // Терминал ввода шифра (комната Пароль): клик мыши открывает окно
+    const cipherLoc = this.cipherPuzzle.getState().terminalLocation;
+    const cipherDist = aim ? Math.hypot(aim.x - cipherLoc.x, aim.y - cipherLoc.y) : 999;
+    const cipherHovered = !frozen && cipherDist <= (cipherLoc.interactionRadius || 36);
+    if (cipherHovered) anyHovered = true;
+    if (input.mouseLeftPressed && cipherHovered && !terminalOpen && !cipherOpen && this.deathTimer <= 0) {
+      const heroDist = Math.hypot(pb.x - cipherLoc.x, pb.y - cipherLoc.y);
+      if (heroDist <= (cipherLoc.interactionRadius || 48) + 32) {
+        this.cipherTerminalUI.open();
+        mouseInteracted = true;
+      } else {
+        this.fx.burst(cipherLoc.x, cipherLoc.y - 10, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+        mouseInteracted = true;
+      }
+    }
+
+    // Объекты уровня: двери, предметы, подставки (подсветка при наведении, взаимодействие по клику мыши)
+    const objRes = this.objects?.update(
+      dt,
+      { x: pb.x, y: pb.y },
+      frozen,
+      aim,
+      input.mouseLeftPressed && !mouseInteracted && !terminalOpen && !cipherOpen && this.deathTimer <= 0
+    );
+    if (objRes?.hovered) anyHovered = true;
+    if (objRes?.interacted) mouseInteracted = true;
+
+    // Металлолом: подсветка и притягивание по клику мыши
+    const lootRes = this.loot.updateMouse(aim, input.mouseLeftPressed && !mouseInteracted, pb.x, pb.y);
+    if (lootRes.hovered) anyHovered = true;
+    if (lootRes.interacted) mouseInteracted = true;
+
+    // Обновление курсора мыши (обычный или курсор взаимодействия)
+    this.setCursor(anyHovered);
+
+    const live: InputState = frozen ? {
+      ...input,
+      horizontal: 0,
+      vertical: 0,
+      jumpPressed: false,
+      jumpHeld: false,
+      attackPressed: false,
+      attackHeld: false,
+      specialAttackPressed: false,
+      specialAttackHeld: false,
+      hubMenuPressed: false,
+      mouseLeftPressed: false,
+      mouseRightPressed: false
+    } : {
+      ...input,
+      attackPressed: mouseInteracted ? false : input.attackPressed,
+      attackHeld: mouseInteracted ? false : input.attackHeld
+    };
+
     // луч молнии: ПКМ зажата, броня на руках, есть энергия
     this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
     this.player.update(dt, live, this.level, aim);
@@ -1152,15 +1244,6 @@ class GameApp {
     const bo = this.player.beamOrigin;
     if (bo) armor.energy = Math.max(0, armor.energy - armor.beamCost * dt);
     this.beam.update(dt, bo, this.level, this.hittables(), { dps: armor.beamDps, length: armor.beamLength, bounces: armor.beamBounces });
-
-    // Терминал брони: рядом — подсказка, E открывает и закрывает окно
-    const pb = this.player.body;
-    let nearTerm: Terminal | null = null;
-    for (const t of this.terminals) {
-      const near = !frozen && t.reaches(pb.x, pb.y);
-      t.update(dt, near || (terminalOpen && t.reaches(pb.x, pb.y)));
-      if (near) nearTerm = t;
-    }
 
     // Настенный шифр: анимация цифр и проверка обнаружения роботом
     this.cipherCluesView.update(dt);
@@ -1177,15 +1260,6 @@ class GameApp {
       });
     }
 
-    // Терминал ввода шифра (комната Пароль): E открывает и закрывает окно
-    const nearCipherTerm = !frozen && this.cipherPuzzle.isNearTerminal(pb.x, pb.y);
-
-    if (input.interactPressed) {
-      if (terminalOpen) this.terminalUI.close();
-      else if (cipherOpen) this.cipherTerminalUI.close();
-      else if (nearTerm && this.deathTimer <= 0) this.terminalUI.open(nearTerm.style);
-      else if (nearCipherTerm && this.deathTimer <= 0) this.cipherTerminalUI.open();
-    }
     if (this.deathTimer > 0) {
       this.deathTimer -= dt;
       if (this.deathTimer <= 0) this.respawnPlayer();
@@ -1193,10 +1267,8 @@ class GameApp {
     // герой мигает, пока неуязвим после попадания
     this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
-    // Комнаты: в какой стоит герой (от этого зависят мобы и туман); объекты уровня: двери, предметы, подставки
-    const hb = this.player.body;
-    if (this.rooms.any) this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
-    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && !cipherOpen && this.deathTimer <= 0, frozen);
+    // Комнаты: в какой стоит герой (от этого зависят мобы и туман)
+    if (this.rooms.any) this.rooms.updateHero(Math.floor(pb.x / this.level.tileSize), Math.floor((pb.y - 16) / this.level.tileSize));
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);

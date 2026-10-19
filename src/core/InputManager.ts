@@ -10,8 +10,9 @@ export interface InputState {
   attackHeld: boolean;
   specialAttackPressed: boolean;
   specialAttackHeld: boolean;
-  interactPressed: boolean;
   hubMenuPressed: boolean;
+  mouseLeftPressed: boolean;
+  mouseRightPressed: boolean;
 }
 
 /**
@@ -39,6 +40,21 @@ export class InputManager {
       const code = e.button === 0 ? MOUSE_ATTACK : e.button === 2 ? MOUSE_SPECIAL : null;
       if (code) this.keysDown.delete(code);
     });
+
+    // Сброс зажатых клавиш при переключении вкладки, сворачивании или потере фокуса окна (исправление бага залипания)
+    window.addEventListener('blur', () => this.reset());
+    window.addEventListener('focus', () => this.reset());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.reset();
+    });
+  }
+
+  /**
+   * Сброс всех зажатых клавиш и кнопок мыши (при потере фокуса, смене вкладки или экрана)
+   */
+  public reset(): void {
+    this.keysDown.clear();
+    this.keysJustPressed.clear();
   }
 
   public static get(): InputManager {
@@ -76,14 +92,16 @@ export class InputManager {
     const jumpPressed = this.keysJustPressed.has('Space') || this.keysJustPressed.has('KeyW') || this.keysJustPressed.has('ArrowUp');
     const jumpHeld = this.keysDown.has('Space') || this.keysDown.has('KeyW') || this.keysDown.has('ArrowUp');
 
+    const mouseLeftPressed = this.keysJustPressed.has(MOUSE_ATTACK);
+    const mouseRightPressed = this.keysJustPressed.has(MOUSE_SPECIAL);
+
     const attackPressed = this.keysJustPressed.has('KeyJ') || this.keysJustPressed.has('KeyZ') || this.keysJustPressed.has('KeyX') ||
-      this.keysJustPressed.has(MOUSE_ATTACK);
+      mouseLeftPressed;
     const attackHeld = this.keysDown.has('KeyJ') || this.keysDown.has('KeyZ') || this.keysDown.has('KeyX') || this.keysDown.has(MOUSE_ATTACK);
 
-    const specialAttackPressed = this.keysJustPressed.has('KeyK') || this.keysJustPressed.has(MOUSE_SPECIAL);
+    const specialAttackPressed = this.keysJustPressed.has('KeyK') || mouseRightPressed;
     const specialAttackHeld = this.keysDown.has('KeyK') || this.keysDown.has(MOUSE_SPECIAL);
 
-    const interactPressed = this.keysJustPressed.has('KeyE') || this.keysJustPressed.has('KeyF') || this.keysJustPressed.has('Enter');
     const hubMenuPressed = this.keysJustPressed.has('KeyC') || this.keysJustPressed.has('KeyH') || this.keysJustPressed.has('Tab');
 
     // Опрос геймпада при наличии активного подключения
@@ -106,8 +124,9 @@ export class InputManager {
       attackHeld,
       specialAttackPressed,
       specialAttackHeld,
-      interactPressed,
-      hubMenuPressed
+      hubMenuPressed,
+      mouseLeftPressed,
+      mouseRightPressed
     };
   }
 }

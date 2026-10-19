@@ -96,16 +96,21 @@ export class TerminalUI {
     this.root.innerHTML = `<div style="background: ${hex(pal('steel', 0))}f2; border: 3px solid ${t.accent}; box-shadow: 0 0 0 2px #000, 0 0 24px ${t.accent}66; padding: 12px 14px;">
       <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px; border-bottom: 2px solid ${t.accent}55; padding-bottom: 6px;">
         <b style="color:${t.accent}; font-size: 15px; letter-spacing: 1px;">ТЕРМИНАЛ БРОНИ</b>
-        <span><span style="color:${hex(pal('steel', 5))}">⚙</span> <b>${a.scrap}</b> <span style="opacity:.7">металлолом</span></span>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span><span style="color:${hex(pal('steel', 5))}">⚙</span> <b>${a.scrap}</b> <span style="opacity:.7">металлолом</span></span>
+          <button id="term-close-btn" style="background:none; border:none; color:${hex(pal('steel', 5))}; font-size:16px; cursor:pointer; font-weight:bold; line-height:1; padding:0 2px;">✕</button>
+        </div>
       </div>
       ${rows}
       <div id="term-hint" style="min-height: 15px; font-size: 11px; color: ${t.accent2}; margin: 2px 0 6px;">${this.hint}</div>
       <div style="display:flex; justify-content: space-between; font-size: 11px; opacity:.75;">
-        <span>Старая часть отвалится</span><span>[E] / [Esc] — закрыть</span>
+        <span>Старая часть отвалится</span><span>[Esc] или ✕ — закрыть</span>
       </div>
     </div>`;
 
-    this.root.querySelectorAll('button').forEach((b) => {
+    this.root.querySelector('#term-close-btn')?.addEventListener('click', () => this.close());
+
+    this.root.querySelectorAll('button[data-slot]').forEach((b) => {
       const el = b as HTMLButtonElement;
       const slot = el.dataset.slot as Slot;
       const tier = Number(el.dataset.tier);
