@@ -1,0 +1,255 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_1_3",
+  "display_name": "Уровень 1 · комната 3: Гнездо",
+  "background_id": "bg_textalite",
+  "tile_size": 32,
+  "width": 30,
+  "height": 15,
+  "legend": {
+    ".": null,
+    "a": "textalite_5",
+    "b": "textalite_7",
+    "c": "textalite_8",
+    "d": "textalite_6",
+    "e": "textalite_4",
+    "f": "textalite_2",
+    "g": "textalite_3",
+    "h": "textalite_1",
+    "i": "textalite_0"
+  },
+  "rows": [
+    "abbcdcaacbacdbddbbccaaaabccada",
+    "e............................f",
+    "g............................h",
+    "i............................f",
+    "f..........bbccacbc..........g",
+    "g............................g",
+    "h............................f",
+    "f.....dbb............bcb.....g",
+    "g............................h",
+    "i............................g",
+    "g............................e",
+    "h.......dacaabbadbcbba.......i",
+    ".......aheegehfffhihfgb.......",
+    "......dghhfifihfhggehgfd......",
+    "bcddcahiihhfheghiffheihgddccbb"
+  ],
+  "player_spawn": {
+    "x": 2,
+    "y": 13
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_ram",
+      "x": 13.5,
+      "y": 11,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 23.5,
+      "y": 13,
+      "layer": "back",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 7.5,
+      "y": 7,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 16.5,
+      "y": 11,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 22.5,
+      "y": 1,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 16,
+      "y": 448
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 944,
+      "y": 448,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 11,
+      "y": 8,
+      "anchor_y": 4
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 6,
+      "y": 6,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 21,
+      "y": 6,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 9,
+      "y": 10,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 14,
+      "y": 10,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 11,
+      "y": 3,
+      "surface": "floor",
+      "length": 5,
+      "wave": 2
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 21,
+      "y": 10,
+      "surface": "floor",
+      "length": 3,
+      "wave": 2
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 12,
+      "y": 10,
+      "wave": 2
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 21,
+      "y": 6,
+      "wave": 2
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_amber",
+      "x": 9,
+      "y": 10,
+      "wave": 3
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 18,
+      "y": 3,
+      "wave": 3
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_amber",
+      "x": 22,
+      "y": 6,
+      "wave": 3
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 20,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 3
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 10,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 3
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 25,
+      "y": 13,
+      "surface": "floor",
+      "wave": 3
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 19,
+      "y": 10,
+      "surface": "floor",
+      "wave": 3
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Гнездо",
+      "x": 0,
+      "y": 0,
+      "width": 30,
+      "height": 15,
+      "location": 1
+    }
+  ],
+  "fog": false,
+  "grade": {
+    "saturation": 1.08,
+    "contrast": 1.1,
+    "vignette": 0.36,
+    "exposure": 1.02,
+    "gamma": 1.08,
+    "tint": [
+      0.82,
+      1,
+      0.9
+    ],
+    "shadows": [
+      0,
+      0.035,
+      0.02
+    ],
+    "highlights": [
+      0.02,
+      0.06,
+      0.03
+    ]
+  },
+  "rogue": {
+    "clear_gears": 18,
+    "hp_mult": 1
+  }
+}

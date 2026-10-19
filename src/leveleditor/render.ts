@@ -324,6 +324,11 @@ function drawEnemies(ctx: CanvasRenderingContext2D, ed: Editor): void {
     ctx.strokeStyle = 'rgba(248, 113, 113, 0.55)';
     ctx.lineWidth = 1;
     ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+    if ((e.wave ?? 1) > 1) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(`волна ${e.wave}`, b.x, b.y + b.h + 10);
+    }
     if (e.surface && e.surface !== 'floor') {
       ctx.fillStyle = '#f87171';
       ctx.font = '9px monospace';

@@ -1,162 +1,52 @@
 {
-  "$comment": "Забег рогалика: 6 уровней = 3 раза «3 комнаты -> босс». Комнаты собираются из шаблонов room_templates.json, враги — волнами по подборам ниже.",
+  "$comment": "Забег рогалика: уровни проходятся по порядку, без случайности. Каждый уровень — обычный файл в data/levels (правится в редакторе уровней). 6 уровней = трижды «3 комнаты -> босс».",
   "stages": [
-    { "kind": "rooms", "biome": "scrap", "rooms": 3 },
-    { "kind": "boss", "boss_level": "boss_worm", "biome": "scrap" },
-    { "kind": "rooms", "biome": "cobalt", "rooms": 3 },
-    { "kind": "boss", "boss_level": "loc2_boss", "biome": "cobalt" },
-    { "kind": "rooms", "biome": "virus", "rooms": 3 },
-    { "kind": "boss", "boss_level": "loc6", "biome": "virus" }
+    {
+      "kind": "rooms",
+      "levels": [
+        "rogue_1_1",
+        "rogue_1_2",
+        "rogue_1_3"
+      ]
+    },
+    {
+      "kind": "boss",
+      "levels": [
+        "boss_worm"
+      ]
+    },
+    {
+      "kind": "rooms",
+      "levels": [
+        "rogue_3_1",
+        "rogue_3_2",
+        "rogue_3_3"
+      ]
+    },
+    {
+      "kind": "boss",
+      "levels": [
+        "loc2_boss"
+      ]
+    },
+    {
+      "kind": "rooms",
+      "levels": [
+        "rogue_5_1",
+        "rogue_5_2",
+        "rogue_5_3"
+      ]
+    },
+    {
+      "kind": "boss",
+      "levels": [
+        "loc6"
+      ]
+    }
   ],
   "rewards": {
-    "room_gears": [10, 14, 18],
+    "room_gears": 12,
     "boss_gears": 30,
     "heal_between_rooms": 0.4
-  },
-  "biomes": {
-    "scrap": {
-      "name": "Свалка плат",
-      "hp_mult": 1.0,
-      "background_id": "bg_textalite",
-      "tiles": { "top": ["textalite_5", "textalite_6", "textalite_7", "textalite_8"], "fill": ["textalite_0", "textalite_1", "textalite_2", "textalite_3", "textalite_4"] },
-      "grade": { "saturation": 1.08, "contrast": 1.1, "vignette": 0.36, "exposure": 1.02, "gamma": 1.08, "tint": [0.82, 1, 0.9], "shadows": [0, 0.035, 0.02], "highlights": [0.02, 0.06, 0.03] },
-      "decor": {
-        "floor": [["deco_transistor", "front"], ["deco_transistor2", "front"], ["deco_ram", "back"]],
-        "ceiling": [["deco_cable_bundle", "back"]]
-      },
-      "templates": ["hall_a", "hall_c", "hall_e", "bowl_d", "tall_b", "pillars", "cage", "checker"]
-    },
-    "cobalt": {
-      "name": "Блок питания",
-      "hp_mult": 1.4,
-      "background_id": "bg_loc2",
-      "tiles": { "top": ["loc2"], "fill": ["loc2"] },
-      "light": { "rim_color": "#3de9e6", "fog_color": "#22c5cd" },
-      "decor": {
-        "floor": [["deco_pipe_fg_left", "front"], ["deco_pipe_fg_right", "front"], ["deco_moss_tuft_fg", "front"]],
-        "ceiling": [["deco_drips_hanging", "back"], ["deco_cable_bundle", "back"]]
-      },
-      "templates": ["wide", "tiers", "trench", "shaft", "bridge", "ziggurat", "towers", "hall_e"]
-    },
-    "virus": {
-      "name": "Заражённое ядро",
-      "hp_mult": 1.9,
-      "background_id": "bg_loc6",
-      "tiles": { "top": ["loc2"], "fill": ["loc2"] },
-      "light": { "rim_color": "#f76bfc", "fog_color": "#9600ca" },
-      "decor": {
-        "floor": [["deco_transistor", "front"], ["deco_transistor2", "front"], ["deco_ram", "back"]],
-        "ceiling": [["deco_cable_bundle", "back"]]
-      },
-      "templates": ["checker", "ziggurat", "towers", "bowl_d", "bridge", "pillars", "trench", "cage", "tall_b"]
-    }
-  },
-  "encounters": {
-    "scrap": [
-      [
-        { "name": "Паучья стая", "waves": [
-          [["spider", 5, "floor"], ["spider", 2, "ceiling"]],
-          [["transistoid", 2, "floor"], ["spider", 3, "floor"]]
-        ] },
-        { "name": "Прыгуны", "waves": [
-          [["transistoid", 3, "floor"]],
-          [["spider", 2, "ceiling"], ["spider", 2, "floor"], ["transistoid", 2, "floor"]]
-        ] }
-      ],
-      [
-        { "name": "Засада из-под пола", "waves": [
-          [["worm", 2, "floor"], ["spider", 4, "floor"]],
-          [["swire", 2, "floor"], ["transistoid", 2, "floor"]]
-        ] },
-        { "name": "Патруль", "waves": [
-          [["swire", 3, "floor"]],
-          [["worm", 2, "floor"], ["transistoid", 2, "floor"], ["spider", 3, "ceiling"]]
-        ] }
-      ],
-      [
-        { "name": "Гнездо", "waves": [
-          [["spider_mother", 1, "hang"], ["spider", 4, "floor"]],
-          [["worm", 2, "floor"], ["swire", 2, "floor"]],
-          [["transistoid", 3, "floor"], ["spider", 2, "ceiling"], ["spider", 2, "floor"]]
-        ] },
-        { "name": "Облава", "waves": [
-          [["swire", 3, "floor"], ["transistoid", 2, "floor"]],
-          [["spider_mother", 1, "hang"], ["worm", 2, "floor"]],
-          [["spider", 3, "ceiling"], ["spider", 3, "floor"], ["swire", 2, "floor"]]
-        ] }
-      ]
-    ],
-    "cobalt": [
-      [
-        { "name": "Хвосты", "waves": [
-          [["electro_rat", 2, "floor"], ["vorobei", 2, "air"]],
-          [["ward", 2, "high"], ["vorobei", 2, "air"]]
-        ] },
-        { "name": "Стая", "waves": [
-          [["vorobei", 4, "air"]],
-          [["electro_rat", 2, "floor"], ["ward", 1, "high"], ["vorobei", 1, "air"]]
-        ] }
-      ],
-      [
-        { "name": "Перекрёстный огонь", "waves": [
-          [["ward", 2, "high"], ["vorobei", 3, "air"]],
-          [["electro_rat", 3, "floor"], ["spider", 2, "ceiling"]]
-        ] },
-        { "name": "Разряд", "waves": [
-          [["electro_rat", 3, "floor"]],
-          [["ward", 2, "high"], ["vorobei", 2, "air"], ["electro_rat", 2, "floor"]]
-        ] }
-      ],
-      [
-        { "name": "Электрошторм", "waves": [
-          [["electro_rat", 3, "floor"], ["vorobei", 3, "air"]],
-          [["ward", 2, "high"], ["electro_rat", 3, "floor"]],
-          [["spider_mother", 1, "hang"], ["vorobei", 4, "air"], ["electro_rat", 2, "floor"]]
-        ] },
-        { "name": "Крепость", "waves": [
-          [["ward", 3, "high"], ["electro_rat", 2, "floor"]],
-          [["vorobei", 4, "air"], ["spider", 3, "ceiling"]],
-          [["electro_rat", 3, "floor"], ["ward", 2, "high"], ["worm", 2, "floor"]]
-        ] }
-      ]
-    ],
-    "virus": [
-      [
-        { "name": "Заражение", "waves": [
-          [["electro_rat", 3, "floor"], ["transistoid", 3, "floor"]],
-          [["ward", 2, "high"], ["spider", 4, "floor"], ["swire", 2, "floor"]]
-        ] },
-        { "name": "Рой", "waves": [
-          [["vorobei", 4, "air"], ["swire", 3, "floor"]],
-          [["spider", 3, "ceiling"], ["spider", 4, "floor"], ["electro_rat", 2, "floor"]]
-        ] }
-      ],
-      [
-        { "name": "Смешанный отряд", "waves": [
-          [["swire", 2, "floor"], ["electro_rat", 2, "floor"], ["vorobei", 2, "air"]],
-          [["ward", 2, "high"], ["transistoid", 3, "floor"], ["worm", 2, "floor"]],
-          [["electro_rat", 3, "floor"], ["vorobei", 3, "air"], ["spider", 3, "ceiling"]]
-        ] },
-        { "name": "Гнездовье", "waves": [
-          [["spider_mother", 1, "hang"], ["spider", 5, "floor"], ["worm", 2, "floor"]],
-          [["ward", 2, "high"], ["swire", 3, "floor"]],
-          [["vorobei", 4, "air"], ["electro_rat", 3, "floor"]]
-        ] }
-      ],
-      [
-        { "name": "Последний рубеж", "waves": [
-          [["electro_rat", 3, "floor"], ["swire", 3, "floor"], ["vorobei", 3, "air"]],
-          [["ward", 3, "high"], ["transistoid", 3, "floor"], ["worm", 2, "floor"]],
-          [["spider_mother", 1, "hang"], ["electro_rat", 3, "floor"], ["vorobei", 3, "air"], ["swire", 2, "floor"]],
-          [["spider", 4, "ceiling"], ["spider", 4, "floor"], ["ward", 2, "high"], ["electro_rat", 2, "floor"]]
-        ] },
-        { "name": "Бойня", "waves": [
-          [["swire", 4, "floor"], ["transistoid", 4, "floor"]],
-          [["ward", 3, "high"], ["vorobei", 4, "air"], ["worm", 2, "floor"]],
-          [["spider_mother", 1, "hang"], ["electro_rat", 4, "floor"], ["spider", 4, "floor"]],
-          [["vorobei", 4, "air"], ["swire", 3, "floor"], ["electro_rat", 3, "floor"], ["ward", 2, "high"]]
-        ] }
-      ]
-    ]
   }
 }

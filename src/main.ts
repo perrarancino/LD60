@@ -49,7 +49,7 @@ import { CipherCluesView } from './entities/CipherCluesView.ts';
 import { PasswordTerminalEntity } from './entities/PasswordTerminalEntity.ts';
 import { WorldProgression } from './systems/WorldProgression.ts';
 import { Run } from './systems/Run.ts';
-import { buildRogueLevel } from './roguelike/RoomBuilder.ts';
+import { prepareRogueLevel } from './roguelike/RogueLevels.ts';
 import { CubeTransition } from './ui/CubeTransition.ts';
 import { UpgradeUI } from './ui/UpgradeUI.ts';
 import runData from '../data/roguelike/run.json';
@@ -80,12 +80,16 @@ const requestedLevel = urlParams.get('level');
 const DEBUG_MODE = urlParams.get('debug') === '1';
 /** Рогалик — основной режим игры; старые уровни и карта открываются по ?level=... (и клавишам 1–5). */
 // Старый уровень из ?level= открывается только явно: из редактора (live / spawn / door) или с ?debug=1; обычный ?level=... (закладка, прежний адрес) игнорируется — запускается рогалик
-const ROGUE = !requestedLevel || !(urlParams.get('live') === '1' || urlParams.get('debug') === '1' || urlParams.has('spawn') || urlParams.has('door'));
+// Уровень забега, открытый из редактора («Играть»: live=1), играется как комната рогалика с волнами и зачисткой (свежий файл с диска).
+const requestedRogueNode = requestedLevel ? Run.get().nodes.find((n) => n.levelId === requestedLevel) : undefined;
+const FROM_EDITOR = urlParams.get('live') === '1' && !!requestedRogueNode;
+const ROGUE = !requestedLevel || FROM_EDITOR || !(urlParams.get('live') === '1' || urlParams.get('debug') === '1' || urlParams.has('spawn') || urlParams.has('door'));
 if (ROGUE) {
   // отладка: ?run=new — новый забег, ?node=N — сразу к узлу N (0..11; 3, 7, 11 — боссы); параметры снимаются с адреса, чтобы не срабатывать при каждой перезагрузке
   const run = Run.get();
   const url = new URL(window.location.href);
-  if (url.searchParams.has('level')) {
+  if (FROM_EDITOR && requestedRogueNode) run.jump(requestedRogueNode.index);
+  if (url.searchParams.has('level') && !FROM_EDITOR) {
     url.searchParams.delete('level'); // устаревший адрес со старым уровнем: чистим
     window.history.replaceState(null, '', url.toString());
   }
@@ -98,7 +102,7 @@ if (ROGUE) {
   }
 }
 let activeLevelDef: LevelDef = ROGUE
-  ? buildRogueLevel(Run.get().current, Run.get().seed, LEVELS)
+  ? prepareRogueLevel(Run.get().current, LEVELS)
   : ((requestedLevel
     ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
     : undefined) ?? (LEVELS.find(l => l.id === 'world_prototype') || LEVELS[0]));
@@ -329,7 +333,9 @@ class GameApp {
       }
     });
 
-    activeLevelDef = await loadLiveLevel(activeLevelDef);
+    activeLevelDef = ROGUE
+      ? prepareRogueLevel(Run.get().current, [await loadLiveLevel(LEVELS.find((l) => l.id === Run.get().current.levelId)!)])
+      : await loadLiveLevel(activeLevelDef);
     document.title = `${activeLevelDef.display_name} — LD60`;
     console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
     await loadDamageFont();
@@ -502,11 +508,11 @@ class GameApp {
       ...MODELS.map((m) => m.sprite_id),
       ...modelRigs.flatMap((r) => r.parts.flatMap((p) => [p.sprite_id, ...(p.face?.sprite_id ? [p.face.sprite_id] : [])])),
       ...Level.spriteIds(levelDef, tileset),
-      ...[...levelDef.enemies, ...(levelDef.rogue?.waves.flat() ?? [])].map((e) => e.sprite_id),
+      ...[...levelDef.enemies, ...(levelDef.rogue?.waves ?? []).flat()].map((e) => e.sprite_id),
       // спрайты врагов из зон спавна
       ...(levelDef.spawn_zones ?? []).map((z) => z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '').filter(Boolean),
       // части тела врагов, собранных из слоёв (паук, червь, паучиха), и тех, кого они порождают
-      ...[...levelDef.enemies, ...(levelDef.rogue?.waves.flat() ?? [])].flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id)),
+      ...[...levelDef.enemies, ...(levelDef.rogue?.waves ?? []).flat()].flatMap((e) => this.enemySpriteIds(enemyDefs, e.enemy_id, e.sprite_id)),
       ...(levelDef.spawn_zones ?? []).flatMap((z) => {
         const sId = z.sprite_id || enemyDefs.get(z.enemy_id)?.sprite_variants[0] || '';
         return sId ? this.enemySpriteIds(enemyDefs, z.enemy_id, sId) : [];
@@ -571,11 +577,11 @@ class GameApp {
       }
     }
 
-    this.hpMult = levelDef.rogue?.hp_mult ?? 1;
-    this.rogueWaves = levelDef.rogue ? [...levelDef.rogue.waves] : [];
+    this.hpMult = ROGUE ? levelDef.rogue?.hp_mult ?? 1 : 1;
+    this.rogueWaves = levelDef.rogue?.waves ? [...levelDef.rogue.waves] : [];
     for (const spawn of allEnemies) {
       const mob = this.spawnEnemy(spawn);
-      if (mob && levelDef.rogue) this.waveMobs.push(mob);
+      if (mob && ROGUE) this.waveMobs.push(mob);
     }
 
     // Уровень может выдать героя уже в броне (поле start_armor)
@@ -825,7 +831,7 @@ class GameApp {
   /** Волны и зачистка комнаты: все враги волны погибли — выходит следующая; последняя — комната зачищена, награда и открытая дверь. */
   private updateRogue(dt: number): void {
     const meta = activeLevelDef.rogue;
-    if (!meta || this.rogueLeaving || this.deathTimer > 0) return;
+    if (!ROGUE || !meta || this.rogueLeaving || this.deathTimer > 0) return;
     const b = this.player.body;
     if (this.rogueCleared) {
       // дверь выхода открыта: герой вошёл в неё — дальше
@@ -858,7 +864,7 @@ class GameApp {
     SoundManager.get().playKill();
     this.flashColor = pal('gold', 7);
     this.flashAlpha = 0.18;
-    const n = meta.clear_gears;
+    const n = meta.clear_gears ?? runData.rewards.room_gears;
     for (let i = 0; i < n; i++) this.loot.spawnItem(b.x + (Math.random() * 40 - 20), b.y - 50 - Math.random() * 20, true);
     this.fx.burst(b.x, b.y - 30, { count: 30, colors: [pal('gold', 5), pal('gold', 6), pal('gold', 7)], speed: [60, 200], spread: Math.PI * 2, life: [0.3, 0.7], size: [1, 3] });
   }

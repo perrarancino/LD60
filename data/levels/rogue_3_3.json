@@ -1,0 +1,235 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_3_3",
+  "display_name": "Уровень 3 · комната 3: Электрошторм",
+  "background_id": "bg_loc2",
+  "tile_size": 32,
+  "width": 28,
+  "height": 14,
+  "legend": {
+    ".": null,
+    "a": "loc2"
+  },
+  "rows": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "a....a................a....a",
+    "a....a................a....a",
+    "a....a................a....a",
+    "a....a................a....a",
+    "a..aaa....aaa..aaa....aaa..a",
+    "a..........................a",
+    "a..........................a",
+    "a..........................a",
+    "a....aaaaa..aaaa..aaaaa....a",
+    "a........a........a........a",
+    ".........a........a.........",
+    ".........a........a.........",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "player_spawn": {
+    "x": 2,
+    "y": 12
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 22.5,
+      "y": 9,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 15.5,
+      "y": 9,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 22.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_pipe_fg_right",
+      "x": 12.5,
+      "y": 5,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_pipe_fg_left",
+      "x": 5.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 20.5,
+      "y": 1,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 16,
+      "y": 416
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 880,
+      "y": 416,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 18,
+      "y": 8
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 25,
+      "y": 12
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 12,
+      "y": 4
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 18,
+      "y": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 22,
+      "y": 7
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 12,
+      "y": 7
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 9,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 14,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 7,
+      "y": 12,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 12,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 15,
+      "y": 12,
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 20,
+      "y": 4,
+      "anchor_y": 0,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 8,
+      "y": 2,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 25,
+      "y": 8,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 19,
+      "y": 4,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 10,
+      "y": 3,
+      "wave": 3
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 24,
+      "y": 12,
+      "wave": 3
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 4,
+      "y": 12,
+      "wave": 3
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Электрошторм",
+      "x": 0,
+      "y": 0,
+      "width": 28,
+      "height": 14,
+      "location": 3
+    }
+  ],
+  "fog": false,
+  "light": {
+    "rim_color": "#3de9e6",
+    "fog_color": "#22c5cd"
+  },
+  "rogue": {
+    "clear_gears": 18,
+    "hp_mult": 1.4
+  }
+}

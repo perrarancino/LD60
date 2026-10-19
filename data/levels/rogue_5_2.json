@@ -1,0 +1,283 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_5_2",
+  "display_name": "Уровень 5 · комната 2: Гнездовье",
+  "background_id": "bg_loc6",
+  "tile_size": 32,
+  "width": 38,
+  "height": 15,
+  "legend": {
+    ".": null,
+    "a": "loc2"
+  },
+  "rows": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a.....aaaaaaaaaaaaaaaaaaaaaaaaaa.....a",
+    "a....................................a",
+    "a..aaa...........aaaa...........aaa..a",
+    "a....................................a",
+    "a....................................a",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "player_spawn": {
+    "x": 3,
+    "y": 12
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_transistor",
+      "x": 4.5,
+      "y": 10,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 9.5,
+      "y": 8,
+      "layer": "back",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 22.5,
+      "y": 13,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 16.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 19.5,
+      "y": 8,
+      "layer": "back",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 31.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 18.5,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 13.5,
+      "y": 9,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 13.5,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 8.5,
+      "y": 9,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 48,
+      "y": 416
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 1168,
+      "y": 416,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 23,
+      "y": 4,
+      "anchor_y": 0
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 13,
+      "y": 12,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 26,
+      "y": 12,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 29,
+      "y": 7,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 16,
+      "y": 7,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 19,
+      "y": 7,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 10,
+      "y": 7,
+      "surface": "floor",
+      "length": 4
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 29,
+      "y": 12,
+      "surface": "floor",
+      "length": 3
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 8,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 25,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 14,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 5,
+      "y": 9,
+      "wave": 2
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 14,
+      "y": 12,
+      "wave": 2
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 35,
+      "y": 8,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 28,
+      "y": 6,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 23,
+      "y": 4,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 11,
+      "y": 5,
+      "wave": 3
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 7,
+      "y": 7,
+      "wave": 3
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 26,
+      "y": 12,
+      "wave": 3
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 13,
+      "y": 12,
+      "wave": 3
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Гнездовье",
+      "x": 0,
+      "y": 0,
+      "width": 38,
+      "height": 15,
+      "location": 5
+    }
+  ],
+  "fog": false,
+  "light": {
+    "rim_color": "#f76bfc",
+    "fog_color": "#9600ca"
+  },
+  "rogue": {
+    "clear_gears": 14,
+    "hp_mult": 1.9
+  }
+}

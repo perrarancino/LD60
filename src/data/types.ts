@@ -121,6 +121,7 @@ export interface EnemySpawnDef {
   anchor_y?: number; // для висящих на нитке: ряд тайлов, где закреплён верх нитки (по умолчанию -2)
   is_boss?: boolean;
   boss_id?: string;
+  wave?: number; // рогалик: номер волны (1 — первая, по умолчанию): следующая выходит, когда погибла предыдущая
   room?: string; // id комнаты-«дома»: моб замечает героя и атакует только в ней; по умолчанию — комната, в которой он стоит
 }
 
@@ -165,18 +166,15 @@ export interface GradeDef {
   highlights_end?: [number, number, number];
 }
 
-/** Рогалик: что игра знает о собранной комнате забега (создаётся RoomBuilder, в JSON уровней не хранится). */
-export interface RogueMeta {
-  node: number; // номер узла забега (0..11)
-  boss: boolean;
-  name: string;
-  waves: EnemySpawnDef[][]; // волны, которые ещё не вышли (первая волна — в level.enemies)
-  clear_gears: number; // награда за зачистку, шестерёнок
-  hp_mult: number; // множитель здоровья врагов биома
+/** Рогалик: настройки уровня (правятся в редакторе). waves заполняет игра при подготовке уровня — из поля wave у врагов. */
+export interface LevelRogueDef {
+  clear_gears?: number; // награда за зачистку, шестерёнок
+  hp_mult?: number; // множитель здоровья врагов уровня
+  waves?: EnemySpawnDef[][]; // только в игре: волны после первой
 }
 
 export interface LevelDef {
-  rogue?: RogueMeta;
+  rogue?: LevelRogueDef;
   $schema?: string;
   id: string;
   display_name?: string;

@@ -1,0 +1,196 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_1_2",
+  "display_name": "Уровень 1 · комната 2: Патруль",
+  "background_id": "bg_textalite",
+  "tile_size": 32,
+  "width": 28,
+  "height": 14,
+  "legend": {
+    ".": null,
+    "a": "textalite_8",
+    "b": "textalite_5",
+    "c": "textalite_6",
+    "d": "textalite_7",
+    "e": "textalite_1",
+    "f": "textalite_4",
+    "g": "textalite_0",
+    "h": "textalite_3",
+    "i": "textalite_2"
+  },
+  "rows": [
+    "abbacadaccbaaaaadbdacdbbdcab",
+    "e....fg..hi...ff...ig..ee..g",
+    "e....hi..fi...hf...eg..hg..e",
+    "f....ii..gi...fg...ih..fe..g",
+    "f..........................f",
+    "h..........................h",
+    "f..........................e",
+    "g..........................i",
+    "h..........................g",
+    "i.........aaadcbac.........h",
+    "h..........................h",
+    "h..........................g",
+    "edaabbaabbcaaccccdddbdbacccg",
+    "eiiefhgifhgghiihgfgigigeieif"
+  ],
+  "player_spawn": {
+    "x": 3,
+    "y": 11
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_ram",
+      "x": 21.5,
+      "y": 12,
+      "layer": "back",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 16.5,
+      "y": 9,
+      "layer": "back",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 11.5,
+      "y": 1,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 48,
+      "y": 384
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 848,
+      "y": 384,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 19,
+      "y": 11
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 17,
+      "y": 8
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 13,
+      "y": 8
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 25,
+      "y": 11,
+      "surface": "floor",
+      "length": 4,
+      "wave": 2
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 4,
+      "y": 11,
+      "surface": "floor",
+      "length": 5,
+      "wave": 2
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 13,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 11,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 21,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 15,
+      "y": 4,
+      "surface": "ceiling",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 17,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Патруль",
+      "x": 0,
+      "y": 0,
+      "width": 28,
+      "height": 14,
+      "location": 1
+    }
+  ],
+  "fog": false,
+  "grade": {
+    "saturation": 1.08,
+    "contrast": 1.1,
+    "vignette": 0.36,
+    "exposure": 1.02,
+    "gamma": 1.08,
+    "tint": [
+      0.82,
+      1,
+      0.9
+    ],
+    "shadows": [
+      0,
+      0.035,
+      0.02
+    ],
+    "highlights": [
+      0.02,
+      0.06,
+      0.03
+    ]
+  },
+  "rogue": {
+    "clear_gears": 14,
+    "hp_mult": 1
+  }
+}

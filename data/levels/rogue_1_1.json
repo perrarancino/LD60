@@ -1,0 +1,224 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_1_1",
+  "display_name": "Уровень 1 · комната 1: Паучья стая",
+  "background_id": "bg_textalite",
+  "tile_size": 32,
+  "width": 30,
+  "height": 16,
+  "legend": {
+    ".": null,
+    "a": "textalite_8",
+    "b": "textalite_6",
+    "c": "textalite_5",
+    "d": "textalite_7",
+    "e": "textalite_4",
+    "f": "textalite_1",
+    "g": "textalite_3",
+    "h": "textalite_2",
+    "i": "textalite_0"
+  },
+  "rows": [
+    "abacadbbaddaccbadcadcdbcbababc",
+    "e............................f",
+    "e............................g",
+    "g............................g",
+    "h............................e",
+    "e..........acdaa...cbabb.....h",
+    "g............................g",
+    "i............................h",
+    "f......dcacd...acdad...ccdcb.f",
+    "g............................e",
+    "f............................i",
+    "h..bccbb...aadac...dacdd.....i",
+    "h............................f",
+    "f............................e",
+    "fcacbccabcadacbcbddbcbddcdadce",
+    "eiefieehefhfhhgfifihifgifieefh"
+  ],
+  "player_spawn": {
+    "x": 3,
+    "y": 13
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_transistor2",
+      "x": 25.5,
+      "y": 14,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 26.5,
+      "y": 8,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 14.5,
+      "y": 5,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 12.5,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 25.5,
+      "y": 9,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 48,
+      "y": 448
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 912,
+      "y": 448,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 15,
+      "y": 4,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 8,
+      "y": 7,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 26,
+      "y": 7,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 10,
+      "y": 13,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 23,
+      "y": 4,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 13,
+      "y": 1,
+      "surface": "ceiling"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 13,
+      "y": 6,
+      "surface": "ceiling"
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 17,
+      "y": 13,
+      "wave": 2
+    },
+    {
+      "enemy_id": "transistoid",
+      "sprite_id": "enemy_transistoid_purple",
+      "x": 24,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 5,
+      "y": 10,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 14,
+      "y": 10,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 19,
+      "y": 4,
+      "surface": "floor",
+      "wave": 2
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Паучья стая",
+      "x": 0,
+      "y": 0,
+      "width": 30,
+      "height": 16,
+      "location": 1
+    }
+  ],
+  "fog": false,
+  "grade": {
+    "saturation": 1.08,
+    "contrast": 1.1,
+    "vignette": 0.36,
+    "exposure": 1.02,
+    "gamma": 1.08,
+    "tint": [
+      0.82,
+      1,
+      0.9
+    ],
+    "shadows": [
+      0,
+      0.035,
+      0.02
+    ],
+    "highlights": [
+      0.02,
+      0.06,
+      0.03
+    ]
+  },
+  "rogue": {
+    "clear_gears": 10,
+    "hp_mult": 1
+  }
+}

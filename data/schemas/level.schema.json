@@ -96,6 +96,7 @@
         { "type": "object", "properties": { "mode": { "type": "string", "enum": ["current", "explored"] } } }
       ]
     },
+    "rogue": { "type": "object", "description": "Рогалик: настройки уровня", "properties": { "clear_gears": { "type": "integer", "minimum": 0, "description": "Награда за зачистку, шестерёнок" }, "hp_mult": { "type": "number", "minimum": 0.1, "description": "Множитель здоровья врагов уровня" } } },
     "start_armor": { "type": "integer", "minimum": 1, "maximum": 2, "description": "Герой входит на уровень в частях этой модели: 1 — прежний герой, 2 — герой второй локации (части выдаются и надеваются, где надето что-то слабее)" },
     "terminals": {
       "type": "array",
@@ -158,6 +159,7 @@
           "x": { "type": "integer" },
           "y": { "type": "integer" },
           "surface": { "type": "string", "enum": ["floor", "ceiling", "wall_left", "wall_right"], "description": "Только для ползающих врагов: на какой поверхности появляется (по умолчанию floor). wall_right — стена справа от клетки, wall_left — слева" },
+          "wave": { "type": "integer", "minimum": 1, "description": "Рогалик: номер волны (1 — первая, по умолчанию): следующая выходит, когда погибла предыдущая" },
           "room": { "type": "string", "description": "Id комнаты-«дома»: моб замечает героя и атакует только в ней. По умолчанию — комната, в которой он стоит" },
           "anchor_y": { "type": "integer", "description": "Только для висящих на нитке (паучиха): ряд тайлов, где закреплён верх нитки (может быть отрицательным — за верхом уровня); по умолчанию -2" },
           "length": { "type": "integer", "minimum": 3, "maximum": 5, "description": "Только для червей: длина в сегментах (по умолчанию случайная в пределах рига)" }

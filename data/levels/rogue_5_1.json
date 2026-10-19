@@ -1,0 +1,221 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_5_1",
+  "display_name": "Уровень 5 · комната 1: Рой",
+  "background_id": "bg_loc6",
+  "tile_size": 32,
+  "width": 34,
+  "height": 15,
+  "legend": {
+    ".": null,
+    "a": "loc2"
+  },
+  "rows": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a................................a",
+    "a..aaaaa......aaaaaa......aaaaa..a",
+    "a................................a",
+    "a................................a",
+    "aaaaaaaaaaaaa........aaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "player_spawn": {
+    "x": 3,
+    "y": 12
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_transistor",
+      "x": 16.5,
+      "y": 14,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 4.5,
+      "y": 10,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_transistor",
+      "x": 28.5,
+      "y": 10,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 24.5,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 30.5,
+      "y": 1,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 48,
+      "y": 416
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 1040,
+      "y": 416,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 10,
+      "y": 5
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 7,
+      "y": 4
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 22,
+      "y": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 7,
+      "y": 7
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 24,
+      "y": 12
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 18,
+      "y": 9
+    },
+    {
+      "enemy_id": "swire",
+      "sprite_id": "enemy_swire",
+      "x": 19,
+      "y": 13
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 22,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 30,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 13,
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 29,
+      "y": 9,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 3,
+      "y": 9,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 15,
+      "y": 13,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 11,
+      "y": 12,
+      "surface": "floor",
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 27,
+      "y": 9,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 8,
+      "y": 12,
+      "wave": 2
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Рой",
+      "x": 0,
+      "y": 0,
+      "width": 34,
+      "height": 15,
+      "location": 5
+    }
+  ],
+  "fog": false,
+  "light": {
+    "rim_color": "#f76bfc",
+    "fog_color": "#9600ca"
+  },
+  "rogue": {
+    "clear_gears": 10,
+    "hp_mult": 1.9
+  }
+}

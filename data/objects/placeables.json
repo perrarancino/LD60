@@ -45,7 +45,9 @@
         { "key": "to_level", "label": "Ведёт на уровень", "kind": "level", "default": "" },
         { "key": "to_door", "label": "К двери (id)", "kind": "door", "default": "" },
         { "key": "requires_item", "label": "Нужен предмет", "kind": "item", "default": "" },
-        { "key": "requires_flag", "label": "Нужен флаг", "kind": "text", "default": "" }
+        { "key": "requires_flag", "label": "Нужен флаг", "kind": "text", "default": "" },
+        { "key": "rogue_exit", "label": "Выход рогалика", "kind": "bool", "default": false },
+        { "key": "requires_clear", "label": "Заперта до зачистки", "kind": "bool", "default": false }
       ]
     },
     {

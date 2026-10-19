@@ -1,0 +1,207 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "rogue_3_2",
+  "display_name": "Уровень 3 · комната 2: Разряд",
+  "background_id": "bg_loc2",
+  "tile_size": 32,
+  "width": 38,
+  "height": 15,
+  "legend": {
+    ".": null,
+    "a": "loc2"
+  },
+  "rows": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a....................................a",
+    "a.....aaaaaaaaaaaaaaaaaaaaaaaaaa.....a",
+    "a....................................a",
+    "a..aaa...........aaaa...........aaa..a",
+    "a....................................a",
+    "a....................................a",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "player_spawn": {
+    "x": 3,
+    "y": 12
+  },
+  "decor": [
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 6.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_pipe_fg_left",
+      "x": 29.5,
+      "y": 13,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 20.5,
+      "y": 8,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 4.5,
+      "y": 10,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_pipe_fg_right",
+      "x": 10.5,
+      "y": 13,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_pipe_fg_right",
+      "x": 33.5,
+      "y": 10,
+      "layer": "front"
+    },
+    {
+      "sprite_id": "deco_moss_tuft_fg",
+      "x": 12.5,
+      "y": 8,
+      "layer": "front",
+      "flip_x": true
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 13.5,
+      "y": 9,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 16.5,
+      "y": 9,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_drips_hanging",
+      "x": 6.5,
+      "y": 1,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_cable_bundle",
+      "x": 9.5,
+      "y": 9,
+      "layer": "back"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_in",
+      "type": "door",
+      "x": 48,
+      "y": 416
+    },
+    {
+      "id": "door_out",
+      "type": "door",
+      "x": 1168,
+      "y": 416,
+      "flip_x": true,
+      "props": {
+        "rogue_exit": true,
+        "requires_clear": true
+      }
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 27,
+      "y": 7
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 14,
+      "y": 7
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 17,
+      "y": 7
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 12,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "ward",
+      "sprite_id": "enemy_ward",
+      "x": 8,
+      "y": 7,
+      "wave": 2
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 4,
+      "y": 8,
+      "wave": 2
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 20,
+      "y": 5,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 7,
+      "y": 12,
+      "wave": 2
+    },
+    {
+      "enemy_id": "electro_rat",
+      "sprite_id": "enemy_electro_rat",
+      "x": 36,
+      "y": 12,
+      "wave": 2
+    }
+  ],
+  "rooms": [
+    {
+      "id": "arena",
+      "name": "Разряд",
+      "x": 0,
+      "y": 0,
+      "width": 38,
+      "height": 15,
+      "location": 3
+    }
+  ],
+  "fog": false,
+  "light": {
+    "rim_color": "#3de9e6",
+    "fog_color": "#22c5cd"
+  },
+  "rogue": {
+    "clear_gears": 14,
+    "hp_mult": 1.4
+  }
+}
