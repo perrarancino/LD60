@@ -1520,19 +1520,6 @@
       "animations": {}
     },
     {
-      "id": "enemy_ptichka",
-      "category": "enemies",
-      "image": "enemies/ptichka.png",
-      "frame_width": 16,
-      "frame_height": 16,
-      "frames": 1,
-      "origin": {
-        "x": 0.5,
-        "y": 0.5
-      },
-      "animations": {}
-    },
-    {
       "id": "enemy_ward",
       "category": "enemies",
       "image": "enemies/ward.png",
