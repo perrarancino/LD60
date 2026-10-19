@@ -4,7 +4,7 @@
   "display_name": "Уровень 1 · комната 1: Паучья стая",
   "background_id": "bg_textalite",
   "tile_size": 32,
-  "width": 30,
+  "width": 27,
   "height": 16,
   "legend": {
     ".": null,
@@ -16,25 +16,26 @@
     "f": "textalite_1",
     "g": "textalite_3",
     "h": "textalite_2",
-    "i": "textalite_0"
+    "i": "textalite_0",
+    "#": "textalite_9"
   },
   "rows": [
-    "abacadbbaddaccbadcadcdbcbababc",
-    "e............................f",
-    "e............................g",
-    "g............................g",
-    "h............................e",
-    "e..........acdaa...cbabb.....h",
-    "g............................g",
-    "i............................h",
-    "f......dcacd...acdad...ccdcb.f",
-    "g............................e",
-    "f............................i",
-    "h..bccbb...aadac...dacdd.....i",
-    "h............................f",
-    "f............................e",
-    "fcacbccabcadacbcbddbcbddcdadce",
-    "eiefieehefhfhhgfifihifgifieefh"
+    "abacadbbaddaccbadcadcdbcbab...",
+    "e.........................e...",
+    "e.........................f...",
+    "g.........................h...",
+    "h.........................g...",
+    "e..c#dab...acdaa...cbabb..i...",
+    "g.........................f...",
+    "i.........................h...",
+    "f......dcacd...acdad......e...",
+    "g.........................h...",
+    "f.........................f...",
+    "h..bccbb...aadac...dacdd..h...",
+    "h.........................f...",
+    "f.........................i...",
+    "fcacbccabcadacbcbddbcbddcda...",
+    "eiefieehefhfhhgfifihifgifie..."
   ],
   "player_spawn": {
     "x": 3,
@@ -58,8 +59,8 @@
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 26,
-      "y": 7,
+      "x": 23,
+      "y": 10,
       "surface": "floor"
     },
     {
@@ -67,27 +68,29 @@
       "sprite_id": "enemy_spider",
       "x": 10,
       "y": 13,
-      "surface": "floor"
+      "surface": "floor",
+      "wave": 2
     },
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
       "x": 23,
-      "y": 4,
-      "surface": "floor"
+      "y": 1,
+      "surface": "ceiling",
+      "wave": 2
     },
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 13,
+      "x": 11,
       "y": 1,
       "surface": "ceiling"
     },
     {
       "enemy_id": "spider",
       "sprite_id": "enemy_spider",
-      "x": 13,
-      "y": 6,
+      "x": 11,
+      "y": 9,
       "surface": "ceiling"
     },
     {
@@ -113,17 +116,14 @@
       "y": 4,
       "surface": "floor",
       "wave": 2
-    }
-  ],
-  "rooms": [
+    },
     {
-      "id": "arena",
-      "name": "Паучья стая",
-      "x": 0,
-      "y": 0,
-      "width": 30,
-      "height": 16,
-      "location": 1
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 4,
+      "y": 4,
+      "surface": "floor",
+      "wave": 2
     }
   ],
   "fog": false,
@@ -152,5 +152,15 @@
   "rogue": {
     "clear_gears": 10,
     "hp_mult": 1
-  }
+  },
+  "rooms": [
+    {
+      "id": "room_1",
+      "name": "Комната 1",
+      "x": 0,
+      "y": 0,
+      "width": 27,
+      "height": 16
+    }
+  ]
 }

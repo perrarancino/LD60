@@ -4,7 +4,7 @@
   "display_name": "Уровень 1 · комната 3: Гнездо",
   "background_id": "bg_textalite",
   "tile_size": 32,
-  "width": 30,
+  "width": 28,
   "height": 15,
   "legend": {
     ".": null,
@@ -19,32 +19,32 @@
     "i": "textalite_0"
   },
   "rows": [
-    "abbcdcaacbacdbddbbccaaaabccada",
-    "e............................f",
-    "g............................h",
-    "i............................f",
-    "f..........bbccacbc..........g",
-    "g............................g",
-    "h............................f",
-    "f.....dbb............bcb.....g",
-    "g............................h",
-    "i............................g",
-    "g............................e",
-    "h.......dacaabbadbcbba.......i",
-    "i......aheegehfffhihfgb......i",
-    "i.....dghhfifihfhggehgfd.....i",
-    "bcddcahiihhfheghiffheihgddccbb"
+    "bbcdcaacbacdbddbbccaaaabccad",
+    "h..........................h",
+    "g..........................i",
+    "e..........................g",
+    "i.........bbccacbc.........h",
+    "g..........................g",
+    "e..........................i",
+    "f....dbb............bcb....e",
+    "h..........................f",
+    "i..........................h",
+    "h..........................g",
+    "e......dacaabbadbcbba......i",
+    "f.....aheegehfffhihfgb.....f",
+    "i....dghhfifihfhggehgfd....i",
+    "cddcahiihhfheghiffheihgddccb"
   ],
   "player_spawn": {
-    "x": 2,
+    "x": 4,
     "y": 13
   },
   "enemies": [
     {
       "enemy_id": "spider_mother",
       "sprite_id": "enemy_spider_mother",
-      "x": 11,
-      "y": 8,
+      "x": 14,
+      "y": 6,
       "anchor_y": 4
     },
     {
@@ -52,7 +52,8 @@
       "sprite_id": "enemy_spider",
       "x": 6,
       "y": 6,
-      "surface": "floor"
+      "surface": "floor",
+      "wave": 2
     },
     {
       "enemy_id": "spider",
@@ -73,12 +74,13 @@
       "sprite_id": "enemy_spider",
       "x": 14,
       "y": 10,
-      "surface": "floor"
+      "surface": "floor",
+      "wave": 2
     },
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 17,
+      "x": 11,
       "y": 11,
       "surface": "floor",
       "length": 5,
@@ -87,7 +89,7 @@
     {
       "enemy_id": "worm",
       "sprite_id": "enemy_worm",
-      "x": 21,
+      "x": 17,
       "y": 11,
       "surface": "floor",
       "length": 3,
@@ -128,7 +130,7 @@
     {
       "enemy_id": "spider_mother",
       "sprite_id": "enemy_spider_mother",
-      "x": 26,
+      "x": 24,
       "y": 2,
       "anchor_y": -2
     },
@@ -136,19 +138,15 @@
       "enemy_id": "spider_mother",
       "sprite_id": "enemy_spider_mother",
       "x": 4,
-      "y": 3,
+      "y": 2,
       "anchor_y": -2
-    }
-  ],
-  "rooms": [
+    },
     {
-      "id": "arena",
-      "name": "Гнездо",
-      "x": 0,
-      "y": 0,
-      "width": 30,
-      "height": 15,
-      "location": 1
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 15,
+      "y": 3,
+      "surface": "floor"
     }
   ],
   "fog": false,
@@ -177,5 +175,15 @@
   "rogue": {
     "clear_gears": 18,
     "hp_mult": 1
-  }
+  },
+  "rooms": [
+    {
+      "id": "room_1",
+      "name": "Комната 1",
+      "x": 0,
+      "y": 0,
+      "width": 28,
+      "height": 15
+    }
+  ]
 }

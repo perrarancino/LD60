@@ -22,33 +22,14 @@
     "a..........................a",
     "a....aaaaa..aaaa..aaaaa....a",
     "a........a........a........a",
-    ".........a........a.........",
-    ".........a........a.........",
+    "a........a........a........a",
+    "a........a........a........a",
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   ],
   "player_spawn": {
     "x": 2,
     "y": 12
   },
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 16,
-      "y": 416
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 880,
-      "y": 416,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
-    }
-  ],
   "enemies": [
     {
       "enemy_id": "electro_rat",
@@ -59,32 +40,20 @@
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 25,
+      "x": 16,
       "y": 12
     },
     {
-      "enemy_id": "electro_rat",
-      "sprite_id": "enemy_electro_rat",
-      "x": 12,
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 20,
+      "y": 12
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 11,
       "y": 4
-    },
-    {
-      "enemy_id": "vorobei",
-      "sprite_id": "enemy_vorobei",
-      "x": 18,
-      "y": 3
-    },
-    {
-      "enemy_id": "vorobei",
-      "sprite_id": "enemy_vorobei",
-      "x": 22,
-      "y": 7
-    },
-    {
-      "enemy_id": "vorobei",
-      "sprite_id": "enemy_vorobei",
-      "x": 12,
-      "y": 7
     },
     {
       "enemy_id": "ward",
@@ -103,58 +72,43 @@
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 7,
+      "x": 11,
       "y": 12,
       "wave": 2
     },
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 12,
-      "y": 8,
-      "wave": 2
-    },
-    {
-      "enemy_id": "electro_rat",
-      "sprite_id": "enemy_electro_rat",
-      "x": 15,
-      "y": 12,
-      "wave": 2
-    },
-    {
-      "enemy_id": "spider_mother",
-      "sprite_id": "enemy_spider_mother",
-      "x": 20,
+      "x": 16,
       "y": 4,
-      "anchor_y": 0,
-      "wave": 3
+      "wave": 2
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 8,
-      "y": 2,
-      "wave": 3
-    },
-    {
-      "enemy_id": "vorobei",
-      "sprite_id": "enemy_vorobei",
-      "x": 25,
-      "y": 8,
-      "wave": 3
-    },
-    {
-      "enemy_id": "vorobei",
-      "sprite_id": "enemy_vorobei",
-      "x": 19,
+      "x": 3,
       "y": 4,
       "wave": 3
     },
     {
       "enemy_id": "vorobei",
       "sprite_id": "enemy_vorobei",
-      "x": 10,
-      "y": 3,
+      "x": 21,
+      "y": 8,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 23,
+      "y": 4,
+      "wave": 3
+    },
+    {
+      "enemy_id": "vorobei",
+      "sprite_id": "enemy_vorobei",
+      "x": 6,
+      "y": 8,
       "wave": 3
     },
     {
@@ -167,7 +121,7 @@
     {
       "enemy_id": "electro_rat",
       "sprite_id": "enemy_electro_rat",
-      "x": 4,
+      "x": 6,
       "y": 12,
       "wave": 3
     }

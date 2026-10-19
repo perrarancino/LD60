@@ -55,29 +55,10 @@
     {
       "enemy_id": "krab_boss",
       "sprite_id": "boss_krab",
-      "x": 38,
-      "y": 19,
+      "x": 26,
+      "y": 15,
       "is_boss": true,
       "boss_id": "krab_boss"
-    }
-  ],
-  "objects": [
-    {
-      "id": "door_in",
-      "type": "door",
-      "x": 48,
-      "y": 640
-    },
-    {
-      "id": "door_out",
-      "type": "door",
-      "x": 1616,
-      "y": 640,
-      "flip_x": true,
-      "props": {
-        "rogue_exit": true,
-        "requires_clear": true
-      }
     }
   ],
   "rogue": {
