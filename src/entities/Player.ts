@@ -141,6 +141,7 @@ export class Player {
   private extraJumps = 0; // двойной прыжок (проводные ноги)
 
   constructor(spriteId: string, rigDef: RigDef, sprites: SpriteLibrary, altRig: RigDef | null = null) {
+    this.body.stepUp = 18; // на лестницах из блоков и скосов герой сам поднимается на ступеньку
     this.spriteDef = sprites.def(spriteId); // источник хитбокса
     this.rig = new PlayerRig(rigDef, sprites, altRig);
     this.sprite = this.rig.container;

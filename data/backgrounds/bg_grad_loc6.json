@@ -2,21 +2,21 @@
   "$schema": "../schemas/background.schema.json",
   "id": "bg_grad_loc6",
   "description": "Градиент финальной локации: фиолетовый.",
-  "sky_color": "#0a0427",
+  "sky_color": "#03010b",
   "scale": 2,
   "layers": [],
   "gradient": [
     {
       "at": 0,
-      "color": "#0a0427"
+      "color": "#03010b"
     },
     {
       "at": 0.55,
-      "color": "#350857"
+      "color": "#0f0219"
     },
     {
       "at": 1,
-      "color": "#7c1fb0"
+      "color": "#250934"
     }
   ]
 }

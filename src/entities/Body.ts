@@ -11,6 +11,8 @@ export class Body {
   public vx = 0;
   public vy = 0;
   public grounded = false;
+  /** Автоподъём: на землю упёртый в ступеньку ниже этой высоты (px) тело само поднимается на неё — по лестницам из скосов и блоков можно идти. 0 — выключен. */
+  public stepUp = 0;
   /** Куда упёрлись по X при последнем move(): -1 влево, 1 вправо, 0 — нет. */
   public blockedX: -1 | 0 | 1 = 0;
 
@@ -112,6 +114,15 @@ export class Body {
         if (slope === 'up_right' || slope === 'up_left') {
           // Напольные скосы не блокируют бег по горизонтали — персонаж взбегает по ним
           continue;
+        }
+        // ступенька: тайл невысоко над ногами — поднимаемся на него, а не упираемся (лестницы)
+        if (this.stepUp > 0 && this.grounded && vx !== 0) {
+          const top = cy * ts;
+          const rise = this.y - top;
+          if (rise > 0 && rise <= this.stepUp && !this.overlapsSolidAt(level, this.x, top - 0.01)) {
+            this.y = top - 0.01;
+            continue;
+          }
         }
         const center = this.x + this.offsetX + this.width / 2;
         const pushRight = vx < 0 || (vx === 0 && center > cx * ts + ts / 2);

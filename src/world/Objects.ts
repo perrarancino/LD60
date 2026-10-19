@@ -9,8 +9,9 @@ import type { ObjectKind } from './placeables.ts';
 const PICK_REACH = 24; // px: на таком расстоянии по горизонтали предмет подбирается
 const HERO_HEIGHT = 58; // px: рост героя — предмет выше головы не берётся
 const LOCKED_TINT = 0xa9b4c4;
-const DOOR_OPEN_R = 52; // px по горизонтали: ближе — дверь открывается сама
-const DOOR_CLOSE_R = 110; // дальше — закрывается
+const DOOR_OPEN_R = 150; // px по горизонтали: ближе — дверь открывается сама
+const DOOR_CLOSE_R = 250; // дальше — закрывается
+const DOOR_SPEED = 1.7; // 1/с: шторка поднимается и опускается за ~0.6 с, с плавным разгоном и торможением
 
 export interface ObjectEvents {
   /** Дверь ведёт на другой уровень. */
@@ -187,8 +188,10 @@ export class LevelObjects {
 
         // Плавное открытие/закрытие шторки двери вверх
         const targetProgress = p.isOpen ? 1 : 0;
-        p.openProgress += (targetProgress - p.openProgress) * Math.min(1, dt * 10);
-        p.sprite.y = Math.round(-p.openProgress * 52);
+        const step = DOOR_SPEED * dt;
+        p.openProgress = p.openProgress < targetProgress ? Math.min(targetProgress, p.openProgress + step) : Math.max(targetProgress, p.openProgress - step);
+        const eased = p.openProgress * p.openProgress * (3 - 2 * p.openProgress); // плавно: разгон и торможение
+        p.sprite.y = Math.round(-eased * 52);
         p.sprite.tint = this.doorOpen(def) ? 0xffffff : LOCKED_TINT;
       }
     }

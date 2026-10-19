@@ -271,94 +271,47 @@ export class CipherTerminalPuzzle implements IPuzzle {
           location: 1
         }];
 
-    // 3. Генерация цифр 0..9 для шифра
+    // 3. Цифры шифра: четыре случайные цифры (0..9) подряд, слева направо — порядок кода; каждый запуск код новый
     const length = this.codeLength;
     const digits: number[] = [];
-    for (let i = 0; i < length; i++) {
-      digits.push(Math.floor(Math.random() * 10)); // 0..9
-    }
+    for (let i = 0; i < length; i++) digits.push(Math.floor(Math.random() * 10));
     this.secretCode = digits.join('');
     this.clues.clear();
 
-    const filled = (ch: string | undefined) => ch === '#' || ch === '1';
-    const chosenPositions: Array<{ x: number; y: number }> = [];
-
-    // 4. Расстановка цифр по комнатам 1-й локации
-    for (let i = 0; i < length; i++) {
-      const room = roomsToUse.length >= length
-        ? roomsToUse[i]
-        : roomsToUse[i % roomsToUse.length];
-
-      const rX0 = Math.max(0, room.x);
-      const rX1 = Math.min(level.widthTiles - 1, room.x + room.width - 1);
-      const rY0 = Math.max(0, room.y);
-      const rY1 = Math.min(level.heightTiles - 1, room.y + room.height - 1);
-
-      // Ищем подходящие воздушные клетки в комнате
-      const spots: Array<{ cx: number; cy: number; score: number }> = [];
-
-      for (let cy = rY0; cy <= rY1; cy++) {
-        for (let cx = rX0; cx <= rX1; cx++) {
-          if (room.mask && !filled(room.mask[cy - room.y]?.[cx - room.x])) continue;
-          if (level.isSolid(cx, cy)) continue;
-          if (cy > 0 && level.isSolid(cx, cy - 1)) continue;
-
-          // Проверяем наличие пола под ногами или стены рядом
-          const hasFloor1 = cy + 1 < level.heightTiles && level.isSolid(cx, cy + 1);
-          const hasFloor2 = cy + 2 < level.heightTiles && level.isSolid(cx, cy + 2);
-          const hasWallL = cx > 0 && level.isSolid(cx - 1, cy);
-          const hasWallR = cx + 1 < level.widthTiles && level.isSolid(cx + 1, cy);
-
-          let score = 0;
-          if (hasFloor1 || hasFloor2) score += 10;
-          if (hasWallL || hasWallR) score += 5;
-
-          // Расстояние до уже выбранных точек
-          const px = cx * ts + ts / 2;
-          const py = cy * ts + ts / 2;
-          const minDist = chosenPositions.reduce((min, p) => {
-            const d = Math.hypot(p.x - px, p.y - py);
-            return Math.min(min, d);
-          }, Infinity);
-
-          if (minDist < ts * 3) score -= 15; // избегаем скопления в одной точке
-          else score += Math.min(10, minDist / ts);
-
-          spots.push({ cx, cy, score });
+    // 4. Все цифры — в одной комнате: в той, что перед комнатой пароля (ближайшая к ней из обычных); без комнаты пароля — в первой
+    const pwdRoom = allRooms.find((r) => (r.name || '').toLowerCase().includes('пароль'));
+    let room: RoomDef = roomsToUse[0];
+    if (pwdRoom) {
+      const px = pwdRoom.x + pwdRoom.width / 2;
+      const py = pwdRoom.y + pwdRoom.height / 2;
+      let best = Infinity;
+      for (const r of roomsToUse) {
+        if (r === pwdRoom || r.id === pwdRoom.id) continue;
+        const d = Math.hypot(r.x + r.width / 2 - px, r.y + r.height / 2 - py);
+        if (d < best) {
+          best = d;
+          room = r;
         }
       }
-
-      // Сортируем кандидатов по качеству
-      spots.sort((a, b) => b.score - a.score);
-
-      let chosenX = Math.round((room.x + room.width / 2) * ts);
-      let chosenY = Math.round((room.y + room.height / 2) * ts);
-
-      if (spots.length > 0) {
-        // Выбираем из лучших кандидатов для естественного разнообразия
-        const poolSize = Math.max(1, Math.min(spots.length, 5));
-        const pick = spots[Math.floor(Math.random() * poolSize)];
-        chosenX = pick.cx * ts + ts / 2;
-        chosenY = pick.cy * ts + ts / 2;
-      }
-
-      chosenPositions.push({ x: chosenX, y: chosenY });
-
+    }
+    const span = Math.max(1.5, Math.min(3, (room.width - 2) / length)); // тайлов между цифрами
+    const midX = room.x + room.width / 2;
+    const rowY = Math.max(room.y + 2, room.y + room.height - 5); // над героем, выше пола на ~4 тайла: попадает в кадр
+    const roomTitle = room.name || 'Отсек';
+    for (let i = 0; i < length; i++) {
       const clueId = `clue_${i + 1}`;
       const roman = toRoman(i + 1);
-      const roomTitle = room.name || `Отсек ${i + 1}`;
-
       this.clues.set(clueId, {
         id: clueId,
         orderIndex: i,
         roman,
         digit: digits[i],
-        x: chosenX,
-        y: chosenY,
+        x: Math.round((midX + (i - (length - 1) / 2) * span) * ts),
+        y: Math.round(rowY * ts),
         roomName: roomTitle,
-        label: `[Локация 1] ${roomTitle}: цифра [${roman}] = ${digits[i]}`,
-        isDiscovered: false,
-        discoveryRadius: 42
+        label: `${roomTitle}: цифра ${i + 1} = ${digits[i]}`,
+        isDiscovered: true, // цифры видны сразу, находить их не нужно
+        discoveryRadius: 0
       });
     }
 

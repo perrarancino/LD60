@@ -2,21 +2,21 @@
   "$schema": "../schemas/background.schema.json",
   "id": "bg_grad_loc1",
   "description": "Градиент локации 1: тёмная зелень сверху, светлее к низу.",
-  "sky_color": "#03100e",
+  "sky_color": "#000303",
   "scale": 2,
   "layers": [],
   "gradient": [
     {
       "at": 0,
-      "color": "#03100e"
+      "color": "#000303"
     },
     {
       "at": 0.55,
-      "color": "#0a3330"
+      "color": "#020c0c"
     },
     {
       "at": 1,
-      "color": "#1f7a52"
+      "color": "#071e14"
     }
   ]
 }
