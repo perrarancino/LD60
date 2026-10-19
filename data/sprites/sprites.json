@@ -1688,19 +1688,6 @@
       "animations": {}
     },
     {
-      "id": "tile_loc2",
-      "category": "tiles",
-      "image": "tiles/tilemap_loc2.png",
-      "frame_width": 32,
-      "frame_height": 32,
-      "frames": 6,
-      "origin": {
-        "x": 0.0,
-        "y": 0.0
-      },
-      "animations": {}
-    },
-    {
       "id": "bg_loc2_layer1",
       "category": "backgrounds",
       "image": "backgrounds/bg_loc2_layers/Layer_1.png",
@@ -1798,6 +1785,45 @@
       "frame_width": 512,
       "frame_height": 128,
       "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_loc2_a",
+      "category": "tiles",
+      "image": "tiles/tilemap_loc2_a.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 4,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_loc2_b",
+      "category": "tiles",
+      "image": "tiles/tilemap_loc2_b.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 4,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "tile_loc2_c",
+      "category": "tiles",
+      "image": "tiles/tilemap_loc2_c.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "frames": 3,
       "origin": {
         "x": 0.0,
         "y": 0.0

@@ -1,14 +1,14 @@
 """
-Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2.png, 6 кадров 32x32 — плиты с разной текстурой, верхнего края нет) и
+Генератор арта второй локации — «внутренности блока питания компьютера»: тайлы (tilemap_loc2_a/b/c.png — три варианта набора 32x32) и
 параллакс-фон (bg_loc2.png + 8 слоёв по 512x128). Стиль: общий синий (рампа cobalt палитры проекта) с золотым акцентом (рампа gold: медная обмотка, провода, светодиоды) и бирюзой (рампа electric) в свечении.
 Плотность пикселя — как у арта первой локации: кадр тайла 32x32 и слой фона 512x128, без шума и дизеринга, детали от 2 пикселей.
-Тайлы — металлические плиты с золотыми болтами по углам и золотой окантовкой; поверхность каждой плиты — своя текстура (шесть вариантов): рифлёный металл, пятнистая патина, царапины и вмятины, рифлёная «противоскользящая» сталь, ржавые подтёки от болтов, трещины.
+Тайлы — по референсу «блок питания ПК» (чёрный металлический корпус с решёткой вентилятора, винтами с крестовым шлицем, наклейкой, щелями вентиляции; жгуты разноцветных проводов с чёрными стяжками, чёрные разъёмы). Три варианта на выбор: A — корпус, B — жгуты проводов, C — разъёмы и провода.
 Фон — колонны и балка корпуса, огромные вентиляторы в корпусах, электролитические конденсаторы, тороидальные катушки, трансформаторы, радиаторы,
 пучки проводов, бирюзовое свечение и туман у горизонта.
 Цвета — только из assets/palettes/oldtech-vivid-72.gpl.
 
 Запуск из корня проекта:  python tools/gen_loc2_art.py
-Результат: assets/sprites/tiles/tilemap_loc2.png, assets/sprites/backgrounds/bg_loc2.png и bg_loc2_layers/Layer_1..8.png.
+Результат: assets/sprites/tiles/tilemap_loc2_a.png, _b.png, _c.png, assets/sprites/backgrounds/bg_loc2.png и bg_loc2_layers/Layer_1..8.png.
 Рисунок детерминирован (фиксированные семена): повторный запуск даёт те же файлы. Правки арта — здесь (или руками в .aseprite, тогда этот файл не нужен).
 """
 import math
@@ -143,151 +143,204 @@ def bolt(cv, x, y):
     cv.put(x + 2, y + 2, C('gold', 1))  # шлиц
 
 
-FACE = (3, 3, 29, 29)  # поверхность плиты внутри окантовки (x0, y0, x1, y1), не включая x1/y1
+# цвета проводов по референсу: (блик, тело, тень) — рампы палитры
+WIRES = {
+    'yellow': (C('gold', 7), C('gold', 6), C('gold', 4)),
+    'orange': (C('ember', 6), C('ember', 5), C('ember', 3)),
+    'red': (C('ember', 5), C('ember', 4), C('ember', 2)),
+    'purple': (C('void', 5), C('void', 4), C('void', 2)),
+    'green': (C('pcb', 6), C('pcb', 5), C('pcb', 3)),
+    'black': (C('steel', 3), C('steel', 1), C('steel', 0)),
+    'blue': (C('cobalt', 6), C('cobalt', 5), C('cobalt', 3)),
+}
 
 
-def face_pixels():
-    x0, y0, x1, y1 = FACE
-    return [(x, y) for y in range(y0, y1) for x in range(x0, x1)]
+def casing(cv):
+    """Чёрная металлическая панель корпуса: тёмный шов по краю, светлая фаска сверху-слева, матовая грань."""
+    cv.rect(0, 0, TS, TS, C('steel', 0))
+    cv.rect(2, 2, TS - 4, TS - 4, C('steel', 1))
+    for i in range(1, TS - 1):
+        cv.put(i, 1, C('steel', 3))
+        cv.put(1, i, C('steel', 2))
+        cv.put(i, TS - 2, C('steel', 0))
+        cv.put(TS - 2, i, C('steel', 0))
 
 
-def tex_brushed(cv, rng):
-    for x, y in face_pixels():
-        cv.put(x, y, C('cobalt', 1))
-    for _ in range(46):  # штрихи шлифовки
-        y = rng.randint(3, 28)
-        x0 = rng.randint(3, 24)
-        n = rng.randint(5, 16)
-        col = C('cobalt', 2) if rng.random() < 0.7 else C('cobalt', 0)
-        for x in range(x0, min(29, x0 + n)):
-            cv.put(x, y, col)
-    for _ in range(7):  # светлые блики по штрихам
-        y = rng.randint(4, 27)
-        x0 = rng.randint(4, 20)
-        for x in range(x0, x0 + rng.randint(4, 9)):
-            cv.put(x, y, C('cobalt', 3))
+def phillips(cv, x, y):
+    """Винт с крестовым шлицем (5x5): шляпка, блик сверху-слева, тень снизу-справа, крест."""
+    cv.disc(x + 2, y + 2, 2.4, C('steel', 3))
+    cv.put(x + 1, y + 1, C('steel', 5))
+    cv.put(x, y + 2, C('steel', 4))
+    cv.put(x + 2, y, C('steel', 4))
+    cv.put(x + 4, y + 2, C('steel', 2))
+    cv.put(x + 2, y + 4, C('steel', 2))
+    cv.rect(x + 1, y + 2, 3, 1, C('steel', 0))
+    cv.rect(x + 2, y + 1, 1, 3, C('steel', 0))
 
 
-def tex_patina(cv, rng):
-    n = vnoise(32, 32, 8, rng) * 0.7 + vnoise(32, 32, 4, rng) * 0.3
-    g = vnoise(32, 32, 6, rng)
-    steps = [(0.0, C('cobalt', 0)), (0.36, C('cobalt', 1)), (0.58, C('cobalt', 2)), (0.74, C('cobalt', 3))]
-    for x, y in face_pixels():
-        col = quant(n[y, x], steps)
-        if g[y, x] > 0.76:
-            col = C('gold', 2) if g[y, x] < 0.84 else C('gold', 3)  # золотистая патина пятнами
-        cv.put(x, y, col)
+def screws4(cv):
+    for x, y in ((3, 3), (TS - 8, 3), (3, TS - 8), (TS - 8, TS - 8)):
+        phillips(cv, x, y)
 
 
-def tex_scratch(cv, rng):
-    for x, y in face_pixels():
-        cv.put(x, y, C('cobalt', 1))
-    for _ in range(9):  # царапины: светлая линия с тёмным подбоем
-        x0, y0 = rng.randint(4, 26), rng.randint(4, 26)
-        ang = rng.uniform(-0.7, 0.7) + (math.pi / 2 if rng.random() < 0.3 else 0)
-        ln = rng.randint(7, 14)
-        for t in range(ln):
-            xx, yy = x0 + math.cos(ang) * t, y0 + math.sin(ang) * t
-            if 3 <= xx < 29 and 3 <= yy < 29:
-                cv.put(xx, yy + 1, C('cobalt', 0))
-                cv.put(xx, yy, C('cobalt', 3))
-    for _ in range(3):  # вмятины
-        cx, cy, r = rng.randint(7, 24), rng.randint(7, 24), rng.choice((2, 3))
-        for yy in range(cy - r, cy + r + 1):
-            for xx in range(cx - r, cx + r + 1):
-                d = math.hypot(xx - cx, yy - cy)
-                if d <= r:
-                    cv.put(xx, yy, C('cobalt', 0) if (xx - cx) + (yy - cy) <= 0 else C('cobalt', 2))
+def hline(cv, x0, x1, y, c):
+    cv.rect(x0, y, x1 - x0 + 1, 1, c)
 
 
-def tex_tread(cv, rng):
-    for x, y in face_pixels():
-        cv.put(x, y, C('cobalt', 1))
-    for j, y0 in enumerate(range(5, 27, 6)):  # рифлёная сталь: косые чёрточки, чередуются в шахматном порядке
-        for i, x0 in enumerate(range(5, 27, 6)):
-            if i in (0, 3) and j in (0, 3):
-                continue  # у болтов — без рифления
-            slash = (i + j) % 2 == 0
-            for t in range(3):
-                xx = x0 + 1 + t
-                yy = y0 + 1 + (2 - t if slash else t)
-                cv.put(xx, yy, C('cobalt', 4))
-                cv.put(xx, yy + 1, C('cobalt', 0))
+def wire_rows(cv, y0, x0, x1, kind, h=3):
+    """Горизонтальный провод толщиной h: блик, тело, тень."""
+    hi, base, lo = WIRES[kind]
+    for k in range(h):
+        col = hi if k == 0 else lo if k == h - 1 else base
+        hline(cv, x0, x1, y0 + k, col)
 
 
-def tex_rust(cv, rng):
-    n = vnoise(32, 32, 10, rng)
-    steps = [(0.0, C('cobalt', 1)), (0.5, C('cobalt', 2))]
-    for x, y in face_pixels():
-        cv.put(x, y, quant(n[y, x], steps))
-    for bx in (3, 25):  # подтёки от верхних болтов: вертикальные золотистые полосы с разрывами
-        for k in range(2):
-            x = bx + 1 + k * 2
-            ln = rng.randint(10, 22)
-            y = 7
-            while y < 7 + ln and y < 29:
-                seg = rng.randint(2, 5)
-                for yy in range(y, min(29, y + seg)):
-                    cv.put(x, yy, C('gold', 3) if k == 0 else C('gold', 2))
-                y += seg + rng.randint(0, 2)
-    g = vnoise(32, 32, 5, rng)
-    for x, y in face_pixels():
-        if g[y, x] > 0.78:
-            cv.put(x, y, C('gold', 2))
+# --- A: корпус
+def a_fan(cv):
+    cx = cy = 16
+    cv.disc(cx, cy, 11.5, C('steel', 3))  # внешний обод решётки
+    cv.disc(cx, cy, 10.5, C('cobalt', 0))  # тёмный проём
+    for R in (6.2, 9.6):  # кольца решётки
+        cv.ring(cx, cy, R - 0.6, R + 0.6, C('steel', 4))
+    for k in range(6):  # изогнутые спицы решётки
+        a0 = k * math.pi / 3 + 0.3
+        for r in range(3, 11):
+            a = a0 + r * 0.09
+            cv.put(cx + math.cos(a) * r, cy + math.sin(a) * r, C('steel', 5))
+            cv.put(cx + math.cos(a) * r, cy + math.sin(a) * r + 1, C('steel', 2))
+    cv.disc(cx, cy, 3.4, C('steel', 3))  # центральный диск
+    cv.put(cx - 1, cy - 1, C('steel', 5))
+    cv.rect(cx - 1, cy, 3, 1, C('steel', 0))
+    cv.rect(cx, cy - 1, 1, 3, C('steel', 0))
+    cv.ring(cx, cy, 10.6, 11.6, C('steel', 5))
 
 
-def tex_cracks(cv, rng):
-    n = vnoise(32, 32, 9, rng)
-    steps = [(0.0, C('cobalt', 1)), (0.55, C('cobalt', 2))]
-    for x, y in face_pixels():
-        cv.put(x, y, quant(n[y, x], steps))
-    for _ in range(2):  # трещины: ломаная, тёмная с золотым просветом
-        x, y = rng.randint(6, 25), 3
-        pts = []
-        while y < 29:
-            pts.append((x, y))
-            y += 1
-            x += rng.choice((-1, 0, 0, 1))
-            x = max(4, min(27, x))
-        for x, y in pts:
-            cv.put(x, y, C('cobalt', 0))
-            cv.put(x + 1, y, C('gold', 3))
-        for k in range(len(pts) // 2, len(pts) // 2 + 6):  # ответвление
-            x, y = pts[min(k, len(pts) - 1)]
-            cv.put(x + (k - len(pts) // 2), y, C('cobalt', 0))
+def a_vents(cv):
+    for gx in (7, 20):  # две группы вертикальных щелей
+        for k in range(3):
+            x = gx + k * 3
+            cv.rect(x, 10, 1, 12, C('steel', 0))
+            cv.rect(x + 1, 11, 1, 11, C('steel', 3))
 
 
-TEXTURES = [tex_brushed, tex_patina, tex_scratch, tex_tread, tex_rust, tex_cracks]
+def a_label(cv):
+    cv.rect(5, 9, 22, 14, C('cobalt', 7))  # наклейка
+    cv.rect(5, 9, 22, 1, C('cobalt', 5))
+    cv.rect(6, 11, 11, 2, C('steel', 1))  # заголовок
+    for k, ln in enumerate((17, 14, 16, 9)):  # строки текста
+        cv.rect(6, 14 + k * 2, ln, 1, C('steel', 3))
+    for k in range(9):  # штрихкод
+        if k % 2 == 0 or k % 3 == 0:
+            cv.rect(18 + k, 17, 1, 5, C('steel', 1))
+    cv.rect(5, 23, 22, 1, C('steel', 0))
 
 
-def plate_tile(v):
-    """Плита: тёмный шов по краю, светлая фаска сверху-слева, текстурная поверхность, золотая окантовка и болты по углам."""
-    import random
-    rng = random.Random(7000 + v * 131)
+def a_ribs(cv):
+    for y in (9, 15, 21):  # рёбра жёсткости: блик сверху, тень снизу
+        hline(cv, 6, 25, y, C('steel', 3))
+        hline(cv, 6, 25, y + 1, C('steel', 2))
+        hline(cv, 6, 25, y + 2, C('steel', 0))
+
+
+def option_a(v):
     cv = Canvas(TS, TS)
-    for y in range(TS):
-        for x in range(TS):
-            cv.put(x, y, C('cobalt', 0))  # шов
-    for i in range(1, TS - 1):  # фаска: светлая сверху-слева, тёмная снизу-справа
-        cv.put(i, 1, C('cobalt', 4))
-        cv.put(1, i, C('cobalt', 3))
-        cv.put(i, TS - 2, C('cobalt', 1))
-        cv.put(TS - 2, i, C('cobalt', 1))
-    cv.put(1, 1, C('cobalt', 5))
-    TEXTURES[v](cv, rng)
-    for k in range(7, 25):  # золотая окантовка поверхности между болтами (внутри фаски)
-        for pos in (2, TS - 3):
-            cv.put(k, pos, C('gold', 4))
-            cv.put(pos, k, C('gold', 4))
-    for bx, by in ((3, 3), (TS - 7, 3), (3, TS - 7), (TS - 7, TS - 7)):
-        bolt(cv, bx, by)
+    casing(cv)
+    (a_fan, a_vents, a_label, a_ribs)[v](cv)
+    screws4(cv)
     return cv
 
 
-def make_tiles():
-    sheet = Image.new('RGBA', (TS * len(TEXTURES), TS), (0, 0, 0, 0))
-    for v in range(len(TEXTURES)):
-        sheet.paste(plate_tile(v).image(), (v * TS, 0))
+# --- B: жгуты проводов (провода идут через стык тайлов: цвета строк одинаковы во всех кадрах)
+B_ORDER = ['black', 'yellow', 'orange', 'red', 'yellow', 'purple', 'black', 'green', 'orange', 'yellow']
+
+
+def zip_tie(cv, x, buckle_y):
+    """Чёрная пластиковая стяжка поперёк жгута: полоса и замок."""
+    cv.rect(x, 0, 4, TS, C('steel', 0))
+    cv.rect(x, 0, 1, TS, C('steel', 2))
+    cv.rect(x + 3, 0, 1, TS, C('steel', 0))
+    cv.rect(x + 1, buckle_y, 4, 4, C('steel', 1))
+    cv.rect(x + 1, buckle_y, 4, 1, C('steel', 3))
+    cv.rect(x + 2, buckle_y + 1, 2, 2, C('steel', 0))
+
+
+def option_b(v):
+    cv = Canvas(TS, TS)
+    cv.rect(0, 0, TS, TS, C('steel', 0))
+    for k, kind in enumerate(B_ORDER):
+        wire_rows(cv, 1 + k * 3, 0, TS - 1, kind)
+    import random
+    rng = random.Random(500 + v)
+    for _ in range(5):  # блики на проводах
+        k = rng.randrange(10)
+        x = rng.randint(2, 26)
+        hline(cv, x, x + rng.randint(2, 4), 1 + k * 3, C('gold', 7) if B_ORDER[k] in ('yellow', 'orange') else C('cobalt', 7))
+    ties = [[], [12], [5, 22], [19]][v]
+    for x in ties:
+        zip_tie(cv, x, 6 + rng.randint(0, 14))
+    return cv
+
+
+# --- C: разъёмы и провода
+def connector(cv, x, y, cols, rows):
+    """Чёрный разъём: корпус со скошенным краем, ряды квадратных гнёзд, защёлка сверху."""
+    w, h = cols * 4 + 3, rows * 4 + 3
+    cv.rect(x, y, w, h, C('steel', 0))
+    cv.rect(x, y, w, 1, C('steel', 3))
+    cv.rect(x, y, 1, h, C('steel', 2))
+    for r in range(rows):
+        for c in range(cols):
+            sx, sy = x + 2 + c * 4, y + 2 + r * 4
+            cv.rect(sx, sy, 3, 3, C('cobalt', 0))
+            cv.rect(sx, sy + 3, 3, 1, C('steel', 2))
+            cv.put(sx + 1, sy + 1, C('gold', 5))  # контакт
+    cv.rect(x + w // 2 - 2, y - 2, 5, 2, C('steel', 1))  # защёлка
+    cv.rect(x + w // 2 - 2, y - 2, 5, 1, C('steel', 3))
+    return w, h
+
+
+def vwire(cv, x, y0, y1, kind, w=2):
+    hi, base, lo = WIRES[kind]
+    for k in range(w):
+        col = hi if k == 0 else lo if k == w - 1 else base
+        cv.rect(x + k, y0, 1, y1 - y0 + 1, col)
+
+
+def option_c(v):
+    cv = Canvas(TS, TS)
+    casing(cv)
+    if v == 0:  # 8-контактный разъём, вниз идут провода
+        w, h = connector(cv, 7, 5, 4, 2)
+        for c, kind in enumerate(['yellow', 'orange', 'red', 'purple']):
+            vwire(cv, 9 + c * 4, 5 + h, 29, kind, 2)
+        hline(cv, 6, 25, 21, C('steel', 0))  # стяжка поперёк
+        hline(cv, 6, 25, 22, C('steel', 2))
+    elif v == 1:  # 6-контактный разъём слева, провода идут вправо
+        w, h = connector(cv, 4, 9, 3, 2)
+        for r, kind in enumerate(['green', 'yellow']):
+            wire_rows(cv, 11 + r * 4, 4 + w, 27, kind, 3)
+        cv.rect(19, 9, 3, 11, C('steel', 0))  # стяжка
+        cv.rect(19, 9, 1, 11, C('steel', 2))
+    else:  # жгут проводов проходит через круглое отверстие с резиновым кольцом
+        cv.disc(16, 16, 10.5, C('steel', 2))
+        cv.disc(16, 16, 9.2, C('cobalt', 0))
+        cv.ring(16, 16, 8.4, 9.4, C('steel', 0))
+        for k, kind in enumerate(['yellow', 'orange', 'red', 'purple', 'green']):
+            wire_rows(cv, 8 + k * 3, 3, 28, kind, 3)
+        cv.rect(8, 7, 3, 17, C('steel', 0))  # стяжка
+        cv.rect(8, 7, 1, 17, C('steel', 2))
+    screws4(cv)
+    return cv
+
+
+OPTIONS = {'a': (option_a, 4), 'b': (option_b, 4), 'c': (option_c, 3)}
+
+
+def make_tiles(opt):
+    fn, n = OPTIONS[opt]
+    sheet = Image.new('RGBA', (TS * n, TS), (0, 0, 0, 0))
+    for v in range(n):
+        sheet.paste(fn(v).image(), (v * TS, 0))
     return sheet
 
 
@@ -569,7 +622,8 @@ def main():
     out_bg = os.path.join(ROOT, 'assets', 'sprites', 'backgrounds')
     os.makedirs(out_tiles, exist_ok=True)
     os.makedirs(os.path.join(out_bg, 'bg_loc2_layers'), exist_ok=True)
-    make_tiles().save(os.path.join(out_tiles, 'tilemap_loc2.png'))
+    for opt in OPTIONS:
+        make_tiles(opt).save(os.path.join(out_tiles, f'tilemap_loc2_{opt}.png'))
     layers = make_background()
     imgs = []
     for i, cv in enumerate(layers, 1):
@@ -577,7 +631,7 @@ def main():
         im.save(os.path.join(out_bg, 'bg_loc2_layers', f'Layer_{i}.png'))
         imgs.append(im)
     composite(imgs).save(os.path.join(out_bg, 'bg_loc2.png'))
-    print('ok: tilemap_loc2.png, bg_loc2.png, bg_loc2_layers/Layer_1..%d.png' % len(layers))
+    print('ok: tilemap_loc2_a/b/c.png, bg_loc2.png, bg_loc2_layers/Layer_1..%d.png' % len(layers))
 
 
 if __name__ == '__main__':
