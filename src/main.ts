@@ -34,7 +34,8 @@ import { Hud } from './ui/Hud.ts';
 import { TerminalUI } from './ui/TerminalUI.ts';
 import { Terminal } from './entities/Terminal.ts';
 import { CipherCluesView } from './entities/CipherCluesView.ts';
-import { CipherTerminalUI } from './ui/CipherTerminalUI.ts';
+import { PasswordTerminalEntity } from './entities/PasswordTerminalEntity.ts';
+import { WorldProgression } from './systems/WorldProgression.ts';
 import { PuzzleSystem } from './systems/PuzzleSystem.ts';
 import type { CipherTerminalPuzzle } from './systems/CipherTerminalPuzzle.ts';
 import { Debris } from './effects/Debris.ts';
@@ -151,7 +152,7 @@ class GameApp {
   private terminals: Terminal[] = [];
   private cipherPuzzle!: CipherTerminalPuzzle;
   private cipherCluesView!: CipherCluesView;
-  private cipherTerminalUI!: CipherTerminalUI;
+  private passwordTerminal: PasswordTerminalEntity | null = null;
   private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
   private fog: Fog | null = null;
   private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
@@ -186,7 +187,10 @@ class GameApp {
     this.hud = new Hud();
     this.terminalUI = new TerminalUI();
     this.cipherPuzzle = PuzzleSystem.get().cipherTerminalPuzzle;
-    this.cipherTerminalUI = new CipherTerminalUI(this.cipherPuzzle);
+
+    window.addEventListener('keydown', (e) => {
+      this.passwordTerminal?.handleKeyInput(e);
+    });
 
     // Смена брони: прежняя надетая часть отваливается физическим обломком (падает, подпрыгивает, потом исчезает), герой перекрашивается
     EventBus.get().on('armor:changed', (e: { slot: 'head' | 'torso' | 'arms' | 'legs'; from: number; to: number }) => {
@@ -432,6 +436,7 @@ class GameApp {
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
     this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
+    WorldProgression.get().reset();
 
     // Настенный шифр: спавн цифр от 0 до 9 с римскими номерами в комнатах 1-й локации
     this.cipherPuzzle.spawnCluesForLevel(levelDef, this.level, this.rooms);
@@ -542,7 +547,7 @@ class GameApp {
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
-      this.bindRoom(enemy, spawn);
+      enemy.leash = this.bindRoom(enemy, spawn);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
       this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
@@ -567,6 +572,16 @@ class GameApp {
       collected: (x, y) => this.fx.burst(x, y, { count: 14, colors: LIGHTNING_SPARKS, speed: [40, 130], spread: Math.PI * 2, life: [0.2, 0.45], size: [1, 2] })
     });
     this.worldLayer.addChild(this.objects.container);
+    this.level.obstacleCheck = (cx, cy) => this.objects?.isDoorBlocking(cx, cy) ?? false;
+
+    // Терминал пароля на спрайте
+    const pwdObj = levelDef.objects?.find((o) => o.type === 'password');
+    if (pwdObj) {
+      this.passwordTerminal = new PasswordTerminalEntity(pwdObj, this.sprites, this.cipherPuzzle);
+      this.worldLayer.addChild(this.passwordTerminal.container);
+    } else {
+      this.passwordTerminal = null;
+    }
 
     this.player = new Player(heroSpriteId, rigDef, this.sprites, modelRigs[1] ?? null);
     this.player.setArmor(Armor.get().equipped);
@@ -649,7 +664,11 @@ class GameApp {
   /** Привязывает моба к его комнате (замечает героя и бьёт только в ней); возвращает привязку для самого моба. */
   private bindRoom(target: Hittable, spawn: EnemySpawnDef): Leash | null {
     const leash = this.homeLeash(spawn);
-    if (leash) this.leashOf.set(target, leash);
+    if (leash) {
+      this.leashOf.set(target, leash);
+      const roomDef = this.rooms.defs.find((r) => r.id === leash.id);
+      WorldProgression.get().registerEnemy(leash.id, roomDef?.name ?? leash.id);
+    }
     return leash;
   }
 
@@ -752,6 +771,10 @@ class GameApp {
   private removeWhole(target: Hittable): void {
     if (this.gone.has(target)) return; // уже убран (например, добит цепной молнией): повторное уничтожение роняло игровой цикл
     this.gone.add(target);
+
+    const leash = this.leashOf.get(target);
+    if (leash) WorldProgression.get().onEnemyKilled(leash.id);
+
     const drop = <T>(list: T[], item: unknown) => {
       const i = list.indexOf(item as T);
       if (i >= 0) list.splice(i, 1);
@@ -769,6 +792,10 @@ class GameApp {
   private kill(target: Hittable, mob: Mob): void {
     if (this.gone.has(target)) return;
     this.gone.add(target);
+
+    const leash = this.leashOf.get(target);
+    if (leash) WorldProgression.get().onEnemyKilled(leash.id);
+
     let enemyType = 'enemy';
     if (target instanceof Spider) enemyType = 'spider';
     else if (target instanceof SpiderMother) enemyType = 'mother';
@@ -814,6 +841,7 @@ class GameApp {
     const armor = Armor.get();
     armor.loseScrapOnDeath();
     armor.revive();
+    WorldProgression.get().resetEngagement();
     const sp = activeLevelDef.player_spawn;
     this.player.spawnAt(sp.x, sp.y, this.level.tileSize);
     this.fx.burst(this.player.body.x, this.player.body.y - 28, { count: 22, colors: LIGHTNING_SPARKS, speed: [60, 190], spread: Math.PI * 2, life: [0.25, 0.5], size: [1, 3] });
@@ -1002,9 +1030,8 @@ class GameApp {
 
     const armor = Armor.get();
     const terminalOpen = this.terminalUI.isOpen;
-    const cipherOpen = this.cipherTerminalUI.isOpen;
-    const frozen = terminalOpen || cipherOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
-    armor.invulnerable = terminalOpen || cipherOpen || this.deathTimer > 0;
+    const frozen = terminalOpen || this.deathTimer > 0; // у терминала и после гибели герой стоит
+    armor.invulnerable = terminalOpen || this.deathTimer > 0;
     armor.update(dt);
 
     // 1. Игрок: ввод + физика на тайлах
@@ -1012,6 +1039,12 @@ class GameApp {
     const aim = this.aimInWorld();
     const live: InputState = frozen ? { ...input, horizontal: 0, vertical: 0, jumpPressed: false, jumpHeld: false, attackPressed: false, attackHeld: false,
       specialAttackPressed: false, specialAttackHeld: false, hubMenuPressed: false } : input;
+
+    // Перехват клика по кнопкам терминала пароля (если игрок рядом и кликнул по кнопке на спрайте)
+    if (live.attackPressed && aim && this.passwordTerminal?.onClick(aim.x, aim.y)) {
+      live.attackPressed = false;
+    }
+
     // луч молнии: ПКМ зажата, броня на руках, есть энергия
     this.player.beamWanted = !frozen && armor.hasLightning && input.specialAttackHeld && armor.energy > 4;
     this.player.update(dt, live, this.level, aim);
@@ -1049,14 +1082,15 @@ class GameApp {
       });
     }
 
-    // Терминал ввода шифра (комната Пароль): E открывает и закрывает окно
-    const nearCipherTerm = !frozen && this.cipherPuzzle.isNearTerminal(pb.x, pb.y);
+    // Терминал ввода шифра: интерактивный спрайт (кнопки нажимаются прямо на спрайте)
+    this.passwordTerminal?.update(dt, { x: pb.x, y: pb.y }, aim);
+    if (this.app?.canvas) {
+      this.app.canvas.style.cursor = (aim && this.passwordTerminal?.hitTest(aim.x, aim.y) && this.passwordTerminal?.isNearbyHero({ x: pb.x, y: pb.y })) ? 'pointer' : 'default';
+    }
 
     if (input.interactPressed) {
       if (terminalOpen) this.terminalUI.close();
-      else if (cipherOpen) this.cipherTerminalUI.close();
       else if (nearTerm && this.deathTimer <= 0) this.terminalUI.open(nearTerm.style);
-      else if (nearCipherTerm && this.deathTimer <= 0) this.cipherTerminalUI.open();
     }
     if (this.deathTimer > 0) {
       this.deathTimer -= dt;
@@ -1065,10 +1099,14 @@ class GameApp {
     // герой мигает, пока неуязвим после попадания
     this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
-    // Комнаты: в какой стоит герой (от этого зависят мобы и туман); объекты уровня: двери, предметы, подставки
+    // Комнаты: в какой стоит герой (от этого зависят мобы, арены и туман); объекты уровня: двери, предметы, подставки
     const hb = this.player.body;
-    if (this.rooms.any) this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
-    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && !cipherOpen && this.deathTimer <= 0, frozen);
+    if (this.rooms.any) {
+      this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
+      const heroRoomIds = [...this.rooms.current].map((idx) => this.rooms.defs[idx]?.id).filter(Boolean) as string[];
+      WorldProgression.get().updateHeroRooms(heroRoomIds);
+    }
+    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && this.deathTimer <= 0, frozen);
 
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);

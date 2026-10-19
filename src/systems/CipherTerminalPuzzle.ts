@@ -250,10 +250,10 @@ export class CipherTerminalPuzzle implements IPuzzle {
       }
     }
 
-    // 2. Исключаем комнаты боссов и терминала пароля
+    // 2. Исключаем комнаты боссов и хаб; комната с паролем РАЗРЕШЕНА
     const filteredRooms = targetRooms.filter((r) => {
       const name = (r.name || '').toLowerCase();
-      return !name.includes('босс') && !name.includes('пароль');
+      return !name.includes('босс') && !name.includes('boss') && !name.includes('хаб') && !name.includes('hub');
     });
 
     const activeRooms: readonly RoomDef[] = filteredRooms.length > 0 ? filteredRooms : (targetRooms.length > 0 ? targetRooms : allRooms);

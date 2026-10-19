@@ -386,7 +386,12 @@ export class Critter implements Hittable {
   private gravity(dt: number): void {
     const b = this.body;
     b.vy += GRAVITY * dt;
+    const oldX = b.x;
     b.move(dt, this.level);
+    if (this.leash && !this.inRoom(b.x, b.y - 4)) {
+      b.x = oldX;
+      b.vx = -b.vx * 0.5;
+    }
     this.pos = { x: b.x, y: b.y };
   }
 
@@ -403,7 +408,7 @@ export class Critter implements Hittable {
     // перед тайлом (и краем уровня) — разворот
     const ahead = { x: this.pos.x + Math.cos(this.heading) * 14, y: this.pos.y + Math.sin(this.heading) * 14 };
     const hit = this.level.isSolid(Math.floor(ahead.x / ts), Math.floor(ahead.y / ts)) || ahead.y < 0 || ahead.x < 0 || ahead.x > this.level.widthTiles * ts
-      || !this.inRoom(ahead.x, ahead.y);
+      || !this.inRoom(ahead.x, ahead.y) || !this.inRoom(nx, ny);
     if (hit) {
       this.heading = wrap(this.heading + Math.PI * (0.6 + Math.random() * 0.3) * (Math.random() < 0.5 ? 1 : -1));
     } else {
