@@ -7,6 +7,7 @@ import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import type { Spider } from './Spider.ts';
 import { ThreadRope } from './ThreadRope.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 // ---- Лапки шатаются: цепочка костей (FlexBody), поворот у корня + плавный изгиб к кончику; по две несоизмеримые синусоиды
 const ROOT_SWING = 0.06; // рад: размах поворота у корня лапки
@@ -113,6 +114,8 @@ export class SpiderMother implements Hittable {
   private scaleX = 1;
   private scaleVel = 0;
   private suckTimer = 0;
+  /** Комната-«дом»: плюётся паучками только пока герой в ней (null — без привязки). */
+  public leash: Leash | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, tileSize: number, rig: RigDef, sprites: SpriteLibrary,
@@ -237,6 +240,7 @@ export class SpiderMother implements Hittable {
   private updateState(dt: number): void {
     switch (this.state) {
       case 'idle':
+        if (this.leash && !this.leash.hero()) break; // героя в комнате нет — сидит тихо
         this.nextSpit -= dt;
         if (this.nextSpit <= 0) {
           if (this.aliveBabies >= this.spawns.max_alive) {

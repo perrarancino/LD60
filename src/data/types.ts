@@ -32,7 +32,7 @@ export interface TileDef {
   sprite_id: string;
   solid: boolean;
   one_way?: boolean;
-  slope?: 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left'; // 45° диагональный скос тайла
+  slope?: Slope; // 45° диагональный скос тайла
   fill_sprite_id?: string; // спрайт заливки для клеток под верхним слоем (над которыми тоже твёрдая клетка): стены и толща
   loop_frames?: number; // спрайт — лист из трёх кадров-тайлов: левый край платформы, середина (повторяется), правый край
   top_frames?: number[]; // кадры листа для верхнего слоя (над клеткой нет твёрдой): вариант выбирается по клетке, детерминированно
@@ -44,6 +44,11 @@ export interface TileSetDef {
   tiles: TileDef[];
 }
 
+/**
+ * Комната уровня: клетки, которые герой видит, находясь в ней (остальное скрыто туманом войны), и «дом» для мобов: они замечают героя
+ * и атакуют только в пределах своей комнаты. Границы — прямоугольник x, y, width, height (в клетках); mask — какие клетки внутри него
+ * принадлежат комнате (ряды длиной width, "#" — клетка комнаты, "." — нет). Без mask комната — весь прямоугольник.
+ */
 export interface RoomDef {
   id: string;
   name: string;
@@ -51,9 +56,47 @@ export interface RoomDef {
   y: number;
   width: number;
   height: number;
+  mask?: string[];
   color?: string;
   beveled?: boolean;
 }
+
+/** Туман войны: вне комнаты, где стоит герой, мир чёрный. current — виден только текущая комната, explored — и уже посещённые. */
+export interface FogDef {
+  mode?: 'current' | 'explored';
+}
+
+/** Поворот и отражение тайла в клетке (x, y): отражения применяются к рисунку, затем поворот по часовой стрелке (rot — 90, 180 или 270). */
+export interface TileXformDef {
+  x: number;
+  y: number;
+  flip_x?: boolean;
+  flip_y?: boolean;
+  rot?: number;
+}
+
+/** Нитка, поставленная точно на пиксель: x, y — пиксели мира. vine — физичная лиана свисает вниз от точки (pieces звеньев), sky — длинная нитка с верхом в (x, y) и свободным нижним концом на глубине length. */
+export interface ThreadPlaceDef {
+  kind: 'vine' | 'sky';
+  x: number;
+  y: number;
+  pieces?: number;
+  length?: number;
+  swing?: number;
+  bead?: boolean;
+}
+
+/** Объект уровня из каталога data/objects/placeables.json (дверь, батарейка, подставка и т.п.): x, y — пиксели мира, точка привязки спрайта. */
+export interface LevelObjectDef {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  flip_x?: boolean;
+  props?: Record<string, string | number | boolean>;
+}
+
+export type Slope = 'up_right' | 'up_left' | 'ceil_right' | 'ceil_left';
 
 export interface MobSpawnZoneDef {
   id: string;
@@ -78,6 +121,7 @@ export interface EnemySpawnDef {
   anchor_y?: number; // для висящих на нитке: ряд тайлов, где закреплён верх нитки (по умолчанию -2)
   is_boss?: boolean;
   boss_id?: string;
+  room?: string; // id комнаты-«дома»: моб замечает героя и атакует только в ней; по умолчанию — комната, в которой он стоит
 }
 
 /** Декор уровня (без коллизии): точка привязки спрайта ставится в (x, y) тайлов. back — за тайлами, front — поверх них. */
@@ -86,6 +130,8 @@ export interface DecorDef {
   x: number;
   y: number;
   layer?: 'back' | 'front';
+  flip_x?: boolean; // отражение рисунка по горизонтали (вокруг точки привязки)
+  flip_y?: boolean; // по вертикали
 }
 
 /** Терминал брони на уровне: нижним центром в нижнюю границу клетки (x, y). */
@@ -132,6 +178,10 @@ export interface LevelDef {
   player_spawn: { x: number; y: number };
   decor?: DecorDef[];
   terminals?: TerminalDef[]; // терминалы брони
+  tile_xform?: TileXformDef[]; // повороты и отражения отдельных тайлов
+  threads?: ThreadPlaceDef[]; // нитки, поставленные на конкретные пиксели
+  objects?: LevelObjectDef[]; // двери, батарейки, подставки и прочие объекты из каталога
+  fog?: FogDef | boolean; // туман войны по комнатам (нужен список rooms)
   start_armor?: number; // герой входит на уровень в частях этой модели (1 — прежний герой, 2 — герой второй локации)
   grade?: GradeDef;
   light?: { rim_color?: string; fog_color?: string }; // цвета света от фона на уровне (#rrggbb); по умолчанию зелёные

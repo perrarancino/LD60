@@ -6,6 +6,7 @@ import type { HitCircle, PartDamageable, PartDamageResult } from './Hittable.ts'
 import { SegmentChain } from './SegmentChain.ts';
 import type { PartKind, Vec } from './SegmentChain.ts';
 import { applySolidMask } from './solidMask.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 // ---- Ползание по поверхностям (как у паука, но тело толстое: центр головы идёт на радиусе от поверхности)
 const WALL_PROBE_HEIGHT = 4; // px над поверхностью, на которой проверяем стену впереди
@@ -60,6 +61,8 @@ export class Worm implements PartDamageable {
   private phase = Math.random() * Math.PI * 2;
   private stuck = 0; // сколько секунд голова упирается в чужое/своё тело
   private burrowTimer = rand(CRAWL_TIME);
+  /** Комната-«дом»: ползает и выныривает только в её клетках (null — без привязки). */
+  public leash: Leash | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -235,6 +238,10 @@ export class Worm implements PartDamageable {
 
   /** Движение головы вдоль поверхности, огибание внутренних и внешних углов. */
   private crawl(step: number): void {
+    // граница комнаты: впереди чужая клетка — разворот
+    if (this.leash && !this.leash.contains(this.s.x + this.t.x * (step + this.radius + 6), this.s.y + this.t.y * (step + this.radius + 6))) {
+      this.t = { x: -this.t.x, y: -this.t.y };
+    }
     this.s = { x: this.s.x + this.t.x * step, y: this.s.y + this.t.y * step };
     if (this.cornerCooldown > 0) {
       this.snapToSurface();
@@ -325,7 +332,9 @@ export class Worm implements PartDamageable {
       const dcur = dist.get(key(cx, cy)) ?? 0;
       if (dcur >= TUNNEL_MIN) {
         for (const a of AXES) {
-          if (this.cellFree(cx + a.x, cy + a.y) && !this.occupied((cx + a.x + 0.5) * ts, (cy + a.y + 0.5) * ts, 34)) exits.push({ cx, cy, dir: a });
+          const ex = (cx + a.x + 0.5) * ts;
+          const ey = (cy + a.y + 0.5) * ts;
+          if (this.cellFree(cx + a.x, cy + a.y) && !this.occupied(ex, ey, 34) && (!this.leash || this.leash.contains(ex, ey))) exits.push({ cx, cy, dir: a });
         }
       }
       if (dcur >= TUNNEL_MAX) continue;

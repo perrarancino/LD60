@@ -1,0 +1,114 @@
+{
+  "$schema": "../schemas/placeables.schema.json",
+  "version": "1.0.0",
+  "items": [
+    { "id": "battery", "label": "Батарейка", "sprite_id": "item_battery" }
+  ],
+  "decor": [
+    { "sprite_id": "deco_cooler", "label": "Куллер", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "back", "flip": true },
+    { "sprite_id": "deco_ram", "label": "Планка RAM", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "back", "flip": true },
+    { "sprite_id": "deco_transistor", "label": "Транзистор", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "front", "flip": true },
+    { "sprite_id": "deco_transistor2", "label": "Транзистор (вариант)", "group": "Железо", "anchor": "floor", "snap": "pixel", "layer": "front", "flip": true }
+  ],
+  "threads": [
+    {
+      "kind": "vine",
+      "label": "Лиана",
+      "sprite_id": "enemy_spider_thread",
+      "hint": "Физичная нить: свисает вниз от точки, качается на ветру, герой её задевает. Длина — в звеньях по 14 px, верх закреплён там, куда ткнули (под тайлом — корень спрятан).",
+      "defaults": { "pieces": 3, "bead": true }
+    },
+    {
+      "kind": "sky",
+      "label": "Нитка с неба",
+      "sprite_id": "enemy_spider_thread",
+      "hint": "Длинная упругая нитка, как у паучихи: верх закреплён в точке, нижний конец свободно качается. Длина — в пикселях.",
+      "defaults": { "length": 160, "swing": 10, "bead": true }
+    }
+  ],
+  "objects": [
+    {
+      "type": "door",
+      "label": "Дверь",
+      "group": "Проходы",
+      "behavior": "door",
+      "sprite_id": "deco_door_loc1",
+      "anchor": "floor",
+      "snap": "tile",
+      "flip": true,
+      "hint": "Герой подходит и жмёт E. Ведёт в другую дверь: этого уровня или другого (to_level + to_door). Может быть заперта до предмета или флага.",
+      "props": [
+        { "key": "to_level", "label": "Ведёт на уровень", "kind": "level", "default": "" },
+        { "key": "to_door", "label": "К двери (id)", "kind": "door", "default": "" },
+        { "key": "requires_item", "label": "Нужен предмет", "kind": "item", "default": "" },
+        { "key": "requires_flag", "label": "Нужен флаг", "kind": "text", "default": "" }
+      ]
+    },
+    {
+      "type": "battery",
+      "label": "Батарейка",
+      "group": "Квест",
+      "behavior": "pickup",
+      "sprite_id": "item_battery",
+      "anchor": "free",
+      "snap": "pixel",
+      "hint": "Квестовый предмет: герой подбирает касанием, предмет идёт в инвентарь (сохраняется).",
+      "props": [
+        { "key": "item", "label": "Предмет", "kind": "item", "default": "battery" }
+      ]
+    },
+    {
+      "type": "battery_stand",
+      "label": "Подставка под батарейку",
+      "group": "Квест",
+      "behavior": "socket",
+      "sprite_id": "deco_batterystand",
+      "anchor": "floor",
+      "snap": "tile",
+      "flip": true,
+      "overlay": { "sprite_id": "item_battery", "x": 0, "y": -34 },
+      "hint": "Герой с нужным предметом жмёт E — предмет вставляется, ставится флаг (его ждёт дверь).",
+      "props": [
+        { "key": "needs_item", "label": "Нужен предмет", "kind": "item", "default": "battery" },
+        { "key": "sets_flag", "label": "Ставит флаг", "kind": "text", "default": "power_on" }
+      ]
+    },
+    {
+      "type": "password",
+      "label": "Панель с паролем",
+      "group": "Квест",
+      "behavior": "prop",
+      "sprite_id": "deco_password",
+      "anchor": "floor",
+      "snap": "tile",
+      "flip": true,
+      "hint": "Заготовка без логики: в игре стоит как предмет обстановки, код хранится в props.",
+      "props": [
+        { "key": "code", "label": "Код", "kind": "text", "default": "" },
+        { "key": "sets_flag", "label": "Ставит флаг", "kind": "text", "default": "" }
+      ]
+    },
+    {
+      "type": "terminal_loc1",
+      "label": "Терминал брони (лока 1)",
+      "group": "Терминалы",
+      "behavior": "terminal",
+      "store": "terminals",
+      "sprite_id": "terminal_loc1",
+      "anchor": "floor",
+      "snap": "tile",
+      "hint": "Покупка и смена брони за металлолом (E)."
+    },
+    {
+      "type": "terminal_loc2",
+      "label": "Терминал брони (лока 2)",
+      "group": "Терминалы",
+      "behavior": "terminal",
+      "store": "terminals",
+      "sprite_id": "terminal_loc2",
+      "anchor": "floor",
+      "snap": "tile",
+      "hint": "Покупка и смена брони за металлолом (E)."
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import type { HitCircle, PartDamageable, PartDamageResult } from './Hittable.ts'
 import { SegmentChain } from './SegmentChain.ts';
 import type { ChainPartDef, PartKind, Vec } from './SegmentChain.ts';
 import { applySolidMask } from './solidMask.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 const BOUNDS_MARGIN_X = 64; // px: дальше от краёв уровня голова разворачивается к центру
 const BOUNDS_TOP = 50;
@@ -52,6 +53,8 @@ export class WormBoss implements PartDamageable {
   private mode: 'seek' | 'pass' = 'seek';
   private passT = 0;
   private turnRate = 0; // сглаженная скорость поворота головы, рад/с
+  /** Комната-«дом»: босс охотится за героем только в ней и не покидает её (null — без привязки). */
+  public leash: Leash | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -150,13 +153,15 @@ export class WormBoss implements PartDamageable {
     const W = this.level.widthTiles * ts;
     const H = this.level.heightTiles * ts;
 
-    const target = this.target();
+    const target = this.leash && !this.leash.hero() ? null : this.target(); // герой в другой комнате — босс его не чует
     let want = this.heading;
     let steering = true;
-    const outside = this.p.x < BOUNDS_MARGIN_X || this.p.x > W - BOUNDS_MARGIN_X || this.p.y < BOUNDS_TOP || this.p.y > H + BOUNDS_BOTTOM;
+    const leaving = !!this.leash && !this.leash.contains(this.p.x, this.p.y);
+    const outside = leaving || this.p.x < BOUNDS_MARGIN_X || this.p.x > W - BOUNDS_MARGIN_X || this.p.y < BOUNDS_TOP || this.p.y > H + BOUNDS_BOTTOM;
     if (outside) {
-      // у края арены — назад к центру (не раздумывая о герое)
-      want = Math.atan2(H * 0.4 - this.p.y, W / 2 - this.p.x);
+      // у края арены (или за границей комнаты) — назад к центру (не раздумывая о герое)
+      const home = this.leash ? this.leash.center : { x: W / 2, y: H * 0.4 };
+      want = Math.atan2(home.y - this.p.y, home.x - this.p.x);
       this.mode = 'seek';
     } else if (this.mode === 'pass') {
       // пролёт мимо: держит курс (чуть виляет), пока не пройдёт время или не выйдет за дальность

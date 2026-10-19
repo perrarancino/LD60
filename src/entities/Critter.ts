@@ -6,6 +6,7 @@ import { LightningTail } from '../effects/LightningTail.ts';
 import { Body } from './Body.ts';
 import { HitReaction } from './HitReaction.ts';
 import type { HitCircle, Hittable } from './Hittable.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 const GRAVITY = 850; // px/с²
 const CHASE_BOOST = 1.5; // во сколько раз быстрее бежит, заметив героя
@@ -94,6 +95,8 @@ export class Critter implements Hittable {
   public onWhipHit: ((x: number, y: number, dirX: number) => boolean) | null = null;
   /** Щелчок хлыста в конце удара: точка кончика в мире. */
   public onCrack: ((x: number, y: number) => void) | null = null;
+  /** Комната-«дом»: замечает героя и держится только в ней (null — без привязки). */
+  public leash: Leash | null = null;
 
   constructor(
     def: EnemyDef, spawn: EnemySpawnDef, private readonly level: Level, rig: RigDef, sprites: SpriteLibrary,
@@ -140,6 +143,23 @@ export class Critter implements Hittable {
     this.animate(0);
   }
 
+  /**
+   * Свет хвоста-молнии (синий, как у всех молний игры — стиль BLUE): в покое слабое свечение у середины хвоста, в замахе и хлёсте — яркая вспышка у кончика.
+   * null — хвоста нет или он вне зоны видимости.
+   */
+  public tailLight(): { x: number; y: number; r: number; i: number; c: [number, number, number] } | null {
+    const tail = this.tail;
+    if (!tail || !tail.graphics.visible) return null;
+    const p = this.position;
+    const sx = this.mirrored() ? -1 : 1;
+    const k = Math.max(this.wind * 0.5, this.lash);
+    const n = tail.nodes[Math.floor(tail.nodes.length * (k > 0.1 ? 0.9 : 0.55))];
+    return {
+      x: p.x + (n.x - this.anchor.x) * sx, y: p.y + (n.y - this.anchor.y), r: 44 + 52 * k, i: 0.32 + 1.0 * k,
+      c: [0.24, 0.91, 0.9]
+    };
+  }
+
   /** Страж (watcher) только следит и никого не трогает. */
   public get passive(): boolean {
     return this.cfg.kind === 'watcher';
@@ -175,7 +195,13 @@ export class Critter implements Hittable {
     return this.level.isSolid(Math.floor(x / ts), Math.floor((b.y + 3) / ts));
   }
 
+  /** Точка (мир) в пределах комнаты моба (без привязки — везде). */
+  private inRoom(x: number, y: number): boolean {
+    return !this.leash || this.leash.contains(x, y);
+  }
+
   private heroNear(range: number): Vec | null {
+    if (this.leash && !this.leash.hero()) return null; // герой в другой комнате — моб его не замечает
     const h = this.target();
     if (!h) return null;
     const p = this.position;
@@ -316,7 +342,7 @@ export class Critter implements Hittable {
     } else if (keepAway) {
       want = hero.x > b.x ? -1 : 1;
     }
-    const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want));
+    const blocked = b.blockedX === want || (b.grounded && !this.groundAhead(want)) || !this.inRoom(b.x + want * (b.hitWidth / 2 + LEDGE_PROBE), b.y - 4);
     if (blocked) {
       if (chasing || keepAway) speed = 0; // у края или стены не падает и не лезет в стену — ждёт
       else {
@@ -344,7 +370,7 @@ export class Critter implements Hittable {
         // от героя — прочь; иначе куда придётся (чаще — туда же, куда смотрит)
         let dir: 1 | -1 = Math.random() < 0.65 ? this.facing : ((-this.facing) as 1 | -1);
         if (hero) dir = hero.x > b.x ? -1 : 1;
-        if (b.blockedX === dir) dir = (-dir) as 1 | -1;
+        if (b.blockedX === dir || !this.inRoom(b.x + dir * 40, b.y - 4)) dir = (-dir) as 1 | -1;
         this.setFacing(dir);
         b.vy = -rand(HOP_SPEED[0], HOP_SPEED[1]) * (hero ? 1.2 : 1);
         b.vx = dir * rand(HOP_RUN[0], HOP_RUN[1]) * (hero ? 1.4 : 1);
@@ -376,7 +402,8 @@ export class Critter implements Hittable {
     const ny = this.pos.y + Math.sin(this.heading) * v * dt;
     // перед тайлом (и краем уровня) — разворот
     const ahead = { x: this.pos.x + Math.cos(this.heading) * 14, y: this.pos.y + Math.sin(this.heading) * 14 };
-    const hit = this.level.isSolid(Math.floor(ahead.x / ts), Math.floor(ahead.y / ts)) || ahead.y < 0 || ahead.x < 0 || ahead.x > this.level.widthTiles * ts;
+    const hit = this.level.isSolid(Math.floor(ahead.x / ts), Math.floor(ahead.y / ts)) || ahead.y < 0 || ahead.x < 0 || ahead.x > this.level.widthTiles * ts
+      || !this.inRoom(ahead.x, ahead.y);
     if (hit) {
       this.heading = wrap(this.heading + Math.PI * (0.6 + Math.random() * 0.3) * (Math.random() < 0.5 ? 1 : -1));
     } else {

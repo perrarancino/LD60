@@ -6,6 +6,7 @@ import type { Level } from '../world/Level.ts';
 import type { Hittable, HitCircle } from './Hittable.ts';
 import { HitReaction } from './HitReaction.ts';
 import { TwoBoneLeg } from './TwoBoneLeg.ts';
+import type { Leash } from '../world/Rooms.ts';
 
 // ---- Ползание по поверхностям
 const BODY_FRONT = 9; // px: на таком расстоянии впереди центра проверяем стену (внутренний угол)
@@ -109,6 +110,8 @@ export class Spider implements Hittable {
   private squash = 0; // 0..1: сплющивание при посадке (затухает)
   private readonly fx: Particles | null;
   public expired = false;
+  /** Комната-«дом»: ползает только в её клетках (null — без привязки). */
+  public leash: Leash | null = null;
   private readonly react = new HitReaction(this.container);
 
   constructor(
@@ -406,6 +409,10 @@ export class Spider implements Hittable {
   /** Движение тела вдоль поверхности, огибание внутренних и внешних углов. */
   private crawl(dt: number, speedNow: number): void {
     const step = speedNow * dt;
+    // граница комнаты: впереди чужая клетка — разворот
+    if (this.leash && !this.leash.contains(this.s.x + this.t.x * (step + 8), this.s.y + this.t.y * (step + 8))) {
+      this.t = { x: -this.t.x, y: -this.t.y };
+    }
     this.s = { x: this.s.x + this.t.x * step, y: this.s.y + this.t.y * step };
 
     if (this.cornerCooldown > 0) {

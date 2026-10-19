@@ -1,6 +1,6 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { SpriteLibrary } from './assets/SpriteLibrary.ts';
-import type { BackgroundDef, EnemyDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
+import type { BackgroundDef, EnemyDef, EnemySpawnDef, LevelDef, RigDef, TileSetDef } from './data/types.ts';
 import { Enemy } from './entities/Enemy.ts';
 import { Spider } from './entities/Spider.ts';
 import { SpiderMother } from './entities/SpiderMother.ts';
@@ -16,6 +16,9 @@ import { Critter } from './entities/Critter.ts';
 import { Player } from './entities/Player.ts';
 import type { Strike } from './entities/Player.ts';
 import { Level } from './world/Level.ts';
+import { LevelObjects } from './world/Objects.ts';
+import { Fog, RoomMap } from './world/Rooms.ts';
+import type { Leash } from './world/Rooms.ts';
 import { ParallaxBackground } from './world/ParallaxBackground.ts';
 import { GAME_CONFIG } from './core/Constants.ts';
 import { InputManager } from './core/InputManager.ts';
@@ -46,12 +49,26 @@ const LEVELS = Object.values(
 
 const urlParams = new URLSearchParams(window.location.search);
 const requestedLevel = urlParams.get('level');
-const activeLevelDef = (requestedLevel
+let activeLevelDef: LevelDef = (requestedLevel
   ? LEVELS.find(l => l.id === requestedLevel || l.id.includes(requestedLevel) || (requestedLevel === 'map' && l.id === 'world_prototype'))
   : undefined) ?? (LEVELS.find(l => l.id === 'test_level') || LEVELS[0]);
 
-document.title = `${activeLevelDef.display_name} — LD60`;
-console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
+/**
+ * Свежая версия уровня с диска: редактор открывает игру с ?live=1, и сервер (vite или exe-редактор) отдаёт уровень, только что сохранённый
+ * в data/levels, — пересборка игры не нужна. Не вышло — играем вшитую в сборку версию.
+ */
+async function loadLiveLevel(base: LevelDef): Promise<LevelDef> {
+  if (urlParams.get('live') !== '1') return base;
+  try {
+    const res = await fetch(`./api/ld60/level?id=${encodeURIComponent(base.id)}`, { cache: 'no-store' });
+    if (res.ok) return (await res.json()) as LevelDef;
+  } catch { /* сервера с уровнями нет — вшитая версия */ }
+  return base;
+}
+
+// Куда поставить героя: у двери (?door=id, пришёл с другого уровня) или в точку (?spawn=x,y — клетки, «играть отсюда» из редактора)
+const requestedDoor = urlParams.get('door');
+const requestedSpawn = (urlParams.get('spawn') ?? '').split(',').map(Number);
 
 // Все риги из data/rigs (враги-«сборные», например паук, выбирают свой по rig_id)
 const RIGS = Object.values(
@@ -127,6 +144,10 @@ class GameApp {
   private hud!: Hud;
   private terminalUI!: TerminalUI;
   private terminals: Terminal[] = [];
+  private rooms!: RoomMap; // комнаты уровня: туман войны и привязка мобов
+  private fog: Fog | null = null;
+  private objects: LevelObjects | null = null; // двери, квестовые предметы, подставки
+  private readonly leashOf = new Map<Hittable, Leash>(); // моб -> его комната
   private debris = new Debris();
   private boltFx = new LightningFx(); // вспышка молнии каждого третьего удара
   private beam!: LightningBeam; // луч молнии из руки
@@ -204,6 +225,9 @@ class GameApp {
       }
     });
 
+    activeLevelDef = await loadLiveLevel(activeLevelDef);
+    document.title = `${activeLevelDef.display_name} — LD60`;
+    console.log(`[Game] Загружен уровень: ${activeLevelDef.display_name} (ID: ${activeLevelDef.id})`);
     await loadDamageFont();
     await this.setupScene();
 
@@ -388,6 +412,8 @@ class GameApp {
     this.worldLayer.addChild(this.level.container);
     this.worldLayer.addChild(this.level.frontLayer); // декор поверх тайлов (транзисторы)
 
+    this.rooms = new RoomMap(levelDef.rooms, this.level.tileSize, levelDef.width, levelDef.height);
+
     // Собираем всех врагов: фиксированные спавны + сгенерированные строго на полу из зон спавна
     const allEnemies = [...levelDef.enemies];
     if (levelDef.spawn_zones) {
@@ -421,6 +447,7 @@ class GameApp {
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
         const spider = new Spider(def, spawn, this.level, rig, this.sprites);
+        spider.leash = this.bindRoom(spider, spawn);
         this.spiders.push(spider);
         this.worldLayer.addChild(spider.container);
         this.trackSpider(spider, def.stats.max_health, def.stats.contact_damage);
@@ -430,8 +457,10 @@ class GameApp {
         // Паучиха-матка: сидит на фоне (под тайлами), шатает лапками и выплёвывает паучков
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
+        const motherRoom = this.homeLeash(spawn);
         const mother = new SpiderMother(def, spawn, this.level.tileSize, rig, this.sprites, this.fx,
-          (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
+          (x, y, vx, vy) => this.spawnBaby(enemyDefs, def, x, y, vx, vy, motherRoom), (baby) => this.worldLayer.addChildAt(baby.container, this.worldLayer.getChildIndex(this.fx.container)));
+        mother.leash = this.bindRoom(mother, spawn);
         this.mothers.push(mother);
         this.worldLayer.addChildAt(mother.container, this.worldLayer.getChildIndex(this.level.container));
         this.track(mother, def.stats.max_health, mother.container, () => this.mothers.splice(this.mothers.indexOf(mother), 1));
@@ -446,6 +475,7 @@ class GameApp {
           const b = this.player.body;
           return { x: b.x, y: b.y - 30 };
         });
+        boss.leash = this.bindRoom(boss, spawn);
         this.bosses.push(boss);
         this.worldLayer.addChildAt(boss.container, this.worldLayer.getChildIndex(this.level.container));
         this.contactDmg.set(boss, def.stats.contact_damage);
@@ -469,6 +499,7 @@ class GameApp {
           return true;
         };
         mob.onCrack = (x, y) => this.fx.burst(x, y, { count: 8, colors: ZAP_COLORS, speed: [40, 130], spread: Math.PI * 2, life: [0.12, 0.3], size: [1, 2] });
+        mob.leash = this.bindRoom(mob, spawn);
         this.critters.push(mob);
         this.worldLayer.addChild(mob.container);
         this.track(mob, def.stats.max_health, mob.container, () => this.critters.splice(this.critters.indexOf(mob), 1));
@@ -480,12 +511,14 @@ class GameApp {
         const rig = RIGS.find((r) => r.id === def.rig_id);
         if (!rig) throw new Error(`Враг "${def.id}" ссылается на неизвестный риг "${def.rig_id}"`);
         const worm = new Worm(def, spawn, this.level, rig, this.sprites, this.worms);
+        worm.leash = this.bindRoom(worm, spawn);
         this.worms.push(worm);
         this.worldLayer.addChildAt(worm.container, this.worldLayer.getChildIndex(this.level.container));
         this.contactDmg.set(worm, def.stats.contact_damage);
         continue;
       }
       const enemy = new Enemy(def, spawn, this.level.tileSize, this.sprites);
+      this.bindRoom(enemy, spawn);
       this.enemies.push(enemy);
       this.worldLayer.addChild(enemy.sprite);
       this.track(enemy, def.stats.max_health, enemy.sprite, () => this.enemies.splice(this.enemies.indexOf(enemy), 1));
@@ -502,10 +535,24 @@ class GameApp {
       this.worldLayer.addChild(term.container);
     }
 
+    // Объекты уровня: двери, квестовые предметы, подставки (стоят за героем)
+    this.objects = new LevelObjects(levelDef, this.sprites, {
+      travel: (levelId, doorId) => this.travelTo(levelId, doorId),
+      teleport: (x, y) => this.teleportHero(x, y),
+      denied: (x, y) => this.fx.burst(x, y, { count: 8, colors: [0xff0b08, 0xfc896b, 0xffe1d2], speed: [30, 90], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] }),
+      collected: (x, y) => this.fx.burst(x, y, { count: 14, colors: LIGHTNING_SPARKS, speed: [40, 130], spread: Math.PI * 2, life: [0.2, 0.45], size: [1, 2] })
+    });
+    this.worldLayer.addChild(this.objects.container);
+
     this.player = new Player(heroSpriteId, rigDef, this.sprites, modelRigs[1] ?? null);
     this.player.setArmor(Armor.get().equipped);
-    this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, this.level.tileSize);
+    const ts = this.level.tileSize;
+    const door = requestedDoor ? this.objects.doorPoint(requestedDoor) : null;
+    if (door) this.player.spawnAt(door.x / ts - 0.5, door.y / ts - 1, ts); // пришёл через дверь: встаёт у её двойника
+    else if (requestedSpawn.length === 2 && requestedSpawn.every((n) => Number.isFinite(n))) this.player.spawnAt(requestedSpawn[0], requestedSpawn[1], ts);
+    else this.player.spawnAt(levelDef.player_spawn.x, levelDef.player_spawn.y, ts);
     this.worldLayer.addChild(this.player.sprite);
+    this.rooms.updateHero(Math.floor(this.player.body.x / ts), Math.floor((this.player.body.y - 16) / ts));
 
     this.loot = new LootSystem(this.sprites, this.fx);
     this.worldLayer.addChild(this.loot.container);
@@ -554,6 +601,10 @@ class GameApp {
     this.sceneLayer.removeChild(this.worldLayer);
     this.sceneLayer.addChild(this.lighting.sceneView);
     this.app.stage.addChild(this.lighting.overlay); // свет жуков и неон — поверх цветокоррекции, под интерфейсом
+    if (Fog.enabled(levelDef.fog, this.rooms)) {
+      this.fog = new Fog(this.rooms, levelDef.fog); // туман войны: вне комнаты героя мир чёрный (закрывает и свет жуков)
+      this.app.stage.addChild(this.fog.container);
+    }
     this.app.stage.addChild(this.flashLayer); // вспышка молнии на весь экран
     this.app.stage.addChild(this.numbers.container); // цифры урона — поверх всего, их не трогают ни свет, ни цветокоррекция
     if (levelDef.grade) {
@@ -562,6 +613,40 @@ class GameApp {
     }
     this.lighting.resize(this.app.renderer.width, this.app.renderer.height, this.scale);
     this.updateCamera();
+  }
+
+  /** Комната-«дом» моба по его клетке спавна (или явному spawn.room); null — уровень без комнат / моб вне комнат. */
+  private homeLeash(spawn: EnemySpawnDef): Leash | null {
+    if (!this.rooms.any) return null;
+    const room = this.rooms.homeOf(spawn.x, spawn.y, spawn.room);
+    return room === null ? null : this.rooms.leash(room);
+  }
+
+  /** Привязывает моба к его комнате (замечает героя и бьёт только в ней); возвращает привязку для самого моба. */
+  private bindRoom(target: Hittable, spawn: EnemySpawnDef): Leash | null {
+    const leash = this.homeLeash(spawn);
+    if (leash) this.leashOf.set(target, leash);
+    return leash;
+  }
+
+  /** Дверь ведёт на другой уровень: страница перезагружается с адресом уровня и двери, у которой герой появится. */
+  private travelTo(levelId: string, doorId: string): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set('level', levelId);
+    url.searchParams.delete('spawn');
+    if (doorId) url.searchParams.set('door', doorId);
+    else url.searchParams.delete('door');
+    window.location.href = url.toString();
+  }
+
+  /** Перенос героя в точку (низ двери, мир px) внутри уровня: вспышка, камера не плывёт издалека. */
+  private teleportHero(x: number, y: number): void {
+    const ts = this.level.tileSize;
+    const b = this.player.body;
+    this.fx.burst(b.x, b.y - 28, { count: 12, colors: LIGHTNING_SPARKS, speed: [40, 120], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+    this.player.spawnAt(x / ts - 0.5, y / ts - 1, ts);
+    this.fx.burst(x, y - 28, { count: 12, colors: LIGHTNING_SPARKS, speed: [40, 120], spread: Math.PI * 2, life: [0.15, 0.35], size: [1, 2] });
+    this.cameraReady = false;
   }
 
   /** Всё, по чему можно ударить. */
@@ -712,6 +797,8 @@ class GameApp {
     }
     for (const [target, dmg] of this.contactDmg) {
       if (dmg <= 0 || this.contactCd.has(target)) continue;
+      const home = this.leashOf.get(target);
+      if (home && !home.hero()) continue; // моб бьёт, только пока герой в его комнате
       for (const c of target.hitCircles()) {
         const nx = Math.max(b.left, Math.min(c.x, b.right));
         const ny = Math.max(b.top, Math.min(c.y, b.bottom));
@@ -839,7 +926,7 @@ class GameApp {
   }
 
   /** Паучок, выплюнутый маткой: летит из точки (x, y), садится на поверхность и дальше ползает как обычный паук. */
-  private spawnBaby(defs: Map<string, EnemyDef>, mother: EnemyDef, x: number, y: number, vx: number, vy: number): Spider | null {
+  private spawnBaby(defs: Map<string, EnemyDef>, mother: EnemyDef, x: number, y: number, vx: number, vy: number, room: Leash | null): Spider | null {
     const cfg = mother.spawns;
     const babyDef = cfg && defs.get(cfg.enemy_id);
     const rig = babyDef?.rig_id ? RIGS.find((r) => r.id === babyDef.rig_id) : undefined;
@@ -847,6 +934,10 @@ class GameApp {
     const spawn = { enemy_id: babyDef.id, sprite_id: cfg.sprite_id ?? babyDef.sprite_variants[0], x: 0, y: 0 };
     const baby = new Spider(babyDef, spawn, this.level, rig, this.sprites, { scale: cfg.scale, lifetime: cfg.lifetime_seconds, fx: this.fx });
     baby.launch(x, y, vx, vy);
+    if (room) {
+      baby.leash = room; // паучки матки ползают в её комнате
+      this.leashOf.set(baby, room);
+    }
     this.spiders.push(baby); // слой выбирает матка: сначала ниже себя, потом передний
     this.trackSpider(baby, Math.max(1, Math.round(babyDef.stats.max_health * (cfg.scale ?? 1))), babyDef.stats.contact_damage);
     return baby;
@@ -922,6 +1013,11 @@ class GameApp {
     // герой мигает, пока неуязвим после попадания
     this.player.sprite.alpha = armor.hurtTimer > 0 && Math.floor(armor.hurtTimer * 18) % 2 === 0 ? 0.45 : 1;
 
+    // Комнаты: в какой стоит герой (от этого зависят мобы и туман); объекты уровня: двери, предметы, подставки
+    const hb = this.player.body;
+    if (this.rooms.any) this.rooms.updateHero(Math.floor(hb.x / this.level.tileSize), Math.floor((hb.y - 16) / this.level.tileSize));
+    this.objects?.update(dt, { x: hb.x, y: hb.y }, input.interactPressed && !terminalOpen && this.deathTimer <= 0, frozen);
+
     // 3. Враги
     for (const enemy of this.enemies) enemy.update(dt);
     for (const spider of this.spiders) spider.update(dt);
@@ -956,7 +1052,20 @@ class GameApp {
     const camLeft = -this.worldLayer.x;
     const b = this.player.body;
     this.level.update(dt, camLeft, camLeft + this.viewW, [{ left: b.left, right: b.right, top: b.top, bottom: b.bottom, vx: b.vx, vy: b.vy }]);
+    // молнии светят: луч героя, вспышки и хвосты электрокрыс (рядом с героем) отдают источники света освещению
+    if (this.lighting) {
+      const extra = [...this.beam.lights, ...this.boltFx.lights];
+      for (const c of this.critters) {
+        const l = Math.abs(c.container.x - b.x) < 500 ? c.tailLight() : null;
+        if (l) extra.push(l);
+      }
+      this.lighting.extraLights = extra;
+    }
     this.lighting?.update();
+    if (this.fog) {
+      this.fog.container.position.copyFrom(this.worldLayer.position);
+      this.fog.update(dt, -this.worldLayer.x, -this.worldLayer.y, this.viewW, this.viewH);
+    }
     if (this.grade) {
       const span = Math.max(1, this.level.pixelWidth - this.viewW);
       this.grade.update(dt, Math.max(0, Math.min(1, camLeft / span)));

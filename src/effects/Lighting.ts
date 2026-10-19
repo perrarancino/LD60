@@ -536,7 +536,19 @@ interface Light {
   y: number;
   r: number;
   i: number;
+  c?: number[]; // цвет света (rgb 0..1); по умолчанию — LIGHT_COLOR (свет жуков)
 }
+
+/** Внешний источник света (мир): молнии героя и хвост электрокрысы. Цвет — свой, они светят наравне со светом жуков. */
+export interface ExtraLight {
+  x: number;
+  y: number;
+  r: number;
+  i: number;
+  c: [number, number, number];
+}
+
+const MAX_EXTRA_LIGHTS = 8; // сколько мест из MAX_LIGHTS отдано внешним источникам
 
 type Uniforms = Record<string, { value: unknown; type: string; size?: number }>;
 
@@ -598,6 +610,8 @@ export class Lighting {
   private glow: Filter | null = null;
   private readonly glowSprite = new Sprite(); // итог света жуков поверх кадра
   private readonly lightData = new Float32Array(MAX_LIGHTS * 4);
+  /** Внешние источники света (в мире) — выставляются игрой каждый кадр до update(). */
+  public extraLights: ExtraLight[] = [];
   private readonly colorData = new Float32Array(MAX_LIGHTS * 4);
   private readonly frac = new Float32Array(2); // дробная часть положения камеры, пиксели арта
   private rimColor = GREEN; // цвет контровой кромки от фона (по умолчанию зелёный; уровень может задать свой)
@@ -760,8 +774,17 @@ export class Lighting {
       m.i = Math.min(LIGHT_MAX, sum);
       m.r = Math.max(m.r, l.r);
     }
-    if (merged.length > MAX_LIGHTS) merged.length = MAX_LIGHTS; // самые сильные
-    return merged;
+    // внешние источники (молнии): в координаты сетки арта; вне экрана дальше радиуса не светят
+    const extra: Light[] = [];
+    for (const e of this.extraLights) {
+      const x = e.x + this.world.x + this.frac[0];
+      const y = e.y + this.world.y + this.frac[1];
+      if (x < -e.r || y < -e.r || x > this.viewW + e.r || y > this.viewH + e.r || e.i <= 0.01) continue;
+      extra.push({ x, y, r: e.r, i: e.i, c: e.c });
+      if (extra.length >= MAX_EXTRA_LIGHTS) break;
+    }
+    if (merged.length > MAX_LIGHTS - extra.length) merged.length = MAX_LIGHTS - extra.length; // самые сильные
+    return [...merged, ...extra];
   }
 
   /** Раз в кадр после обновления камеры (до отрисовки сцены). */
@@ -815,7 +838,10 @@ export class Lighting {
     // 4. свет жуков: источники -> униформы
     const lights = this.collectLights();
     this.lightData.fill(0);
-    lights.forEach((l, i) => this.lightData.set([l.x, l.y, l.r, l.i], i * 4));
+    lights.forEach((l, i) => {
+      this.lightData.set([l.x, l.y, l.r, l.i], i * 4);
+      this.colorData.set(l.c ?? LIGHT_COLOR, i * 4);
+    });
     for (const p of [light, bloom]) p.u.uCount = lights.length;
     this.glow!.resources.u.uniforms.uCount = lights.length;
     this.glow!.resources.u.uniforms.uTime = performance.now() / 1000; // неон пульсирует

@@ -1,6 +1,6 @@
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { DecorZoneDef } from '../data/types.ts';
+import type { DecorZoneDef, ThreadPlaceDef } from '../data/types.ts';
 import { ThreadRope } from '../entities/ThreadRope.ts';
 
 /** Нитка паучихи (enemy_spider_thread): из её звеньев собрана вся висящая паутина. */
@@ -352,6 +352,20 @@ export class Webs {
       const speed = SKY_SPEED[0] + rand() * (SKY_SPEED[1] - SKY_SPEED[0]);
       this.sky.push(new SkyThread(this.back, this.tex, x, topY, bottomY, swing, speed, rand() * Math.PI * 2, rand() < 0.5));
     }
+  }
+
+  /** Нитка, поставленная вручную точно на пиксель (level.threads): лиана свисает от точки (x, y), нитка с неба — верх в точке и свободный низ. */
+  public addThread(t: ThreadPlaceDef): void {
+    const rand = mulberry32(Math.round(t.x * 131 + t.y * 7919) + 17);
+    if (t.kind === 'vine') {
+      const pieces = Math.max(1, Math.min(12, Math.round(t.pieces ?? 3)));
+      const tint = VINE_TINTS[Math.floor(rand() * VINE_TINTS.length)];
+      this.vines.push(new Vine(this.back, this.tex, t.x, t.y, pieces, tint, t.bead ?? true, this.isSolid, this.ts));
+      return;
+    }
+    const swing = t.swing ?? SKY_SWING[0] + rand() * (SKY_SWING[1] - SKY_SWING[0]);
+    const speed = SKY_SPEED[0] + rand() * (SKY_SPEED[1] - SKY_SPEED[0]);
+    this.sky.push(new SkyThread(this.back, this.tex, t.x, t.y, t.y + Math.max(16, t.length ?? 160), swing, speed, rand() * Math.PI * 2, t.bead ?? true));
   }
 
   /** Пучок лиан под нижней гранью тайла: 2–3 нити разной длины (кратной звену), длина — до следующего тайла. */

@@ -1,0 +1,296 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "zz_tmp",
+  "display_name": "tmp",
+  "background_id": "bg_textalite",
+  "tile_size": 32,
+  "width": 30,
+  "height": 16,
+  "legend": {
+    "#": "textalite",
+    ".": null
+  },
+  "rows": [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "..........................#...",
+    "...................####...#...",
+    "...####.####..............#...",
+    ".......................#..#...",
+    ".......................#..#...",
+    "##############################"
+  ],
+  "player_spawn": {
+    "x": 2,
+    "y": 14
+  },
+  "terminals": [
+    {
+      "sprite_id": "terminal_loc1",
+      "x": 7,
+      "y": 14
+    }
+  ],
+  "enemies": [
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 10,
+      "y": 14,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 20,
+      "y": 10,
+      "surface": "floor"
+    },
+    {
+      "enemy_id": "spider",
+      "sprite_id": "enemy_spider",
+      "x": 25,
+      "y": 8,
+      "surface": "wall_right"
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 12,
+      "y": 14,
+      "surface": "floor",
+      "length": 4
+    },
+    {
+      "enemy_id": "worm",
+      "sprite_id": "enemy_worm",
+      "x": 19,
+      "y": 14,
+      "surface": "floor",
+      "length": 5
+    },
+    {
+      "enemy_id": "spider_mother",
+      "sprite_id": "enemy_spider_mother",
+      "x": 12,
+      "y": 8,
+      "anchor_y": -2
+    },
+    {
+      "enemy_id": "worm_boss",
+      "sprite_id": "boss_worm_head",
+      "x": 20,
+      "y": 3,
+      "length": 10
+    }
+  ],
+  "decor": [
+    {
+      "sprite_id": "deco_cooler",
+      "x": 15.5,
+      "y": 15,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 4.5,
+      "y": 12,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 10,
+      "y": 12,
+      "layer": "back"
+    },
+    {
+      "sprite_id": "deco_ram",
+      "x": 13,
+      "y": 15,
+      "layer": "back",
+      "flip_x": true
+    }
+  ],
+  "zones": [
+    {
+      "kind": "webs",
+      "x0": 17,
+      "y0": 3,
+      "x1": 28,
+      "y1": 15,
+      "density": 0.75
+    },
+    {
+      "kind": "webs",
+      "x0": 3,
+      "y0": 8,
+      "x1": 12,
+      "y1": 13,
+      "density": 0.35
+    },
+    {
+      "kind": "webs",
+      "x0": 12,
+      "y0": 3,
+      "x1": 18,
+      "y1": 11,
+      "density": 0.6
+    },
+    {
+      "kind": "transistors",
+      "x0": 3,
+      "y0": 10,
+      "x1": 12,
+      "y1": 15,
+      "density": 0.9
+    },
+    {
+      "kind": "transistors",
+      "x0": 17,
+      "y0": 9,
+      "x1": 22,
+      "y1": 15,
+      "density": 0.75
+    },
+    {
+      "kind": "transistors",
+      "x0": 23,
+      "y0": 3,
+      "x1": 29,
+      "y1": 15,
+      "density": 0.8
+    }
+  ],
+  "grade": {
+    "saturation": 1.08,
+    "contrast": 1.1,
+    "vignette": 0.36,
+    "exposure": 1.02,
+    "gamma": 1.08,
+    "tint": [
+      0.82,
+      1.0,
+      0.9
+    ],
+    "shadows": [
+      0.0,
+      0.035,
+      0.02
+    ],
+    "highlights": [
+      0.02,
+      0.06,
+      0.03
+    ],
+    "shadows_end": [
+      0.0,
+      0.03,
+      0.04
+    ],
+    "highlights_end": [
+      0.04,
+      0.05,
+      0.0
+    ]
+  },
+  "start_armor": 1,
+  "rooms": [
+    {
+      "id": "A",
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "width": 11,
+      "height": 16
+    },
+    {
+      "id": "B",
+      "name": "B",
+      "x": 18,
+      "y": 0,
+      "width": 12,
+      "height": 16
+    }
+  ],
+  "fog": true,
+  "objects": [
+    {
+      "id": "door_1",
+      "type": "door",
+      "x": 96,
+      "y": 480,
+      "props": {
+        "to_door": "door_2"
+      }
+    },
+    {
+      "id": "door_2",
+      "type": "door",
+      "x": 800,
+      "y": 480,
+      "props": {
+        "to_door": "door_1",
+        "requires_flag": "power_on"
+      }
+    },
+    {
+      "id": "battery_1",
+      "type": "battery",
+      "x": 140,
+      "y": 440,
+      "props": {
+        "item": "battery"
+      }
+    },
+    {
+      "id": "stand_1",
+      "type": "battery_stand",
+      "x": 200,
+      "y": 480,
+      "props": {
+        "needs_item": "battery",
+        "sets_flag": "power_on"
+      }
+    }
+  ],
+  "tile_xform": [
+    {
+      "x": 4,
+      "y": 12,
+      "flip_x": true
+    },
+    {
+      "x": 5,
+      "y": 12,
+      "rot": 90
+    },
+    {
+      "x": 6,
+      "y": 12,
+      "flip_y": true
+    }
+  ],
+  "threads": [
+    {
+      "kind": "vine",
+      "x": 150,
+      "y": 420,
+      "pieces": 3
+    },
+    {
+      "kind": "sky",
+      "x": 300,
+      "y": 0,
+      "length": 240,
+      "swing": 12
+    }
+  ]
+}

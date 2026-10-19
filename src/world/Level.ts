@@ -1,6 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import type { SpriteLibrary } from '../assets/SpriteLibrary.ts';
-import type { DecorZoneDef, LevelDef, TileSetDef } from '../data/types.ts';
+import type { DecorZoneDef, LevelDef, Slope, TileSetDef } from '../data/types.ts';
+import { objectSpriteIds } from './placeables.ts';
+import { cellKey, tileVisual, transformSlope, xformMap, xformSteps } from './tileRules.ts';
 import { THREAD_SPRITE, Webs } from './Webs.ts';
 import type { Actor } from './Webs.ts';
 
@@ -39,7 +41,7 @@ export class Level {
   public readonly def: LevelDef;
 
   private solid: boolean[][] = [];
-  private slopes: (('up_right' | 'up_left' | 'ceil_right' | 'ceil_left') | undefined)[][] = [];
+  private slopes: (Slope | undefined)[][] = [];
   private readonly reserved = new Set<string>(); // «ряд:колонка» клеток, где уже стоит декор (автодекор там не ставится)
   private readonly webs: Webs;
 
@@ -51,6 +53,7 @@ export class Level {
       ...tileset.tiles.filter((t) => used.has(t.id)).flatMap((t) => (t.fill_sprite_id ? [t.sprite_id, t.fill_sprite_id] : [t.sprite_id])),
       ...(def.decor ?? []).map((d) => d.sprite_id),
       ...(zones.some((z) => z.kind === 'transistors') ? SPRITE_TRANSISTORS : []),
+      ...(def.objects ?? []).flatMap((o) => objectSpriteIds(o)),
       THREAD_SPRITE
     ];
   }
@@ -67,9 +70,12 @@ export class Level {
 
     const tilesById = new Map(tileset.tiles.map((t) => [t.id, t]));
     const tileAt = (cx: number, cy: number) => {
-      const tileId = def.legend[def.rows[cy][cx]];
+      const tileId = def.legend[def.rows[cy]?.[cx]];
       return tileId ? tilesById.get(tileId) : undefined;
     };
+    const xforms = xformMap(def.tile_xform);
+    const env = { tileAt, solidAt: (cx: number, cy: number) => this.solid[cy]?.[cx] ?? false };
+    const ts = this.tileSize;
     for (let cy = 0; cy < def.height; cy++) {
       this.solid[cy] = [];
       this.slopes[cy] = [];
@@ -80,79 +86,58 @@ export class Level {
         const tile = tileId ? tilesById.get(tileId) : undefined;
         if (tileId && !tile) throw new Error(`[Level] неизвестный тайл "${tileId}"`);
 
+        const xf = xforms.get(cellKey(cx, cy));
+        const slope = tile?.slope ? transformSlope(tile.slope, xf) : undefined; // поворот и отражение переставляют скос
         this.solid[cy][cx] = !!tile?.solid;
-        this.slopes[cy][cx] = tile?.slope;
+        this.slopes[cy][cx] = slope;
+        if (!tile) continue;
 
-        if (tile && (tile.top_frames || tile.fill_frames) && !tile.slope) {
-          // Лист вариантов (textalite): сверху — кадры верхнего слоя, в толще — кадры заливки; вариант выбирается по клетке, всегда один и тот же
-          const under = cy > 0 && this.solid[cy - 1][cx];
-          const pool = (under ? tile.fill_frames : tile.top_frames) ?? tile.top_frames ?? tile.fill_frames!;
-          const frame = pool[(((cx * 73856093) ^ (cy * 19349663)) >>> 0) % pool.length];
-          const sprite = sprites.createSprite(tile.sprite_id, frame);
-          sprite.position.set(cx * this.tileSize, cy * this.tileSize);
-          this.chunk(cx, cy).addChild(sprite);
-        } else if (tile && tile.fill_sprite_id && cy > 0 && this.solid[cy - 1][cx] && !tile.slope) {
-          // Под верхним слоем (стена, толща): заливка вместо рамки основного тайла
-          const fill = sprites.createSprite(tile.fill_sprite_id);
-          fill.position.set(cx * this.tileSize, cy * this.tileSize);
-          this.chunk(cx, cy).addChild(fill);
-        } else if (tile) {
-          // Платформа из трёх кадров: левый край (0), середина (1, повторяется), правый край (2). Одиночный тайл (стенка) — середина.
-          let frame = 0;
-          if (tile.loop_frames && tile.loop_frames >= 3) {
-            const left = cx > 0 && tileAt(cx - 1, cy) === tile;
-            const right = cx < def.width - 1 && tileAt(cx + 1, cy) === tile;
-            frame = left && right ? 1 : right ? 0 : left ? tile.loop_frames - 1 : 1;
-          }
-          const sprite = sprites.createSprite(tile.sprite_id, frame);
-          sprite.position.set(cx * this.tileSize, cy * this.tileSize);
-
-          if (tile.slope) {
-            const mask = new Graphics();
-            const ts = this.tileSize;
-            const ox = cx * ts;
-            const oy = cy * ts;
-            mask.beginPath();
-            if (tile.slope === 'up_right') {
-              mask.poly([ox, oy + ts, ox + ts, oy + ts, ox + ts, oy]);
-            } else if (tile.slope === 'up_left') {
-              mask.poly([ox, oy, ox, oy + ts, ox + ts, oy + ts]);
-            } else if (tile.slope === 'ceil_right') {
-              mask.poly([ox, oy, ox + ts, oy, ox + ts, oy + ts]);
-            } else if (tile.slope === 'ceil_left') {
-              mask.poly([ox, oy, ox + ts, oy, ox, oy + ts]);
-            }
-            mask.fill({ color: 0xffffff });
-            sprite.mask = mask;
-            this.chunk(cx, cy).addChild(mask);
-
-            if (!tile.id.includes('step')) {
-              // Линия дорожки по диагонали
-              const edge = new Graphics();
-              edge.setStrokeStyle({ width: 2, color: 0x4ade80, alpha: 0.9 });
-              if (tile.slope === 'up_right') {
-                edge.moveTo(ox, oy + ts).lineTo(ox + ts, oy);
-              } else if (tile.slope === 'up_left') {
-                edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
-              } else if (tile.slope === 'ceil_right') {
-                edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
-              } else if (tile.slope === 'ceil_left') {
-                edge.moveTo(ox + ts, oy).lineTo(ox, oy + ts);
-              }
-              edge.stroke();
-              this.chunk(cx, cy).addChild(edge);
-            }
-            this.chunk(cx, cy).addChild(sprite);
-          } else {
-            this.chunk(cx, cy).addChild(sprite);
-          }
+        const look = tileVisual(tile, cx, cy, env);
+        const sprite = sprites.createSprite(look.sprite_id, look.frame);
+        const ox = cx * ts;
+        const oy = cy * ts;
+        if (xf) {
+          // отражения и поворот вокруг центра клетки
+          const st = xformSteps(xf);
+          sprite.anchor.set(0.5);
+          sprite.position.set(ox + ts / 2, oy + ts / 2);
+          sprite.scale.set(st.sx, st.sy);
+          sprite.rotation = (st.quarter * Math.PI) / 2;
+        } else {
+          sprite.position.set(ox, oy);
         }
+
+        if (!slope) {
+          this.chunk(cx, cy).addChild(sprite);
+          continue;
+        }
+        // Скос: рисунок обрезается треугольником маски (в мировых координатах клетки)
+        const mask = new Graphics();
+        mask.beginPath();
+        if (slope === 'up_right') mask.poly([ox, oy + ts, ox + ts, oy + ts, ox + ts, oy]);
+        else if (slope === 'up_left') mask.poly([ox, oy, ox, oy + ts, ox + ts, oy + ts]);
+        else if (slope === 'ceil_right') mask.poly([ox, oy, ox + ts, oy, ox + ts, oy + ts]);
+        else mask.poly([ox, oy, ox + ts, oy, ox, oy + ts]);
+        mask.fill({ color: 0xffffff });
+        sprite.mask = mask;
+        this.chunk(cx, cy).addChild(mask);
+
+        if (!tile.id.includes('step')) {
+          // Линия дорожки по диагонали
+          const edge = new Graphics();
+          edge.setStrokeStyle({ width: 2, color: 0x4ade80, alpha: 0.9 });
+          if (slope === 'up_right' || slope === 'ceil_left') edge.moveTo(ox, oy + ts).lineTo(ox + ts, oy);
+          else edge.moveTo(ox, oy).lineTo(ox + ts, oy + ts);
+          edge.stroke();
+          this.chunk(cx, cy).addChild(edge);
+        }
+        this.chunk(cx, cy).addChild(sprite);
       }
     }
 
     // Декор, заданный вручную: точка привязки спрайта (origin из реестра) — в (x, y) тайлов
     for (const d of def.decor ?? []) {
-      this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer);
+      this.placeDecor(sprites, d.sprite_id, d.x, d.y, d.layer === 'back' ? this.backLayer : this.frontLayer, d.flip_x, d.flip_y);
       // колонки, которые декор занимает по ширине на своём ряду: автодекор (транзисторы) в них не ставим — ничего не пересекается
       const def = sprites.def(d.sprite_id);
       const left = Math.floor((d.x * this.tileSize - def.frame_width * def.origin.x) / this.tileSize);
@@ -167,12 +152,15 @@ export class Level {
       if (zone.kind === 'webs') this.webs.addZone(zone, i);
       else this.fillTransistors(sprites, zone, i);
     });
+    // Нитки, поставленные вручную на конкретные пиксели
+    for (const t of def.threads ?? []) this.webs.addThread(t);
   }
 
   /** Ставит спрайт декора (без коллизии). */
-  private placeDecor(sprites: SpriteLibrary, id: string, tx: number, ty: number, layer: Container): void {
+  private placeDecor(sprites: SpriteLibrary, id: string, tx: number, ty: number, layer: Container, flipX = false, flipY = false): void {
     const sprite = sprites.createSprite(id);
     sprite.position.set(Math.round(tx * this.tileSize), Math.round(ty * this.tileSize));
+    if (flipX || flipY) sprite.scale.set(flipX ? -1 : 1, flipY ? -1 : 1); // отражение вокруг точки привязки
     layer.addChild(sprite);
   }
 
@@ -241,7 +229,7 @@ export class Level {
   }
 
   /** Получить скос клетки, если он есть */
-  public getSlope(cx: number, cy: number): ('up_right' | 'up_left' | 'ceil_right' | 'ceil_left') | undefined {
+  public getSlope(cx: number, cy: number): Slope | undefined {
     if (cx < 0 || cx >= this.widthTiles || cy < 0 || cy >= this.heightTiles) return undefined;
     return this.slopes[cy]?.[cx];
   }
