@@ -133,7 +133,7 @@
         <button id="tab-zones-btn" class="tab-btn">ЗОНЫ</button>
         <button id="tab-bosses-btn" class="tab-btn">БОССЫ</button>
         <button id="tab-enemies-btn" class="tab-btn">ВРАГИ</button>
-        <button id="tab-decor-btn" class="tab-btn">ДЕКОР</button>
+        <button id="tab-decor-btn" class="tab-btn">ДЕКОР & ПРЕДМЕТЫ</button>
         <button id="tab-bg-btn" class="tab-btn">ФОН</button>
         <button id="tab-settings-btn" class="tab-btn">МИР</button>
       </nav>
@@ -312,7 +312,9 @@
         <!-- Секция объектов декора и ассетов -->
         <div style="margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">КАТАЛОГ ДЕКОРА И ОБЪЕКТОВ (Y)</div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">
+              КАТАЛОГ ДЕКОРА & ПРЕДМЕТОВ (Y) <span id="decor-count-badge" style="color: #38bdf8; font-size: 10px; font-weight: normal; margin-left: 4px;"></span>
+            </div>
             <button id="btn-tool-decor" type="button" class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;">
               🖼️ Режим [Y]
             </button>
@@ -322,6 +324,19 @@
             Кликните по спрайту, затем по карте для размещения.
           </div>
 
+          <!-- Фильтры категорий -->
+          <div id="decor-category-filters" class="decor-filter-pills">
+            <button type="button" class="btn-pill active" data-filter="all">Все</button>
+            <button type="button" class="btn-pill" data-filter="decor">Декор</button>
+            <button type="button" class="btn-pill" data-filter="items">Предметы</button>
+            <button type="button" class="btn-pill" data-filter="enemies">Враги / Боссы</button>
+            <button type="button" class="btn-pill" data-filter="effects">Эффекты</button>
+            <button type="button" class="btn-pill" data-filter="ui">UI / Прочее</button>
+          </div>
+
+          <!-- Поиск спрайта -->
+          <input id="decor-search-input" type="text" class="text-input" placeholder="🔍 Поиск спрайта (например: battery, scrap, cooler)..." style="width: 100%; margin-bottom: 8px; font-size: 11px; padding: 4px 8px;" />
+
           <div class="form-group" style="margin-bottom: 8px;">
             <label class="form-label" style="font-size: 11px;">Слой размещения (Layer):</label>
             <select id="decor-layer-select" class="select-input" style="width: 100%;">
@@ -330,7 +345,7 @@
             </select>
           </div>
 
-          <div id="palette-decor-list" class="palette-grid" style="max-height: 240px; overflow-y: auto;">
+          <div id="palette-decor-list" class="palette-grid" style="max-height: 280px; overflow-y: auto;">
             <!-- Заполняется динамически из sprites.json -->
           </div>
 

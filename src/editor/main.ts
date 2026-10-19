@@ -10,6 +10,8 @@ class EditorApp {
   private currentFilename: string = '';
   private currentBackgroundId: string = '';
   private worldGraphModal = new WorldGraphModal();
+  private decorCategoryFilter: string = 'all';
+  private decorSearchQuery: string = '';
 
   public async init() {
     const canvasElem = document.getElementById('editor-canvas') as HTMLCanvasElement;
@@ -840,25 +842,40 @@ class EditorApp {
       card.className = 'boss-card';
       card.dataset.bossId = boss.id;
 
+      const bossSpriteId = boss.sprite_id || this.canvas.enemiesById.get(boss.id)?.sprite_variants[0] || 'boss_textalite';
+      const spriteDef = this.assets.getSpriteDef(bossSpriteId);
+
       const header = document.createElement('div');
       header.className = 'boss-card-header';
 
-      const crown = document.createElement('span');
-      crown.className = 'boss-card-crown';
-      crown.textContent = '👑';
+      const thumb = document.createElement('div');
+      thumb.className = 'boss-card-thumb';
+      if (spriteDef) {
+        const img = document.createElement('img');
+        img.src = `/ld60-assets/${spriteDef.image}`;
+        img.alt = boss.display_name || boss.id;
+        thumb.appendChild(img);
+      } else {
+        thumb.textContent = '👑';
+      }
 
-      const name = document.createElement('span');
+      const info = document.createElement('div');
+      info.style.flex = '1';
+
+      const name = document.createElement('div');
       name.className = 'boss-card-name';
-      name.textContent = boss.display_name || boss.id;
-
-      header.appendChild(crown);
-      header.appendChild(name);
-      card.appendChild(header);
+      name.innerHTML = `<span class="boss-card-crown">👑</span> ${boss.display_name || boss.id}`;
 
       const stats = document.createElement('div');
       stats.className = 'boss-card-stats';
-      stats.textContent = `Здоровье: ${boss.stats?.max_health ?? 350} HP | Урон: ${boss.stats?.contact_damage ?? 20} | Локация: ${boss.location_id || 'любая'}`;
-      card.appendChild(stats);
+      stats.textContent = `HP: ${boss.stats?.max_health ?? 350} | Урон: ${boss.stats?.contact_damage ?? 20} | Спрайт: ${bossSpriteId}`;
+
+      info.appendChild(name);
+      info.appendChild(stats);
+
+      header.appendChild(thumb);
+      header.appendChild(info);
+      card.appendChild(header);
 
       if (boss.attacks && boss.attacks.length > 0) {
         const attacksWrap = document.createElement('div');
@@ -878,8 +895,9 @@ class EditorApp {
         card.classList.add('active');
         this.canvas.selectedBossId = boss.id;
         this.canvas.selectedBossDisplayName = boss.display_name || boss.id;
+        this.canvas.selectedBossSpriteId = bossSpriteId;
         this.setTool('boss_spawn');
-        this.setStatus(`👑 Выбран босс для спавна: ${boss.display_name}`);
+        this.setStatus(`👑 Выбран босс для спавна: ${boss.display_name} (${bossSpriteId})`);
       });
 
       container.appendChild(card);
@@ -888,8 +906,10 @@ class EditorApp {
     // По умолчанию выбираем первого босса
     if (this.config.bosses.length > 0) {
       const firstBoss = this.config.bosses[0];
+      const bossSpriteId = firstBoss.sprite_id || this.canvas.enemiesById.get(firstBoss.id)?.sprite_variants[0] || 'boss_textalite';
       this.canvas.selectedBossId = firstBoss.id;
       this.canvas.selectedBossDisplayName = firstBoss.display_name || firstBoss.id;
+      this.canvas.selectedBossSpriteId = bossSpriteId;
       const firstCard = container.querySelector('.boss-card');
       firstCard?.classList.add('active');
     }
@@ -901,31 +921,69 @@ class EditorApp {
     container.innerHTML = '';
 
     const allSprites = this.assets.getAllSprites();
-    // Фильтруем спрайты декора, предметов, эффектов и интерфейса
-    const decorSprites = allSprites.filter(s =>
-      s.category === 'decor' ||
-      s.category === 'items' ||
-      s.category === 'effects' ||
-      s.category === 'ui' ||
-      s.id.startsWith('deco_') ||
-      s.id.startsWith('item_') ||
-      s.id.startsWith('fx_') ||
-      s.id.startsWith('ui_')
-    );
+    const filter = this.decorCategoryFilter;
+    const q = this.decorSearchQuery;
 
-    // Сортируем: сначала decor, затем items, затем effects, затем ui/остальные
-    decorSprites.sort((a, b) => {
-      const order = (cat: string) => (cat === 'decor' ? 1 : cat === 'items' ? 2 : cat === 'effects' ? 3 : 4);
+    const filteredSprites = allSprites.filter(s => {
+      // 1. Фильтр по категории
+      if (filter === 'decor') {
+        if (!(s.category === 'decor' || s.id.startsWith('deco_') || s.id.startsWith('terminal_'))) return false;
+      } else if (filter === 'items') {
+        if (!(s.category === 'items' || s.id.startsWith('item_') || s.id.startsWith('mat_') || s.id.includes('bullet') || s.id.includes('battery'))) return false;
+      } else if (filter === 'enemies') {
+        if (!(s.category === 'enemies' || s.category === 'bosses' || s.id.startsWith('enemy_') || s.id.startsWith('boss_'))) return false;
+      } else if (filter === 'effects') {
+        if (!(s.category === 'effects' || s.id.startsWith('fx_'))) return false;
+      } else if (filter === 'ui') {
+        if (!(s.category === 'ui' || s.id.startsWith('ui_') || s.category === 'backgrounds' || s.category === 'player')) return false;
+      }
+
+      // 2. Текстовый поиск
+      if (q) {
+        const matchesId = s.id.toLowerCase().includes(q);
+        const matchesCat = s.category.toLowerCase().includes(q);
+        const matchesImg = s.image && s.image.toLowerCase().includes(q);
+        if (!matchesId && !matchesCat && !matchesImg) return false;
+      }
+
+      return true;
+    });
+
+    const countBadge = document.getElementById('decor-count-badge');
+    if (countBadge) {
+      countBadge.textContent = `(${filteredSprites.length} шт.)`;
+    }
+
+    if (filteredSprites.length === 0) {
+      container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 11px; padding: 18px 8px; background: rgba(0,0,0,0.2); border-radius: 6px;">Ничего не найдено по фильтрам</div>`;
+      return;
+    }
+
+    // Сортируем: decor -> items -> effects -> enemies -> bosses -> ui -> backgrounds -> player
+    filteredSprites.sort((a, b) => {
+      const order = (cat: string) => {
+        if (cat === 'decor') return 1;
+        if (cat === 'items') return 2;
+        if (cat === 'effects') return 3;
+        if (cat === 'enemies') return 4;
+        if (cat === 'bosses') return 5;
+        if (cat === 'ui') return 6;
+        if (cat === 'backgrounds') return 7;
+        return 8;
+      };
       const catA = order(a.category);
       const catB = order(b.category);
       if (catA !== catB) return catA - catB;
       return a.id.localeCompare(b.id);
     });
 
-    for (const sprite of decorSprites) {
+    for (const sprite of filteredSprites) {
       const item = document.createElement('div');
       item.className = 'palette-item';
       item.dataset.spriteId = sprite.id;
+      if (this.canvas.selectedDecorSpriteId === sprite.id) {
+        item.classList.add('active');
+      }
 
       const thumb = document.createElement('div');
       thumb.className = 'palette-item-thumb';
@@ -944,7 +1002,7 @@ class EditorApp {
 
       const label = document.createElement('div');
       label.className = 'palette-item-label';
-      label.textContent = sprite.id.replace(/^(deco_|item_|fx_|ui_)/, '');
+      label.textContent = sprite.id.replace(/^(deco_|item_|fx_|ui_|enemy_|boss_|tile_|bg_)/, '');
       label.title = `${sprite.id} (${sprite.frame_width}×${sprite.frame_height}px) [${sprite.category}]`;
 
       item.appendChild(thumb);
@@ -955,16 +1013,15 @@ class EditorApp {
         item.classList.add('active');
         this.canvas.selectedDecorSpriteId = sprite.id;
         this.setTool('decor');
-        this.setStatus(`🖼️ Выбран декор: ${sprite.id} (${sprite.frame_width}×${sprite.frame_height}px). Кликните по карте.`);
+        this.setStatus(`🖼️ Выбран спрайт: ${sprite.id} (${sprite.frame_width}×${sprite.frame_height}px, категория: ${sprite.category}). Кликните по карте.`);
       });
 
       container.appendChild(item);
     }
 
-    if (decorSprites.length > 0) {
-      const initialId = this.canvas.selectedDecorSpriteId || decorSprites[0].id;
-      this.canvas.selectedDecorSpriteId = initialId;
-      const firstItem = container.querySelector(`[data-sprite-id="${initialId}"]`) || container.querySelector('.palette-item');
+    if (filteredSprites.length > 0 && !this.canvas.selectedDecorSpriteId) {
+      this.canvas.selectedDecorSpriteId = filteredSprites[0].id;
+      const firstItem = container.querySelector('.palette-item');
       firstItem?.classList.add('active');
     }
   }
@@ -1321,6 +1378,23 @@ class EditorApp {
         document.getElementById(contentId)?.classList.add('active');
       });
     }
+
+    // Поиск декора и предметов
+    const decorSearch = document.getElementById('decor-search-input') as HTMLInputElement;
+    decorSearch?.addEventListener('input', () => {
+      this.decorSearchQuery = decorSearch.value.trim().toLowerCase();
+      this.populateDecorPalette();
+    });
+
+    // Фильтры категорий декора и предметов
+    document.querySelectorAll('#decor-category-filters .btn-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#decor-category-filters .btn-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.decorCategoryFilter = (btn as HTMLElement).dataset.filter || 'all';
+        this.populateDecorPalette();
+      });
+    });
 
     (document.getElementById('setting-level-bg') as HTMLSelectElement)?.addEventListener('change', (e) => {
       const val = (e.target as HTMLSelectElement).value;

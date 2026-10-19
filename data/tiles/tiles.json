@@ -114,6 +114,20 @@
       "sprite_id": "tile_loc2",
       "solid": true,
       "one_way": false
+    },
+    {
+      "id": "doptileset",
+      "display_name": "Доп. тайлсет платформы (doptileset)",
+      "sprite_id": "tile_doptileset",
+      "solid": true,
+      "one_way": false
+    },
+    {
+      "id": "platform_block_single",
+      "display_name": "Одиночный блок платформы (32x32)",
+      "sprite_id": "tile_platform_block",
+      "solid": true,
+      "one_way": false
     }
   ]
 }

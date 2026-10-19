@@ -1851,6 +1851,91 @@
           "loop": true
         }
       }
+    },
+    {
+      "id": "boss_textalite",
+      "category": "bosses",
+      "image": "bosses/boss_textalite.png",
+      "frame_width": 128,
+      "frame_height": 384,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.27
+      },
+      "animations": {
+        "idle": {
+          "frames": [
+            0
+          ],
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "bg_textalite",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_textalite.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "bg_loc2",
+      "category": "backgrounds",
+      "image": "backgrounds/bg_loc2.png",
+      "frame_width": 512,
+      "frame_height": 128,
+      "frames": 1,
+      "origin": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_mother_body",
+      "category": "enemies",
+      "image": "enemies/spider_mother_layers/Layer_1.png",
+      "frame_width": 64,
+      "frame_height": 64,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "enemy_spider_thread_layer1",
+      "category": "enemies",
+      "image": "enemies/spider_thread_layers/Layer_1.png",
+      "frame_width": 8,
+      "frame_height": 16,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
+    },
+    {
+      "id": "item_bullet1",
+      "category": "items",
+      "image": "items/bullet1.png",
+      "frame_width": 8,
+      "frame_height": 8,
+      "frames": 1,
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "animations": {}
     }
   ]
 }

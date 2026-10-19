@@ -75,6 +75,7 @@ export class EditorCanvas {
   // Спавн боссов (Boss Spawn Tool)
   public selectedBossId: string | null = null;
   public selectedBossDisplayName: string = '';
+  public selectedBossSpriteId: string = 'boss_textalite';
 
   // Провода (Cable Tool)
   public currentCableStart: { x: number; y: number } | null = null;
@@ -2096,11 +2097,11 @@ export class EditorCanvas {
   // --- Фиксированный спавн боссов (Boss Spawn Tool) ---
   public placeBossAt(x: number, y: number) {
     if (!this.level || x < 0 || x >= this.level.width || y < 0 || y >= this.level.height) return;
-    const bossId = this.selectedBossId || 'boss_chipset_sentinel';
+    const bossId = this.selectedBossId || 'worm_boss';
     const bossName = this.selectedBossDisplayName || bossId;
 
     const bossDef = this.enemiesById.get(bossId);
-    const spriteId = bossDef?.sprite_variants[0] || 'boss_chipset_sentinel';
+    const spriteId = this.selectedBossSpriteId || bossDef?.sprite_variants[0] || 'boss_textalite';
 
     this.level.enemies = this.level.enemies.filter(e => !(e.x === x && e.y === y));
 
@@ -2570,9 +2571,9 @@ export class EditorCanvas {
           this.assets.drawEntityAtTile(ctx, this.selectedEnemySpriteId, this.hoveredTileX, this.hoveredTileY, ts);
           ctx.restore();
         } else if (this.activeTool === 'boss_spawn') {
-          const bossId = this.selectedBossId || 'boss_chipset_sentinel';
+          const bossId = this.selectedBossId || 'worm_boss';
           const bossDef = this.enemiesById.get(bossId);
-          const spriteId = bossDef?.sprite_variants[0] || bossId;
+          const spriteId = this.selectedBossSpriteId || bossDef?.sprite_variants[0] || 'boss_textalite';
           ctx.save();
           ctx.globalAlpha = 0.7;
           this.assets.drawSprite(ctx, spriteId, hx, hy, 0, ts, ts);
